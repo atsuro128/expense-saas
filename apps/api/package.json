@@ -1,0 +1,6 @@
+{
+  "name": "api",
+  "description": "バックエンドAPIのパッケージ定義",
+  "version": "0.0.0",
+  "private": true
+}

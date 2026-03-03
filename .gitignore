@@ -1,0 +1,30 @@
+# プロダクトリポジトリのGit追跡除外ルール
+
+# 環境変数
+.env
+.env.*
+!.env.example
+
+# Rust
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Node.js / Frontend
+node_modules/
+dist/
+.next/
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/settings.json
+*.swp
+*.swo
+
+# Docker
+docker-compose.override.yml

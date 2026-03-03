@@ -1,0 +1,6 @@
+{
+  "name": "web",
+  "description": "フロントエンドアプリケーションのパッケージ定義",
+  "version": "0.0.0",
+  "private": true
+}
