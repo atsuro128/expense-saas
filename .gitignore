@@ -5,10 +5,14 @@
 .env.*
 !.env.example
 
-# Rust
-target/
-**/*.rs.bk
-Cargo.lock.bak
+# Go
+bin/
+vendor/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
 
 # Node.js / Frontend
 node_modules/
