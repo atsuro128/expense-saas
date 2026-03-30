@@ -7,6 +7,16 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     strictPort: true,
+    proxy: {
+      '/api': {
+        target: 'http://api:8080',
+        changeOrigin: true,
+      },
+      '/health': {
+        target: 'http://api:8080',
+        changeOrigin: true,
+      },
+    },
   },
   build: {
     outDir: 'dist',
