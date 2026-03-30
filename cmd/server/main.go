@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -15,6 +14,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"expense-saas/internal/config"
+	"expense-saas/internal/handler"
+	"expense-saas/internal/middleware"
+	appjwt "expense-saas/internal/pkg/jwt"
 )
 
 func main() {
@@ -55,24 +57,59 @@ func main() {
 	}
 	slog.Info("database connection established")
 
-	// 5. Create router.
+	// 5. Initialize JWT verifier (non-fatal: warn and continue when key file is absent).
+	var verifier *appjwt.Verifier
+	if cfg.JWTPublicKeyPath != "" {
+		v, jwtErr := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
+		if jwtErr != nil {
+			slog.Warn("JWT verifier initialization failed; authenticated endpoints will return 401",
+				"error", jwtErr,
+				"path", cfg.JWTPublicKeyPath,
+			)
+		} else {
+			verifier = v
+			slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
+		}
+	} else {
+		slog.Warn("JWT_PUBLIC_KEY_PATH is not set; authenticated endpoints will return 401")
+	}
+
+	// 6. Context for background goroutines (rate limiter cleanup etc.).
+	bgCtx, bgCancel := context.WithCancel(context.Background())
+	defer bgCancel()
+
+	// 7. Create router with common middleware chain.
 	r := chi.NewRouter()
 
-	// 6. Register health check endpoint.
-	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	// Common middleware: CORS → SecurityHeaders → RequestID → Logger → RateLimit(IP).
+	r.Use(middleware.Cors(cfg.CORSAllowedOrigins))
+	r.Use(middleware.SecurityHeaders)
+	r.Use(middleware.RequestID)
+	r.Use(middleware.Logger)
+	r.Use(middleware.RateLimitByIP(bgCtx, 20, time.Minute))
+
+	// 8. Unauthenticated group (no additional rate limit needed).
+	r.Group(func(pub chi.Router) {
+		pub.Get("/health", handler.NewHealthHandler(pool))
 	})
 
-	// 7. Start HTTP server.
+	// 9. Authenticated group: Auth → TenantContext → rate-limited by user.
+	// Handlers will be registered in step 8-6.
+	r.Group(func(priv chi.Router) {
+		priv.Use(middleware.Auth(verifier))
+		priv.Use(middleware.TenantContext(pool))
+		priv.Use(middleware.RateLimitByUser(bgCtx, 100, time.Minute))
+		// Future handlers registered here in 8-6.
+	})
+
+	// 10. Start HTTP server.
 	addr := "0.0.0.0:" + cfg.Port
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,
 	}
 
-	// 8. Graceful shutdown on OS signal.
+	// 11. Graceful shutdown on OS signal.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -87,10 +124,13 @@ func main() {
 	<-quit
 	slog.Info("shutting down server")
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+	// Cancel background goroutines (e.g., rate limiter cleanup).
+	bgCancel()
 
-	if err := srv.Shutdown(ctx); err != nil {
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
 		slog.Error("server shutdown error", "error", err)
 	}
 
