@@ -17,6 +17,8 @@ import (
 	"expense-saas/internal/handler"
 	"expense-saas/internal/middleware"
 	appjwt "expense-saas/internal/pkg/jwt"
+	"expense-saas/internal/repository/postgres"
+	"expense-saas/internal/service"
 )
 
 func main() {
@@ -78,7 +80,43 @@ func main() {
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	defer bgCancel()
 
-	// 7. Create router with common middleware chain.
+	// 7. Wire up repositories, services, and handlers (DI).
+
+	// Repositories.
+	tenantRepo := postgres.NewTenantRepo(pool)
+	userRepo := postgres.NewUserRepo(pool)
+	membershipRepo := postgres.NewMembershipRepo(pool)
+	categoryRepo := postgres.NewCategoryRepo(pool)
+	reportRepo := postgres.NewReportRepo(pool)
+	itemRepo := postgres.NewItemRepo(pool)
+	attachmentRepo := postgres.NewAttachmentRepo(pool)
+	refreshTokenRepo := postgres.NewRefreshTokenRepo(pool)
+	passwordResetRepo := postgres.NewPasswordResetRepo(pool)
+
+	// Authorizer.
+	authorizer := service.NewAuthorizer()
+
+	// Services.
+	authSvc := service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
+	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
+	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
+	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
+	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
+	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
+	categorySvc := service.NewCategoryService(categoryRepo)
+	tenantSvc := service.NewTenantService(tenantRepo, userRepo, membershipRepo)
+
+	// Handlers.
+	authHandler := handler.NewAuthHandler(authSvc)
+	reportHandler := handler.NewReportHandler(reportSvc)
+	itemHandler := handler.NewItemHandler(itemSvc)
+	attachmentHandler := handler.NewAttachmentHandler(attachmentSvc)
+	workflowHandler := handler.NewWorkflowHandler(workflowSvc)
+	dashboardHandler := handler.NewDashboardHandler(dashboardSvc)
+	categoryHandler := handler.NewCategoryHandler(categorySvc)
+	tenantHandler := handler.NewTenantHandler(tenantSvc)
+
+	// 8. Create router with common middleware chain.
 	r := chi.NewRouter()
 
 	// Common middleware: CORS → SecurityHeaders → RequestID → Logger → RateLimit(IP).
@@ -88,28 +126,83 @@ func main() {
 	r.Use(middleware.Logger)
 	r.Use(middleware.RateLimitByIP(bgCtx, 20, time.Minute))
 
-	// 8. Unauthenticated group (no additional rate limit needed).
+	// 9. Unauthenticated routes.
 	r.Group(func(pub chi.Router) {
 		pub.Get("/health", handler.NewHealthHandler(pool))
+
+		pub.Post("/api/auth/signup", authHandler.Signup)
+		pub.Post("/api/auth/login", authHandler.Login)
+		pub.Post("/api/auth/refresh", authHandler.RefreshToken)
+		pub.Post("/api/auth/logout", authHandler.Logout)
+		pub.Post("/api/auth/password-reset", authHandler.RequestPasswordReset)
+		pub.Put("/api/auth/password-reset/{token}", authHandler.ExecutePasswordReset)
 	})
 
-	// 9. Authenticated group: Auth → TenantContext → rate-limited by user.
-	// Handlers will be registered in step 8-6.
+	// 10. Authenticated group: Auth → TenantContext → rate-limited by user.
 	r.Group(func(priv chi.Router) {
 		priv.Use(middleware.Auth(verifier))
 		priv.Use(middleware.TenantContext(pool))
 		priv.Use(middleware.RateLimitByUser(bgCtx, 100, time.Minute))
-		// Future handlers registered here in 8-6.
+
+		// All authenticated roles.
+		priv.With(middleware.RequireRole("member", "approver", "admin", "accounting")).Group(func(all chi.Router) {
+			all.Get("/api/auth/me", authHandler.GetMe)
+			all.Get("/api/dashboard", dashboardHandler.GetDashboard)
+			all.Get("/api/categories", categoryHandler.ListCategories)
+
+			// Reports.
+			all.Get("/api/reports", reportHandler.ListMyReports)
+			all.Post("/api/reports", reportHandler.CreateReport)
+			all.Get("/api/reports/{id}", reportHandler.GetReport)
+			all.Put("/api/reports/{id}", reportHandler.UpdateReport)
+			all.Delete("/api/reports/{id}", reportHandler.DeleteReport)
+			all.Post("/api/reports/{id}/submit", reportHandler.SubmitReport)
+
+			// Items.
+			all.Post("/api/reports/{id}/items", itemHandler.CreateItem)
+			all.Put("/api/reports/{id}/items/{itemId}", itemHandler.UpdateItem)
+			all.Delete("/api/reports/{id}/items/{itemId}", itemHandler.DeleteItem)
+
+			// Attachments.
+			all.Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
+			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
+			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.GetAttachmentDownload)
+			all.Delete("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.DeleteAttachment)
+		})
+
+		// Approver only.
+		priv.With(middleware.RequireRole("approver")).Group(func(approver chi.Router) {
+			approver.Get("/api/workflow/pending", workflowHandler.ListPendingReports)
+			approver.Post("/api/workflow/{id}/approve", workflowHandler.ApproveReport)
+			approver.Post("/api/workflow/{id}/reject", workflowHandler.RejectReport)
+		})
+
+		// Accounting only.
+		priv.With(middleware.RequireRole("accounting")).Group(func(accounting chi.Router) {
+			accounting.Get("/api/workflow/payable", workflowHandler.ListPayableReports)
+			accounting.Post("/api/workflow/{id}/pay", workflowHandler.MarkReportAsPaid)
+		})
+
+		// Admin and Accounting.
+		priv.With(middleware.RequireRole("admin", "accounting")).Group(func(adminAcct chi.Router) {
+			adminAcct.Get("/api/reports/all", reportHandler.ListAllReports)
+			adminAcct.Get("/api/tenant/members", tenantHandler.ListTenantMembers)
+		})
+
+		// Admin only.
+		priv.With(middleware.RequireRole("admin")).Group(func(admin chi.Router) {
+			admin.Get("/api/tenant", tenantHandler.GetTenant)
+		})
 	})
 
-	// 10. Start HTTP server.
+	// 11. Start HTTP server.
 	addr := "0.0.0.0:" + cfg.Port
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,
 	}
 
-	// 11. Graceful shutdown on OS signal.
+	// 12. Graceful shutdown on OS signal.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
