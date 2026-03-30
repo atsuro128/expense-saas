@@ -6,6 +6,5 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public
 REVOKE SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public FROM expense_app;
 REVOKE USAGE ON SCHEMA public FROM expense_app;
 
--- ロール削除
+-- ロール削除（expense_owner はインフラ管理のため対象外）
 DROP ROLE IF EXISTS expense_app;
-DROP ROLE IF EXISTS expense_owner;
