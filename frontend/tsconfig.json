@@ -20,5 +20,6 @@
     "resolveJsonModule": true,
     "esModuleInterop": true
   },
-  "include": ["src", "theme.ts"]
+  "include": ["src", "theme.ts"],
+  "exclude": ["src/test"]
 }
