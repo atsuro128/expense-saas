@@ -17,6 +17,23 @@ services:
       retries: 10
       start_period: 10s
 
+  db-test:
+    image: postgres:16
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: testuser
+      POSTGRES_PASSWORD: testpass
+      POSTGRES_DB: expense_test
+    volumes:
+      - ./scripts/init-db-test.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testuser -d expense_test"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   api:
     build: .
     ports:
