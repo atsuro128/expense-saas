@@ -187,9 +187,9 @@ func NewAuthenticatedRequest(t *testing.T, method, target string, body io.Reader
 }
 
 // SetRequestTimeout wraps the request context with a deadline useful for slow integration tests.
-// Note: the cancel function is intentionally not exposed; the context will expire automatically.
-func SetRequestTimeout(req *http.Request, d time.Duration) *http.Request {
+// The cancel function is registered via t.Cleanup to avoid context leak.
+func SetRequestTimeout(t *testing.T, req *http.Request, d time.Duration) *http.Request {
 	ctx, cancel := context.WithTimeout(req.Context(), d)
-	_ = cancel
+	t.Cleanup(cancel)
 	return req.WithContext(ctx)
 }

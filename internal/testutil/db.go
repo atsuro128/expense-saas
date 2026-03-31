@@ -73,16 +73,15 @@ func CleanupTables(t *testing.T, pool *pgxpool.Pool) {
 // SetTenantContext acquires a dedicated connection from pool, sets the RLS tenant parameter,
 // and returns the enriched context, the acquired connection, and a cleanup func.
 // The caller must invoke the cleanup func (typically via defer) to release the connection.
-func SetTenantContext(ctx context.Context, pool *pgxpool.Pool, tenantID string) (context.Context, *pgxpool.Conn, func()) {
+func SetTenantContext(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantID string) (context.Context, *pgxpool.Conn, func()) {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
-		// Return a no-op cleanup so callers can always defer safely.
-		return ctx, nil, func() {}
+		t.Fatalf("SetTenantContext: failed to acquire connection: %v", err)
 	}
 
 	if _, err := conn.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", tenantID); err != nil {
 		conn.Release()
-		return ctx, nil, func() {}
+		t.Fatalf("SetTenantContext: failed to set tenant context: %v", err)
 	}
 
 	cleanup := func() {
