@@ -7,6 +7,7 @@
 
 # Go
 bin/
+/server
 vendor/
 *.exe
 *.exe~
@@ -19,6 +20,7 @@ node_modules/
 dist/
 .next/
 coverage/
+*.tsbuildinfo
 
 # OS
 .DS_Store
