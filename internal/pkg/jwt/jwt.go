@@ -51,6 +51,12 @@ func NewVerifier(publicKeyPath string) (*Verifier, error) {
 	return &Verifier{publicKey: rsaPub}, nil
 }
 
+// NewVerifierFromKey constructs a Verifier directly from an RSA public key.
+// Intended for use in tests where reading from a file is not practical.
+func NewVerifierFromKey(publicKey *rsa.PublicKey) *Verifier {
+	return &Verifier{publicKey: publicKey}
+}
+
 // Verify parses and validates a JWT token string.
 // It enforces RS256 algorithm, expiry, issuer ("expense-saas"), and token_type ("access").
 func (v *Verifier) Verify(tokenString string) (*Claims, error) {
