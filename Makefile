@@ -1,4 +1,8 @@
-.PHONY: migrate-up migrate-down migrate-create docker-up docker-down docker-restart
+.PHONY: setup migrate-up migrate-down migrate-create docker-up docker-down docker-restart
+
+setup:
+	git config core.hooksPath .githooks
+	chmod +x .githooks/pre-commit
 
 MIGRATE_PATH=./db/migrations
 DATABASE_URL?=postgres://expense_owner:localdev@localhost:5432/expense_saas?sslmode=disable

@@ -438,3 +438,72 @@ func WithItemDescription(desc string) ItemOption {
 		m["description"] = desc
 	}
 }
+
+// AttachmentOption is a functional option for CreateAttachment.
+type AttachmentOption func(m map[string]interface{})
+
+// CreateAttachment inserts an attachment record and returns its UUID.
+// tenantID, reportID, and itemID are required and are enforced as FK constraints.
+// Defaults: file_name="receipt.jpg", file_size=1024, mime_type="image/jpeg",
+// s3_key derived from tenant/report/item/attachment IDs.
+func CreateAttachment(t *testing.T, pool *pgxpool.Pool, tenantID, reportID, itemID uuid.UUID, opts ...AttachmentOption) uuid.UUID {
+	t.Helper()
+
+	id := uuid.New()
+	now := time.Now().UTC()
+	params := map[string]interface{}{
+		"file_name": "receipt.jpg",
+		"file_size": 1024,
+		"mime_type": string(domain.MimeTypeImageJpeg),
+		"s3_key":    tenantID.String() + "/reports/" + reportID.String() + "/items/" + itemID.String() + "/" + id.String() + ".jpg",
+	}
+	for _, o := range opts {
+		o(params)
+	}
+
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("testutil: CreateAttachment: acquire connection: %v", err)
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(context.Background(),
+		`INSERT INTO attachments
+		 (attachment_id, item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		id, itemID, reportID, tenantID,
+		params["file_name"], params["file_size"], params["mime_type"], params["s3_key"],
+		now,
+	); err != nil {
+		t.Fatalf("testutil: CreateAttachment: %v", err)
+	}
+	return id
+}
+
+// WithAttachmentFileName sets the file_name for CreateAttachment.
+func WithAttachmentFileName(name string) AttachmentOption {
+	return func(m map[string]interface{}) {
+		m["file_name"] = name
+	}
+}
+
+// WithAttachmentFileSize sets the file_size for CreateAttachment.
+func WithAttachmentFileSize(size int) AttachmentOption {
+	return func(m map[string]interface{}) {
+		m["file_size"] = size
+	}
+}
+
+// WithAttachmentMimeType sets the mime_type for CreateAttachment.
+func WithAttachmentMimeType(mt domain.MimeType) AttachmentOption {
+	return func(m map[string]interface{}) {
+		m["mime_type"] = string(mt)
+	}
+}
+
+// WithAttachmentS3Key sets the s3_key for CreateAttachment.
+func WithAttachmentS3Key(key string) AttachmentOption {
+	return func(m map[string]interface{}) {
+		m["s3_key"] = key
+	}
+}
