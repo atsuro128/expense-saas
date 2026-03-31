@@ -37,3 +37,9 @@ keys/
 
 # Docker
 docker-compose.override.yml
+
+# Logs
+*.log
+
+# Temp
+tmp/
