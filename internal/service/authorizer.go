@@ -4,26 +4,26 @@ import (
 	"expense-saas/internal/domain"
 )
 
-// Authorizer enforces ownership and business-rule authorization checks.
-// It is used by service methods after the resource has been fetched from the repository.
+// Authorizer は所有権とビジネスルールに基づく認可チェックを担う。
+// repository からリソースを取得した後、service メソッド内で使用する。
 type Authorizer interface {
-	// CanModifyReport checks that the actor owns the report (RBC-010).
+	// CanModifyReport は操作者がレポートを所有しているかを確認する（RBC-010）。
 	CanModifyReport(actor domain.Actor, report *domain.ExpenseReport) error
-	// CanViewReport checks that the actor is allowed to read the report (RBC-013, RBC-014, RBC-015).
+	// CanViewReport は操作者がレポートを参照できるかを確認する（RBC-013, RBC-014, RBC-015）。
 	CanViewReport(actor domain.Actor, report *domain.ExpenseReport) error
-	// CanApproveOrReject checks that the actor may approve/reject the report
-	// and that they are not the submitter (RBC-016 self-approval prohibition).
+	// CanApproveOrReject は操作者が承認・却下できるか、かつ申請者本人でないかを確認する
+	// （RBC-016 自己承認禁止）。
 	CanApproveOrReject(actor domain.Actor, report *domain.ExpenseReport) error
-	// CanMarkAsPaid checks that the actor may record payment
-	// and that they are not the submitter (RBC-012 self-payment prohibition).
+	// CanMarkAsPaid は操作者が支払記録できるか、かつ申請者本人でないかを確認する
+	// （RBC-012 自己支払禁止）。
 	CanMarkAsPaid(actor domain.Actor, report *domain.ExpenseReport) error
 }
 
-// authorizerImpl is a stub implementation of Authorizer.
-// All methods return ErrNotImplemented until full business logic is wired.
+// authorizerImpl は Authorizer のスタブ実装。
+// ビジネスロジックが実装されるまで、全メソッドは ErrNotImplemented を返す。
 type authorizerImpl struct{}
 
-// NewAuthorizer constructs the default Authorizer.
+// NewAuthorizer はデフォルトの Authorizer を生成して返す。
 func NewAuthorizer() Authorizer {
 	return &authorizerImpl{}
 }

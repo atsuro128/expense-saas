@@ -9,94 +9,94 @@ import (
 	"expense-saas/internal/domain"
 )
 
-// AuthService handles user registration, login, token management, and password reset.
+// AuthService はユーザー登録・ログイン・トークン管理・パスワードリセットを担う。
 type AuthService interface {
-	// Signup creates a new tenant and an admin user, returns auth tokens.
+	// Signup は新規テナントと管理者ユーザーを作成し、認証トークンを返す。
 	Signup(ctx context.Context, params SignupParams) (*domain.AuthResult, error)
-	// Login authenticates a user by email and password, returns auth tokens.
+	// Login はメールアドレスとパスワードでユーザーを認証し、認証トークンを返す。
 	Login(ctx context.Context, email, password string) (*domain.AuthResult, error)
-	// RefreshToken issues new access/refresh token pair using a valid refresh token.
+	// RefreshToken は有効な refresh token を使って新しいアクセス/refresh token ペアを発行する。
 	RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthResult, error)
-	// Logout revokes the provided refresh token.
+	// Logout は指定された refresh token を無効化する。
 	Logout(ctx context.Context, refreshToken string) error
-	// GetMe returns the authenticated user's profile.
+	// GetMe は認証済みユーザーのプロフィールを返す。
 	GetMe(ctx context.Context, actor domain.Actor) (*domain.UserProfile, error)
-	// RequestPasswordReset sends a password reset email.
+	// RequestPasswordReset はパスワードリセットメールを送信する。
 	RequestPasswordReset(ctx context.Context, email string) error
-	// ExecutePasswordReset validates the token and updates the password.
+	// ExecutePasswordReset はトークンを検証してパスワードを更新する。
 	ExecutePasswordReset(ctx context.Context, token, newPassword string) error
 }
 
-// ReportService handles CRUD and listing for expense reports.
+// ReportService は経費レポートの CRUD および一覧取得を担う。
 type ReportService interface {
-	// CreateReport creates a new expense report owned by the actor.
+	// CreateReport は操作者が所有する新規経費レポートを作成する。
 	CreateReport(ctx context.Context, actor domain.Actor, params CreateReportParams) (*domain.ExpenseReportDetail, error)
-	// GetReport retrieves the full detail of a single report.
+	// GetReport は単一レポートの詳細を取得する。
 	GetReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID) (*domain.ExpenseReportDetail, error)
-	// ListMyReports lists reports owned by the actor with cursor-based pagination.
+	// ListMyReports は操作者が所有するレポートをカーソルページネーション付きで一覧取得する。
 	ListMyReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]domain.ExpenseReportSummary, *domain.Pagination, error)
-	// ListAllReports lists all reports within the tenant (Admin / Accounting only).
+	// ListAllReports はテナント内の全レポートを一覧取得する（Admin / Accounting 専用）。
 	ListAllReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]domain.ExpenseReportSummary, *domain.Pagination, error)
-	// UpdateReport updates the mutable fields of a draft report.
+	// UpdateReport は下書きレポートの変更可能フィールドを更新する。
 	UpdateReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, params UpdateReportParams) (*domain.ExpenseReportDetail, error)
-	// DeleteReport soft-deletes a draft report.
+	// DeleteReport は下書きレポートを論理削除する。
 	DeleteReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID) error
-	// SubmitReport transitions a draft report to submitted status.
+	// SubmitReport は下書きレポートを提出済みステータスへ遷移させる。
 	SubmitReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*domain.ExpenseReportDetail, error)
 }
 
-// ItemService handles CRUD for expense items within a report.
+// ItemService は経費レポート内の明細（経費項目）の CRUD を担う。
 type ItemService interface {
-	// CreateItem creates a new expense item within a draft report.
+	// CreateItem は下書きレポートに新規経費項目を作成する。
 	CreateItem(ctx context.Context, actor domain.Actor, reportID uuid.UUID, params CreateItemParams) (*domain.ExpenseItemDTO, error)
-	// UpdateItem updates the mutable fields of an expense item.
+	// UpdateItem は経費項目の変更可能フィールドを更新する。
 	UpdateItem(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, params UpdateItemParams) (*domain.ExpenseItemDTO, error)
-	// DeleteItem soft-deletes an expense item.
+	// DeleteItem は経費項目を論理削除する。
 	DeleteItem(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID) error
 }
 
-// AttachmentService handles file upload and retrieval for attachments.
+// AttachmentService は添付ファイルのアップロードと取得を担う。
 type AttachmentService interface {
-	// UploadAttachment stores a file and persists the attachment metadata.
+	// UploadAttachment はファイルを保存し、添付ファイルのメタデータを永続化する。
 	UploadAttachment(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, upload FileUpload) (*domain.AttachmentDTO, error)
-	// ListAttachments retrieves all active attachments for an item.
+	// ListAttachments は経費項目に紐づく有効な添付ファイルを全件取得する。
 	ListAttachments(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID) ([]domain.AttachmentDTO, error)
-	// GetAttachmentDownload returns a pre-signed S3 URL for downloading the file.
+	// GetAttachmentDownload はファイルダウンロード用の S3 署名付き URL を返す。
 	GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*domain.AttachmentDownload, error)
-	// DeleteAttachment soft-deletes an attachment.
+	// DeleteAttachment は添付ファイルを論理削除する。
 	DeleteAttachment(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) error
 }
 
-// WorkflowService handles approval, rejection, and payment of expense reports.
+// WorkflowService は経費レポートの承認・却下・支払処理を担う。
 type WorkflowService interface {
-	// ListPendingReports returns submitted reports awaiting approval.
+	// ListPendingReports は承認待ちの提出済みレポートを一覧取得する。
 	ListPendingReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]domain.PendingReport, *domain.Pagination, error)
-	// ApproveReport transitions a submitted report to approved.
+	// ApproveReport は提出済みレポートを承認済みステータスへ遷移させる。
 	ApproveReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, comment *string, updatedAt time.Time) (*domain.ExpenseReportDetail, error)
-	// RejectReport transitions a submitted report to rejected.
+	// RejectReport は提出済みレポートを却下済みステータスへ遷移させる。
 	RejectReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, reason string, updatedAt time.Time) (*domain.ExpenseReportDetail, error)
-	// ListPayableReports returns approved reports awaiting payment.
+	// ListPayableReports は支払待ちの承認済みレポートを一覧取得する。
 	ListPayableReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]domain.PayableReport, *domain.Pagination, error)
-	// MarkReportAsPaid transitions an approved report to paid.
+	// MarkReportAsPaid は承認済みレポートを支払済みステータスへ遷移させる。
 	MarkReportAsPaid(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*domain.ExpenseReportDetail, error)
 }
 
-// DashboardService builds the role-specific dashboard payload.
+// DashboardService はロール別のダッシュボードデータを構築する。
 type DashboardService interface {
-	// GetDashboard returns the dashboard data for the authenticated actor.
+	// GetDashboard は認証済み操作者向けのダッシュボードデータを返す。
 	GetDashboard(ctx context.Context, actor domain.Actor) (*domain.DashboardData, error)
 }
 
-// CategoryService provides read access to expense category master data.
+// CategoryService は経費カテゴリのマスタデータへの読み取りアクセスを提供する。
 type CategoryService interface {
-	// ListCategories returns active categories visible within the actor's tenant.
+	// ListCategories は操作者のテナントで参照可能な有効カテゴリを返す。
 	ListCategories(ctx context.Context, actor domain.Actor) ([]domain.CategoryDTO, error)
 }
 
-// TenantService provides tenant and membership information.
+// TenantService はテナントおよびメンバーシップ情報を提供する。
 type TenantService interface {
-	// GetTenant returns basic tenant information (Admin only).
+	// GetTenant はテナントの基本情報を返す（Admin 専用）。
 	GetTenant(ctx context.Context, actor domain.Actor) (*domain.TenantInfoDTO, error)
-	// ListTenantMembers returns all active members within the actor's tenant.
+	// ListTenantMembers は操作者のテナント内の全有効メンバーを返す。
 	ListTenantMembers(ctx context.Context, actor domain.Actor) ([]domain.UserSummary, error)
 }

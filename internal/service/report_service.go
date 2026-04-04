@@ -19,7 +19,7 @@ type reportService struct {
 	authorizer     Authorizer
 }
 
-// NewReportService constructs a ReportService.
+// NewReportService は ReportService を生成して返す。
 func NewReportService(
 	reportRepo domain.ReportRepository,
 	userRepo domain.UserRepository,

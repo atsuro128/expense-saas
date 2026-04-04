@@ -7,8 +7,8 @@ import (
 	"github.com/go-chi/cors"
 )
 
-// Cors returns a CORS middleware configured with the given allowed origins.
-// allowedOrigins is a comma-separated list of origin strings.
+// Cors は指定された許可オリジンで設定された CORS middleware を返します。
+// allowedOrigins はカンマ区切りのオリジン文字列です。
 func Cors(allowedOrigins string) func(http.Handler) http.Handler {
 	origins := splitTrimmed(allowedOrigins)
 	if len(origins) == 0 {
@@ -41,8 +41,8 @@ func Cors(allowedOrigins string) func(http.Handler) http.Handler {
 	})
 }
 
-// splitTrimmed splits s by comma and trims whitespace from each element,
-// discarding empty strings.
+// splitTrimmed は s をカンマで分割し、各要素の空白を除去します。
+// 空文字列は結果から除外します。
 func splitTrimmed(s string) []string {
 	parts := strings.Split(s, ",")
 	result := make([]string, 0, len(parts))

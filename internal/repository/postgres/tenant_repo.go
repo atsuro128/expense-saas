@@ -16,7 +16,7 @@ type tenantRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewTenantRepo constructs a TenantRepository backed by PostgreSQL.
+// NewTenantRepo は PostgreSQL をバックエンドとする TenantRepository を生成して返す。
 func NewTenantRepo(pool *pgxpool.Pool) domain.TenantRepository {
 	return &tenantRepo{pool: pool}
 }

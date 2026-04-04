@@ -9,8 +9,8 @@ import (
 	_ "github.com/golang-migrate/migrate/v4/source/file"
 )
 
-// RunMigrations applies all pending migrations from db/migrations/ to the
-// given database URL. ErrNoChange is ignored (idempotent).
+// RunMigrations は db/migrations/ にある未適用のマイグレーションを指定の DB URL に適用する。
+// ErrNoChange は無視する（冪等）。
 func RunMigrations(t *testing.T, dbURL string) {
 	t.Helper()
 

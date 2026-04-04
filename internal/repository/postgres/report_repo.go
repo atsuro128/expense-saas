@@ -19,7 +19,7 @@ type reportRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewReportRepo constructs a ReportRepository backed by PostgreSQL.
+// NewReportRepo は PostgreSQL をバックエンドとする ReportRepository を生成して返す。
 func NewReportRepo(pool *pgxpool.Pool) domain.ReportRepository {
 	return &reportRepo{pool: pool}
 }
@@ -69,7 +69,7 @@ func (r *reportRepo) List(ctx context.Context, tenantID uuid.UUID, params domain
 		limit = 20
 	}
 
-	// Build nullable filter params.
+	// NULL 許容フィルタパラメータを構築する。
 	var statusParam pgtype.Text
 	if params.Status != nil {
 		statusParam = pgtype.Text{String: string(*params.Status), Valid: true}
@@ -135,26 +135,26 @@ func (r *reportRepo) Update(ctx context.Context, report *domain.ExpenseReport) e
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// ErrNoRows means either the report doesn't exist or optimistic lock failed.
+			// ErrNoRows はレポートが存在しないか、楽観ロックが失敗したことを意味する。
 			return domain.ErrConflict
 		}
 		return fmt.Errorf("reportRepo.Update: %w", err)
 	}
-	// Reflect updated state back into the passed entity.
+	// 更新後の状態を引数のエンティティに反映する。
 	*report = *reportFromRow(updated)
 	return nil
 }
 
 func (r *reportRepo) SoftDelete(ctx context.Context, tenantID, reportID uuid.UUID) error {
 	q := queries(ctx, r.pool)
-	// Cascade soft-delete to related items.
+	// 関連する経費項目を論理削除（カスケード）する。
 	if err := q.SoftDeleteExpenseItemsByReportID(ctx, sqlcgen.SoftDeleteExpenseItemsByReportIDParams{
 		TenantID: tenantID,
 		ReportID: reportID,
 	}); err != nil {
 		return fmt.Errorf("reportRepo.SoftDelete (items): %w", err)
 	}
-	// Cascade soft-delete to related attachments.
+	// 関連する添付ファイルを論理削除（カスケード）する。
 	if err := q.SoftDeleteAttachmentsByReportID(ctx, sqlcgen.SoftDeleteAttachmentsByReportIDParams{
 		TenantID: tenantID,
 		ReportID: reportID,
@@ -204,12 +204,12 @@ func (r *reportRepo) UpdateStatus(ctx context.Context, report *domain.ExpenseRep
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// ErrNoRows means either the report doesn't exist or optimistic lock failed.
+			// ErrNoRows はレポートが存在しないか、楽観ロックが失敗したことを意味する。
 			return domain.ErrConflict
 		}
 		return fmt.Errorf("reportRepo.UpdateStatus: %w", err)
 	}
-	// Reflect updated state back into the passed entity.
+	// 更新後の状態を引数のエンティティに反映する。
 	*report = *reportFromRow(updated)
 	return nil
 }

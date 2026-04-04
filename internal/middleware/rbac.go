@@ -4,9 +4,9 @@ import (
 	"net/http"
 )
 
-// RequireRole returns a middleware that allows only requests whose role
-// (stored in the context by the Auth middleware) is in allowedRoles.
-// If the role is absent or not in the list, a 403 FORBIDDEN response is returned.
+// RequireRole は Auth middleware がコンテキストにセットしたロールが
+// allowedRoles に含まれるリクエストのみ通過させる middleware を返します。
+// ロールが存在しないか許可リストにない場合は 403 FORBIDDEN を返します。
 func RequireRole(allowedRoles ...string) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(allowedRoles))
 	for _, r := range allowedRoles {

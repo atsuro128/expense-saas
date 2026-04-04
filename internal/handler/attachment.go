@@ -7,32 +7,32 @@ import (
 	"expense-saas/internal/service"
 )
 
-// AttachmentHandler handles attachment endpoints.
+// AttachmentHandler は添付ファイルエンドポイントの handler です。
 type AttachmentHandler struct {
 	svc service.AttachmentService
 }
 
-// NewAttachmentHandler constructs an AttachmentHandler.
+// NewAttachmentHandler は AttachmentHandler を生成して返します。
 func NewAttachmentHandler(svc service.AttachmentService) *AttachmentHandler {
 	return &AttachmentHandler{svc: svc}
 }
 
-// UploadAttachment handles POST /api/reports/{id}/items/{itemId}/attachments.
+// UploadAttachment は POST /api/reports/{id}/items/{itemId}/attachments を処理します。
 func (h *AttachmentHandler) UploadAttachment(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// ListAttachments handles GET /api/reports/{id}/items/{itemId}/attachments.
+// ListAttachments は GET /api/reports/{id}/items/{itemId}/attachments を処理します。
 func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// GetAttachmentDownload handles GET /api/reports/{id}/items/{itemId}/attachments/{attId}.
+// GetAttachmentDownload は GET /api/reports/{id}/items/{itemId}/attachments/{attId} を処理します。
 func (h *AttachmentHandler) GetAttachmentDownload(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// DeleteAttachment handles DELETE /api/reports/{id}/items/{itemId}/attachments/{attId}.
+// DeleteAttachment は DELETE /api/reports/{id}/items/{itemId}/attachments/{attId} を処理します。
 func (h *AttachmentHandler) DeleteAttachment(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }

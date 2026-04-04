@@ -14,7 +14,7 @@ type authService struct {
 	passwordRepo     domain.PasswordResetTokenRepository
 }
 
-// NewAuthService constructs an AuthService.
+// NewAuthService は AuthService を生成して返す。
 func NewAuthService(
 	userRepo domain.UserRepository,
 	tenantRepo domain.TenantRepository,

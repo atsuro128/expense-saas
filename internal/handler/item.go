@@ -7,27 +7,27 @@ import (
 	"expense-saas/internal/service"
 )
 
-// ItemHandler handles expense item endpoints.
+// ItemHandler は経費明細エンドポイントの handler です。
 type ItemHandler struct {
 	svc service.ItemService
 }
 
-// NewItemHandler constructs an ItemHandler.
+// NewItemHandler は ItemHandler を生成して返します。
 func NewItemHandler(svc service.ItemService) *ItemHandler {
 	return &ItemHandler{svc: svc}
 }
 
-// CreateItem handles POST /api/reports/{id}/items.
+// CreateItem は POST /api/reports/{id}/items を処理します。
 func (h *ItemHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// UpdateItem handles PUT /api/reports/{id}/items/{itemId}.
+// UpdateItem は PUT /api/reports/{id}/items/{itemId} を処理します。
 func (h *ItemHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// DeleteItem handles DELETE /api/reports/{id}/items/{itemId}.
+// DeleteItem は DELETE /api/reports/{id}/items/{itemId} を処理します。
 func (h *ItemHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }

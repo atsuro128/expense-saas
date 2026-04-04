@@ -1,6 +1,6 @@
 package domain
 
-// ReportStatus represents the lifecycle status of an expense report.
+// ReportStatus は経費精算レポートのライフサイクル上のステータスを表す。
 type ReportStatus string
 
 const (
@@ -11,7 +11,7 @@ const (
 	ReportStatusPaid      ReportStatus = "paid"
 )
 
-// IsValid returns true when the status is one of the defined values.
+// IsValid はステータスが定義済みの値であれば true を返す。
 func (s ReportStatus) IsValid() bool {
 	switch s {
 	case ReportStatusDraft, ReportStatusSubmitted, ReportStatusApproved, ReportStatusRejected, ReportStatusPaid:
@@ -20,7 +20,7 @@ func (s ReportStatus) IsValid() bool {
 	return false
 }
 
-// Role represents the RBAC role of a user within a tenant.
+// Role はテナント内のユーザーの RBAC ロールを表す。
 type Role string
 
 const (
@@ -30,7 +30,7 @@ const (
 	RoleAccounting Role = "accounting"
 )
 
-// IsValid returns true when the role is one of the defined values.
+// IsValid はロールが定義済みの値であれば true を返す。
 func (r Role) IsValid() bool {
 	switch r {
 	case RoleAdmin, RoleApprover, RoleMember, RoleAccounting:
@@ -39,7 +39,7 @@ func (r Role) IsValid() bool {
 	return false
 }
 
-// MimeType represents an allowed MIME type for attachments.
+// MimeType は添付ファイルとして許可された MIME タイプを表す。
 type MimeType string
 
 const (
@@ -48,7 +48,7 @@ const (
 	MimeTypeApplicationPDF MimeType = "application/pdf"
 )
 
-// IsValid returns true when the MIME type is one of the allowed values.
+// IsValid は MIME タイプが許可された値であれば true を返す。
 func (m MimeType) IsValid() bool {
 	switch m {
 	case MimeTypeImageJpeg, MimeTypeImagePng, MimeTypeApplicationPDF:

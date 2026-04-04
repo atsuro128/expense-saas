@@ -7,47 +7,47 @@ import (
 	"expense-saas/internal/service"
 )
 
-// AuthHandler handles authentication-related endpoints.
+// AuthHandler は認証関連エンドポイントの handler です。
 type AuthHandler struct {
 	svc service.AuthService
 }
 
-// NewAuthHandler constructs an AuthHandler.
+// NewAuthHandler は AuthHandler を生成して返します。
 func NewAuthHandler(svc service.AuthService) *AuthHandler {
 	return &AuthHandler{svc: svc}
 }
 
-// Signup handles POST /api/auth/signup.
+// Signup は POST /api/auth/signup を処理します。
 func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// Login handles POST /api/auth/login.
+// Login は POST /api/auth/login を処理します。
 func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// RefreshToken handles POST /api/auth/refresh.
+// RefreshToken は POST /api/auth/refresh を処理します。
 func (h *AuthHandler) RefreshToken(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// Logout handles POST /api/auth/logout.
+// Logout は POST /api/auth/logout を処理します。
 func (h *AuthHandler) Logout(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// GetMe handles GET /api/auth/me.
+// GetMe は GET /api/auth/me を処理します。
 func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// RequestPasswordReset handles POST /api/auth/password-reset.
+// RequestPasswordReset は POST /api/auth/password-reset を処理します。
 func (h *AuthHandler) RequestPasswordReset(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// ExecutePasswordReset handles PUT /api/auth/password-reset/{token}.
+// ExecutePasswordReset は PUT /api/auth/password-reset/{token} を処理します。
 func (h *AuthHandler) ExecutePasswordReset(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }

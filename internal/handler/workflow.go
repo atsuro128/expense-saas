@@ -7,37 +7,37 @@ import (
 	"expense-saas/internal/service"
 )
 
-// WorkflowHandler handles workflow (approval / payment) endpoints.
+// WorkflowHandler はワークフロー（承認・支払）エンドポイントの handler です。
 type WorkflowHandler struct {
 	svc service.WorkflowService
 }
 
-// NewWorkflowHandler constructs a WorkflowHandler.
+// NewWorkflowHandler は WorkflowHandler を生成して返します。
 func NewWorkflowHandler(svc service.WorkflowService) *WorkflowHandler {
 	return &WorkflowHandler{svc: svc}
 }
 
-// ListPendingReports handles GET /api/workflow/pending.
+// ListPendingReports は GET /api/workflow/pending を処理します。
 func (h *WorkflowHandler) ListPendingReports(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// ApproveReport handles POST /api/workflow/{id}/approve.
+// ApproveReport は POST /api/workflow/{id}/approve を処理します。
 func (h *WorkflowHandler) ApproveReport(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// RejectReport handles POST /api/workflow/{id}/reject.
+// RejectReport は POST /api/workflow/{id}/reject を処理します。
 func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// ListPayableReports handles GET /api/workflow/payable.
+// ListPayableReports は GET /api/workflow/payable を処理します。
 func (h *WorkflowHandler) ListPayableReports(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// MarkReportAsPaid handles POST /api/workflow/{id}/pay.
+// MarkReportAsPaid は POST /api/workflow/{id}/pay を処理します。
 func (h *WorkflowHandler) MarkReportAsPaid(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }

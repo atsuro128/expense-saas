@@ -18,7 +18,7 @@ type refreshTokenRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewRefreshTokenRepo constructs a RefreshTokenRepository backed by PostgreSQL.
+// NewRefreshTokenRepo は PostgreSQL をバックエンドとする RefreshTokenRepository を生成して返す。
 func NewRefreshTokenRepo(pool *pgxpool.Pool) domain.RefreshTokenRepository {
 	return &refreshTokenRepo{pool: pool}
 }
