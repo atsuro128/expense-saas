@@ -59,22 +59,20 @@ func main() {
 	}
 	slog.Info("database connection established")
 
-	// 5. JWT 検証器を初期化する（鍵ファイル不在時は警告のみで継続）。
-	var verifier *appjwt.Verifier
-	if cfg.JWTPublicKeyPath != "" {
-		v, jwtErr := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
-		if jwtErr != nil {
-			slog.Warn("JWT verifier initialization failed; authenticated endpoints will return 401",
-				"error", jwtErr,
-				"path", cfg.JWTPublicKeyPath,
-			)
-		} else {
-			verifier = v
-			slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
-		}
-	} else {
-		slog.Warn("JWT_PUBLIC_KEY_PATH is not set; authenticated endpoints will return 401")
+	// 5. JWT 鍵ファイルの検証と検証器の初期化。
+	// TODO: Signer 実装時に os.Stat を NewSigner（NewVerifier と同等の PEM パース検証）に置き換える。
+	if _, err := os.Stat(cfg.JWTPrivateKeyPath); err != nil {
+		slog.Error("JWT private key file not found", "error", err, "path", cfg.JWTPrivateKeyPath)
+		os.Exit(1)
 	}
+	slog.Info("JWT private key file verified", "path", cfg.JWTPrivateKeyPath)
+
+	verifier, err := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
+	if err != nil {
+		slog.Error("failed to initialize JWT verifier", "error", err, "path", cfg.JWTPublicKeyPath)
+		os.Exit(1)
+	}
+	slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
 
 	// 6. バックグラウンド goroutine 用のコンテキストを生成する（レートリミッタのクリーンアップ等）。
 	bgCtx, bgCancel := context.WithCancel(context.Background())

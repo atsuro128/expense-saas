@@ -29,6 +29,16 @@ func LoadConfig() (*Config, error) {
 		return nil, errors.New("environment variable APP_DATABASE_URL is required")
 	}
 
+	jwtPrivateKeyPath := os.Getenv("JWT_PRIVATE_KEY_PATH")
+	if jwtPrivateKeyPath == "" {
+		return nil, errors.New("environment variable JWT_PRIVATE_KEY_PATH is required")
+	}
+
+	jwtPublicKeyPath := os.Getenv("JWT_PUBLIC_KEY_PATH")
+	if jwtPublicKeyPath == "" {
+		return nil, errors.New("environment variable JWT_PUBLIC_KEY_PATH is required")
+	}
+
 	logLevel := os.Getenv("LOG_LEVEL")
 	if logLevel == "" {
 		logLevel = "info"
@@ -42,8 +52,8 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		DatabaseURL:        databaseURL,
 		AppDatabaseURL:     appDatabaseURL,
-		JWTPrivateKeyPath:  os.Getenv("JWT_PRIVATE_KEY_PATH"),
-		JWTPublicKeyPath:   os.Getenv("JWT_PUBLIC_KEY_PATH"),
+		JWTPrivateKeyPath: jwtPrivateKeyPath,
+		JWTPublicKeyPath:  jwtPublicKeyPath,
 		CORSAllowedOrigins: os.Getenv("CORS_ALLOWED_ORIGINS"),
 		LogLevel:           logLevel,
 		Port:               port,
