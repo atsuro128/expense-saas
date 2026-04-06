@@ -188,8 +188,10 @@ type DashboardData struct {
 	TenantMemberCount    *int `json:"tenant_member_count,omitempty"`
 }
 
-// Pagination は一覧レスポンスに含まれるカーソルベースのページネーションメタデータ。
+// Pagination は一覧レスポンスに含まれるオフセットベースのページネーションメタデータ。
 type Pagination struct {
-	NextCursor *string `json:"next_cursor"`
-	HasMore    bool    `json:"has_more"`
+	CurrentPage int `json:"current_page"`
+	PerPage     int `json:"per_page"`
+	TotalCount  int `json:"total_count"`
+	TotalPages  int `json:"total_pages"`
 }

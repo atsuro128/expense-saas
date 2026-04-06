@@ -19,20 +19,20 @@ type ReportListParams struct {
 	To *time.Time
 	// SubmitterID はレポート作成者の UserID で絞り込む（nil = フィルタなし）。
 	SubmitterID *uuid.UUID
-	// Cursor は最終取得アイテムの created_at 値（上限の排他境界）。
-	Cursor *time.Time
-	// Limit は最大取得件数。
-	Limit int
+	// Page は取得するページ番号（1始まり）。
+	Page int
+	// PerPage は1ページあたりの最大取得件数。
+	PerPage int
 }
 
 // WorkflowListParams はワークフロー一覧エンドポイントのページネーションパラメータを保持する。
 type WorkflowListParams struct {
 	// ApplicantName は申請者名で絞り込む（部分一致、nil = フィルタなし）。
 	ApplicantName *string
-	// Cursor は最終取得アイテムの submitted_at / approved_at 値。
-	Cursor *time.Time
-	// Limit は最大取得件数。
-	Limit int
+	// Page は取得するページ番号（1始まり）。
+	Page int
+	// PerPage は1ページあたりの最大取得件数。
+	PerPage int
 }
 
 // TenantRepository は Tenant エンティティの永続化操作を提供する。
@@ -84,7 +84,8 @@ type ReportRepository interface {
 	// GetByID はテナントにスコープされたレポートを取得する。
 	GetByID(ctx context.Context, tenantID, reportID uuid.UUID) (*ExpenseReport, error)
 	// List はテナント内の指定パラメータに一致するレポートを取得する。
-	List(ctx context.Context, tenantID uuid.UUID, params ReportListParams) ([]ExpenseReport, error)
+	// 戻り値の int は総件数（ページネーション用）。
+	List(ctx context.Context, tenantID uuid.UUID, params ReportListParams) ([]ExpenseReport, int, error)
 	// Update はレポートの部分更新（タイトル・期間フィールド）を適用する。
 	// updatedAt を用いた楽観的ロックを実装し、バージョン不一致時は ErrConflict を返す。
 	Update(ctx context.Context, report *ExpenseReport) error
@@ -98,9 +99,11 @@ type ReportRepository interface {
 	// MonthlySummary はテナント内の直近 numMonths か月分の月別 total_amount 集計を返す。
 	MonthlySummary(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID, numMonths int) ([]MonthlySummary, error)
 	// ListPending はテナント内の申請中レポートを返す。
-	ListPending(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, error)
+	// 戻り値の int は総件数（ページネーション用）。
+	ListPending(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
 	// ListPayable はテナント内の承認済みレポートを返す。
-	ListPayable(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, error)
+	// 戻り値の int は総件数（ページネーション用）。
+	ListPayable(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
 }
 
 // ItemRepository は ExpenseItem エンティティの永続化操作を提供する。
