@@ -505,7 +505,7 @@ func TestRejectReport_Success(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportSubmittedID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "領収書が不明瞭です",
+		"reason": "領収書が不明瞭です",
 		"updated_at":       updatedAt,
 	})
 
@@ -523,7 +523,7 @@ func TestRejectReport_MissingRejectionReason(t *testing.T) {
 	srv, pool := setupWorkflowTest(t)
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportSubmittedID)
-	// rejection_reason を含まないリクエスト。
+	// reason を含まないリクエスト。
 	body := workflowJSONBody(t, map[string]string{
 		"updated_at": updatedAt,
 	})
@@ -543,7 +543,7 @@ func TestRejectReport_EmptyRejectionReason(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportSubmittedID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "",
+		"reason": "",
 		"updated_at":       updatedAt,
 	})
 
@@ -562,7 +562,7 @@ func TestRejectReport_RejectionReasonMaxLength(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportSubmittedID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": strings.Repeat("あ", 1000),
+		"reason": strings.Repeat("あ", 1000),
 		"updated_at":       updatedAt,
 	})
 
@@ -581,7 +581,7 @@ func TestRejectReport_RejectionReasonTooLong(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportSubmittedID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": strings.Repeat("あ", 1001),
+		"reason": strings.Repeat("あ", 1001),
 		"updated_at":       updatedAt,
 	})
 
@@ -602,7 +602,7 @@ func TestRejectReport_AlreadyApproved(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportApprovedID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       updatedAt,
 	})
 
@@ -621,7 +621,7 @@ func TestRejectReport_DraftState(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportDraftID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       updatedAt,
 	})
 
@@ -640,7 +640,7 @@ func TestRejectReport_RejectedState(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportRejectedID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       updatedAt,
 	})
 
@@ -659,7 +659,7 @@ func TestRejectReport_PaidState(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportPaidID)
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       updatedAt,
 	})
 
@@ -686,7 +686,7 @@ func TestRejectReport_SelfRejection(t *testing.T) {
 
 	updatedAt := getReportUpdatedAt(t, pool, selfReportID.String())
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       updatedAt,
 	})
 
@@ -704,7 +704,7 @@ func TestRejectReport_Forbidden_Member(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       "2026-03-01T00:00:00Z",
 	})
 
@@ -722,7 +722,7 @@ func TestRejectReport_Forbidden_Admin(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       "2026-03-01T00:00:00Z",
 	})
 
@@ -740,7 +740,7 @@ func TestRejectReport_Forbidden_Accounting(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       "2026-03-01T00:00:00Z",
 	})
 
@@ -758,7 +758,7 @@ func TestRejectReport_Unauthorized(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       "2026-03-01T00:00:00Z",
 	})
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost,
@@ -775,7 +775,7 @@ func TestRejectReport_NotFound(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       "2026-03-01T00:00:00Z",
 	})
 
@@ -794,7 +794,7 @@ func TestRejectReport_Conflict_OptimisticLock(t *testing.T) {
 
 	// 意図的に古いタイムスタンプを使用して楽観的ロック競合を発生させる。
 	body := workflowJSONBody(t, map[string]string{
-		"rejection_reason": "理由",
+		"reason": "理由",
 		"updated_at":       "2000-01-01T00:00:00Z",
 	})
 
