@@ -117,7 +117,7 @@ describe('ItemTable', () => {
 
     // 編集ボタンクリック（ITM-FE-015）。スタブ実装のため現在は失敗する。
     const editButtons = screen.getAllByRole('button', { name: /編集/ });
-    await userEvent.click(editButtons[0]);
+    await userEvent.click(editButtons[0]!);
 
     expect(onEditItem).toHaveBeenCalledWith('item-001');
   });
@@ -137,7 +137,7 @@ describe('ItemTable', () => {
 
     // 削除ボタンクリック（ITM-FE-016）。スタブ実装のため現在は失敗する。
     const deleteButtons = screen.getAllByRole('button', { name: /削除/ });
-    await userEvent.click(deleteButtons[0]);
+    await userEvent.click(deleteButtons[0]!);
 
     expect(onDeleteItem).toHaveBeenCalledWith('item-001');
   });
@@ -158,7 +158,7 @@ describe('ItemTable', () => {
 
     // 編集ボタンクリック時は onItemClick が呼ばれない（ITM-FE-017）。スタブ実装のため現在は失敗する。
     const editButtons = screen.getAllByRole('button', { name: /編集/ });
-    await userEvent.click(editButtons[0]);
+    await userEvent.click(editButtons[0]!);
 
     expect(onEditItem).toHaveBeenCalled();
     expect(onItemClick).not.toHaveBeenCalled();
