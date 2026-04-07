@@ -108,3 +108,32 @@ func TestVerifier(t *testing.T) *appjwt.Verifier {
 	kp := GenerateTestKeyPair(t)
 	return appjwt.NewVerifierFromKey(kp.PublicKey)
 }
+
+// GenerateExpiredTestToken は有効期限切れの RS256 署名済みアクセストークンを生成する。
+// DSH-002 等の期限切れトークンテスト用。
+func GenerateExpiredTestToken(t *testing.T, userID, tenantID, role string) string {
+	t.Helper()
+
+	kp := GenerateTestKeyPair(t)
+
+	// 有効期限を過去に設定して期限切れトークンを生成する。
+	past := time.Now().Add(-2 * time.Hour)
+	claims := appjwt.Claims{
+		UserID:    userID,
+		TenantID:  tenantID,
+		Role:      role,
+		TokenType: "access",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			IssuedAt:  gojwt.NewNumericDate(past.Add(-time.Hour)),
+			ExpiresAt: gojwt.NewNumericDate(past),
+		},
+	}
+
+	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	signed, err := token.SignedString(kp.PrivateKey)
+	if err != nil {
+		t.Fatalf("testutil: failed to sign expired test JWT: %v", err)
+	}
+	return signed
+}
