@@ -105,8 +105,8 @@ describe('useRejectReport', () => {
     });
   });
 
-  // WFL-FE-075: 409 CONFLICT 時に error が設定される。
-  it('WFL-FE-075: returns_error_on_409_conflict — 409 CONFLICT 時に error が設定される', async () => {
+  // WFL-FE-075: 409 CONFLICT 時に error が設定され、キャッシュは無効化されない。
+  it('WFL-FE-075: returns_error_on_409_conflict — 409 CONFLICT 時に error が設定され invalidateQueries は呼ばれない', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 409,
@@ -115,7 +115,17 @@ describe('useRejectReport', () => {
       json: async () => ({ error: { code: 'CONFLICT', message: '競合が発生しました' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useRejectReport(), { wrapper: createWrapper() });
+    // invalidateQueries が呼ばれないことを spy で確認するため独自 QueryClient を使う。
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useRejectReport(), { wrapper });
 
     await act(async () => {
       await expect(
@@ -131,5 +141,7 @@ describe('useRejectReport', () => {
       expect(result.current.isError).toBe(true);
     });
     expect(result.current.error).not.toBeNull();
+    // 409 エラー時はキャッシュが無効化されないこと。
+    expect(invalidateSpy).not.toHaveBeenCalled();
   });
 });

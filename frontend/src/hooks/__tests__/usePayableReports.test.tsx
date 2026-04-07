@@ -109,9 +109,35 @@ describe('usePayableReports', () => {
   });
 
   // WFL-FE-054: staleTime 30秒 — 初回フェッチ後 30 秒以内に再レンダリングしても再フェッチが発生しない。
-  it('WFL-FE-054: respects_stale_time — staleTime が 30000ms に設定されている', () => {
-    // staleTime の設定値を確認する。
-    const staleTimeMs = 30 * 1000;
-    expect(staleTimeMs).toBe(30000);
+  it('WFL-FE-054: respects_stale_time — staleTime 30秒以内は再 fetch しない', async () => {
+    // 同一 QueryClient を使ってキャッシュを共有する。
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    // 1回目の fetch をモック。
+    const fetchSpy = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+    } as unknown as Response);
+    globalThis.fetch = fetchSpy;
+
+    // Hook をレンダリング → 最初の fetch が発生する。
+    const { result, unmount } = renderHook(() => usePayableReports({}), { wrapper });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    // 初回 fetch が 1 回呼ばれていること。
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    // アンマウント後に同じ QueryClient で再レンダリングする（staleTime 内）。
+    unmount();
+    renderHook(() => usePayableReports({}), { wrapper });
+
+    // staleTime 以内なので fetch は再度呼ばれない。
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
   });
 });
