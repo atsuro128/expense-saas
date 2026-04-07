@@ -79,7 +79,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     label: '全レポート',
-    path: '/admin/reports',
+    path: '/reports/all',
     icon: <FolderIcon />,
     roles: ['accounting', 'admin'],
   },

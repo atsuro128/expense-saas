@@ -56,6 +56,7 @@ export default function ReportForm({
     control,
     handleSubmit,
     formState: { errors },
+    getValues,
   } = useForm<ReportFormValues>({
     defaultValues: defaultValues ?? DEFAULT_VALUES,
   });
@@ -88,6 +89,21 @@ export default function ReportForm({
         periodStartError={errors.periodStart?.message}
         periodEndError={errors.periodEnd?.message}
         disabled={isPending}
+        rules={{
+          periodStart: {
+            required: '開始日は必須です',
+          },
+          periodEnd: {
+            required: '終了日は必須です',
+            validate: (value: string) => {
+              const start = getValues('periodStart');
+              if (start && value && value < start) {
+                return '終了日は開始日以降にしてください';
+              }
+              return true;
+            },
+          },
+        }}
       />
 
       {/* アクションボタン */}

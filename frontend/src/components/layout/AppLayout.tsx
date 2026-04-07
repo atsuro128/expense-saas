@@ -21,8 +21,9 @@ export interface AppLayoutProps {
 const DRAWER_WIDTH = 240;
 
 /**
- * JWT ペイロードのデコード（署名検証なし、表示用途のみ）。
- * 取得できない場合は null を返す。
+ * JWT ペイロードからロールを取得する（署名検証なし、表示用途のみ）。
+ * access token の claims は sub, tenant_id, role, token_type のみ。
+ * name は含まれないため、Step 10 で /api/auth/me レスポンスから取得する。
  */
 function decodeUserFromToken(): HeaderUser | null {
   const token = getAccessToken();
@@ -31,7 +32,6 @@ function decodeUserFromToken(): HeaderUser | null {
     const payloadBase64 = token.split('.')[1];
     if (!payloadBase64) return null;
     const payload = JSON.parse(atob(payloadBase64)) as Record<string, unknown>;
-    const name = typeof payload['name'] === 'string' ? payload['name'] : '';
     const role = payload['role'];
     if (
       role === 'admin' ||
@@ -39,7 +39,8 @@ function decodeUserFromToken(): HeaderUser | null {
       role === 'member' ||
       role === 'accounting'
     ) {
-      return { name, role };
+      // name は access token に含まれない。Step 10 で認証コンテキスト経由に切り替える。
+      return { name: '', role };
     }
     return null;
   } catch {
