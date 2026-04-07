@@ -17,7 +17,7 @@ type membershipRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewMembershipRepo constructs a MembershipRepository backed by PostgreSQL.
+// NewMembershipRepo は PostgreSQL をバックエンドとする MembershipRepository を生成して返す。
 func NewMembershipRepo(pool *pgxpool.Pool) domain.MembershipRepository {
 	return &membershipRepo{pool: pool}
 }

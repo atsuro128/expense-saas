@@ -22,14 +22,14 @@ import (
 )
 
 func main() {
-	// 1. Load configuration from environment variables.
+	// 1. 環境変数から設定を読み込む。
 	cfg, err := config.LoadConfig()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "failed to load config: %v\n", err)
 		os.Exit(1)
 	}
 
-	// 2. Configure structured logging with slog (JSON handler).
+	// 2. slog の構造化ログを設定する（JSON ハンドラ使用）。
 	var logLevel slog.Level
 	switch cfg.LogLevel {
 	case "debug":
@@ -44,7 +44,7 @@ func main() {
 	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: logLevel}))
 	slog.SetDefault(logger)
 
-	// 3. Create connection pool for app role database.
+	// 3. アプリロール用データベースの接続プールを作成する。
 	pool, err := pgxpool.New(context.Background(), cfg.AppDatabaseURL)
 	if err != nil {
 		slog.Error("failed to create database connection pool", "error", err)
@@ -52,37 +52,35 @@ func main() {
 	}
 	defer pool.Close()
 
-	// 4. Verify database reachability.
+	// 4. データベースへの疎通確認を行う。
 	if err := pool.Ping(context.Background()); err != nil {
 		slog.Error("failed to ping database", "error", err)
 		os.Exit(1)
 	}
 	slog.Info("database connection established")
 
-	// 5. Initialize JWT verifier (non-fatal: warn and continue when key file is absent).
-	var verifier *appjwt.Verifier
-	if cfg.JWTPublicKeyPath != "" {
-		v, jwtErr := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
-		if jwtErr != nil {
-			slog.Warn("JWT verifier initialization failed; authenticated endpoints will return 401",
-				"error", jwtErr,
-				"path", cfg.JWTPublicKeyPath,
-			)
-		} else {
-			verifier = v
-			slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
-		}
-	} else {
-		slog.Warn("JWT_PUBLIC_KEY_PATH is not set; authenticated endpoints will return 401")
+	// 5. JWT 鍵ファイルの検証と検証器の初期化。
+	// TODO: Signer 実装時に os.Stat を NewSigner（NewVerifier と同等の PEM パース検証）に置き換える。
+	if _, err := os.Stat(cfg.JWTPrivateKeyPath); err != nil {
+		slog.Error("JWT private key file not found", "error", err, "path", cfg.JWTPrivateKeyPath)
+		os.Exit(1)
 	}
+	slog.Info("JWT private key file verified", "path", cfg.JWTPrivateKeyPath)
 
-	// 6. Context for background goroutines (rate limiter cleanup etc.).
+	verifier, err := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
+	if err != nil {
+		slog.Error("failed to initialize JWT verifier", "error", err, "path", cfg.JWTPublicKeyPath)
+		os.Exit(1)
+	}
+	slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
+
+	// 6. バックグラウンド goroutine 用のコンテキストを生成する（レートリミッタのクリーンアップ等）。
 	bgCtx, bgCancel := context.WithCancel(context.Background())
 	defer bgCancel()
 
-	// 7. Wire up repositories, services, and handlers (DI).
+	// 7. リポジトリ・サービス・ハンドラを組み立てる（DI）。
 
-	// Repositories.
+	// リポジトリ。
 	tenantRepo := postgres.NewTenantRepo(pool)
 	userRepo := postgres.NewUserRepo(pool)
 	membershipRepo := postgres.NewMembershipRepo(pool)
@@ -93,10 +91,10 @@ func main() {
 	refreshTokenRepo := postgres.NewRefreshTokenRepo(pool)
 	passwordResetRepo := postgres.NewPasswordResetRepo(pool)
 
-	// Authorizer.
+	// 認可。
 	authorizer := service.NewAuthorizer()
 
-	// Services.
+	// サービス。
 	authSvc := service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
@@ -106,7 +104,7 @@ func main() {
 	categorySvc := service.NewCategoryService(categoryRepo)
 	tenantSvc := service.NewTenantService(tenantRepo, userRepo, membershipRepo)
 
-	// Handlers.
+	// ハンドラ。
 	authHandler := handler.NewAuthHandler(authSvc)
 	reportHandler := handler.NewReportHandler(reportSvc)
 	itemHandler := handler.NewItemHandler(itemSvc)
@@ -116,17 +114,17 @@ func main() {
 	categoryHandler := handler.NewCategoryHandler(categorySvc)
 	tenantHandler := handler.NewTenantHandler(tenantSvc)
 
-	// 8. Create router with common middleware chain.
+	// 8. 共通ミドルウェアチェーンを持つルータを生成する。
 	r := chi.NewRouter()
 
-	// Common middleware: CORS → SecurityHeaders → RequestID → Logger → RateLimit(IP).
+	// 共通ミドルウェア: CORS → SecurityHeaders → RequestID → Logger → RateLimit(IP)。
 	r.Use(middleware.Cors(cfg.CORSAllowedOrigins))
 	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
 	r.Use(middleware.RateLimitByIP(bgCtx, 20, time.Minute))
 
-	// 9. Unauthenticated routes.
+	// 9. 認証不要なルート。
 	r.Group(func(pub chi.Router) {
 		pub.Get("/health", handler.NewHealthHandler(pool))
 
@@ -138,19 +136,19 @@ func main() {
 		pub.Put("/api/auth/password-reset/{token}", authHandler.ExecutePasswordReset)
 	})
 
-	// 10. Authenticated group: Auth → TenantContext → rate-limited by user.
+	// 10. 認証必須グループ: Auth → TenantContext → ユーザー単位レートリミット。
 	r.Group(func(priv chi.Router) {
 		priv.Use(middleware.Auth(verifier))
 		priv.Use(middleware.TenantContext(pool))
 		priv.Use(middleware.RateLimitByUser(bgCtx, 100, time.Minute))
 
-		// All authenticated roles.
+		// 全認証済みロール共通。
 		priv.With(middleware.RequireRole("member", "approver", "admin", "accounting")).Group(func(all chi.Router) {
 			all.Get("/api/auth/me", authHandler.GetMe)
 			all.Get("/api/dashboard", dashboardHandler.GetDashboard)
 			all.Get("/api/categories", categoryHandler.ListCategories)
 
-			// Reports.
+			// 経費精算レポート。
 			all.Get("/api/reports", reportHandler.ListMyReports)
 			all.Post("/api/reports", reportHandler.CreateReport)
 			all.Get("/api/reports/{id}", reportHandler.GetReport)
@@ -158,51 +156,51 @@ func main() {
 			all.Delete("/api/reports/{id}", reportHandler.DeleteReport)
 			all.Post("/api/reports/{id}/submit", reportHandler.SubmitReport)
 
-			// Items.
+			// 経費明細。
 			all.Post("/api/reports/{id}/items", itemHandler.CreateItem)
 			all.Put("/api/reports/{id}/items/{itemId}", itemHandler.UpdateItem)
 			all.Delete("/api/reports/{id}/items/{itemId}", itemHandler.DeleteItem)
 
-			// Attachments.
+			// 添付ファイル。
 			all.Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.GetAttachmentDownload)
 			all.Delete("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.DeleteAttachment)
 		})
 
-		// Approver only.
+		// 承認者専用。
 		priv.With(middleware.RequireRole("approver")).Group(func(approver chi.Router) {
 			approver.Get("/api/workflow/pending", workflowHandler.ListPendingReports)
 			approver.Post("/api/workflow/{id}/approve", workflowHandler.ApproveReport)
 			approver.Post("/api/workflow/{id}/reject", workflowHandler.RejectReport)
 		})
 
-		// Accounting only.
+		// 経理専用。
 		priv.With(middleware.RequireRole("accounting")).Group(func(accounting chi.Router) {
 			accounting.Get("/api/workflow/payable", workflowHandler.ListPayableReports)
 			accounting.Post("/api/workflow/{id}/pay", workflowHandler.MarkReportAsPaid)
 		})
 
-		// Admin and Accounting.
+		// 管理者・経理共通。
 		priv.With(middleware.RequireRole("admin", "accounting")).Group(func(adminAcct chi.Router) {
 			adminAcct.Get("/api/reports/all", reportHandler.ListAllReports)
 			adminAcct.Get("/api/tenant/members", tenantHandler.ListTenantMembers)
 		})
 
-		// Admin only.
+		// 管理者専用。
 		priv.With(middleware.RequireRole("admin")).Group(func(admin chi.Router) {
 			admin.Get("/api/tenant", tenantHandler.GetTenant)
 		})
 	})
 
-	// 11. Start HTTP server.
+	// 11. HTTP サーバを起動する。
 	addr := "0.0.0.0:" + cfg.Port
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,
 	}
 
-	// 12. Graceful shutdown on OS signal.
+	// 12. OS シグナル受信時にグレースフルシャットダウンを行う。
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -217,7 +215,7 @@ func main() {
 	<-quit
 	slog.Info("shutting down server")
 
-	// Cancel background goroutines (e.g., rate limiter cleanup).
+	// バックグラウンド goroutine をキャンセルする（例: レートリミッタのクリーンアップ）。
 	bgCancel()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)

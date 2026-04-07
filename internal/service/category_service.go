@@ -10,7 +10,7 @@ type categoryService struct {
 	categoryRepo domain.CategoryRepository
 }
 
-// NewCategoryService constructs a CategoryService.
+// NewCategoryService は CategoryService を生成して返す。
 func NewCategoryService(categoryRepo domain.CategoryRepository) CategoryService {
 	return &categoryService{categoryRepo: categoryRepo}
 }

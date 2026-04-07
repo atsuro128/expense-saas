@@ -7,145 +7,147 @@ import (
 	"github.com/google/uuid"
 )
 
-// ReportListParams holds optional filter/pagination parameters for listing reports.
+// ReportListParams はレポート一覧取得のオプションフィルタ・ページネーションパラメータを保持する。
 type ReportListParams struct {
-	// UserID filters to reports owned by this user (nil = no filter).
+	// UserID は指定ユーザーが所有するレポートに絞り込む（nil = フィルタなし）。
 	UserID *uuid.UUID
-	// Status filters by report status (nil = no filter).
+	// Status はレポートステータスで絞り込む（nil = フィルタなし）。
 	Status *ReportStatus
-	// From filters by period_start >= From (nil = no filter).
+	// From は period_start >= From で絞り込む（nil = フィルタなし）。
 	From *time.Time
-	// To filters by period_end <= To (nil = no filter).
+	// To は period_end <= To で絞り込む（nil = フィルタなし）。
 	To *time.Time
-	// SubmitterID filters by the report creator's user ID (nil = no filter).
+	// SubmitterID はレポート作成者の UserID で絞り込む（nil = フィルタなし）。
 	SubmitterID *uuid.UUID
-	// Cursor is the created_at value from the last item (exclusive upper bound).
-	Cursor *time.Time
-	// Limit is the maximum number of items to return.
-	Limit int
+	// Page は取得するページ番号（1始まり）。
+	Page int
+	// PerPage は1ページあたりの最大取得件数。
+	PerPage int
 }
 
-// WorkflowListParams holds pagination parameters for workflow list endpoints.
+// WorkflowListParams はワークフロー一覧エンドポイントのページネーションパラメータを保持する。
 type WorkflowListParams struct {
-	// ApplicantName filters by applicant name (partial match, nil = no filter).
+	// ApplicantName は申請者名で絞り込む（部分一致、nil = フィルタなし）。
 	ApplicantName *string
-	// Cursor is the submitted_at / approved_at value from the last item.
-	Cursor *time.Time
-	// Limit is the maximum number of items to return.
-	Limit int
+	// Page は取得するページ番号（1始まり）。
+	Page int
+	// PerPage は1ページあたりの最大取得件数。
+	PerPage int
 }
 
-// TenantRepository provides persistence operations for Tenant entities.
+// TenantRepository は Tenant エンティティの永続化操作を提供する。
 type TenantRepository interface {
-	// Create persists a new tenant and returns the created record.
+	// Create は新しいテナントを保存し、作成されたレコードを返す。
 	Create(ctx context.Context, companyName string) (*Tenant, error)
-	// GetByID retrieves a tenant by its primary key.
+	// GetByID は主キーでテナントを取得する。
 	GetByID(ctx context.Context, tenantID uuid.UUID) (*Tenant, error)
 }
 
-// UserRepository provides persistence operations for User entities.
+// UserRepository は User エンティティの永続化操作を提供する。
 type UserRepository interface {
-	// Create persists a new user and returns the created record.
+	// Create は新しいユーザーを保存し、作成されたレコードを返す。
 	Create(ctx context.Context, email, name, passwordHash string) (*User, error)
-	// GetByID retrieves a user by primary key.
+	// GetByID は主キーでユーザーを取得する。
 	GetByID(ctx context.Context, userID uuid.UUID) (*User, error)
-	// GetByEmail retrieves a user by email address.
+	// GetByEmail はメールアドレスでユーザーを取得する。
 	GetByEmail(ctx context.Context, email string) (*User, error)
-	// UpdatePassword updates the password hash for a user.
+	// UpdatePassword はユーザーのパスワードハッシュを更新する。
 	UpdatePassword(ctx context.Context, userID uuid.UUID, passwordHash string) error
 }
 
-// MembershipRepository provides persistence operations for TenantMembership entities.
+// MembershipRepository は TenantMembership エンティティの永続化操作を提供する。
 type MembershipRepository interface {
-	// Create persists a new tenant membership.
+	// Create は新しいテナントメンバーシップを保存する。
 	Create(ctx context.Context, tenantID, userID uuid.UUID, role Role) (*TenantMembership, error)
-	// GetByUserID retrieves the membership for a given user (MVP: 1 user = 1 tenant).
+	// GetByUserID は指定ユーザーのメンバーシップを取得する（MVP: 1 ユーザー = 1 テナント）。
 	GetByUserID(ctx context.Context, userID uuid.UUID) (*TenantMembership, error)
-	// ListByTenantID retrieves all memberships within a tenant.
+	// ListByTenantID はテナント内の全メンバーシップを取得する。
 	ListByTenantID(ctx context.Context, tenantID uuid.UUID) ([]TenantMembership, error)
-	// HasApprover returns true when the tenant has at least one Approver.
+	// HasApprover はテナントに承認者が1人以上いる場合に true を返す。
 	HasApprover(ctx context.Context, tenantID uuid.UUID) (bool, error)
 }
 
-// CategoryRepository provides read access to expense category master data.
+// CategoryRepository は経費カテゴリマスターデータへの読み取りアクセスを提供する。
 type CategoryRepository interface {
-	// ListActive returns active categories visible within a tenant
-	// (global categories + tenant-specific categories).
+	// ListActive はテナント内で表示される有効なカテゴリを返す
+	// （グローバルカテゴリ + テナント固有カテゴリ）。
 	ListActive(ctx context.Context, tenantID uuid.UUID) ([]Category, error)
-	// GetByID retrieves a category by primary key, scoped to the given tenant
-	// (matches tenant-specific categories or global categories where tenant_id IS NULL).
+	// GetByID は指定テナントにスコープされた主キーでカテゴリを取得する
+	// （テナント固有カテゴリ、または tenant_id IS NULL のグローバルカテゴリが対象）。
 	GetByID(ctx context.Context, tenantID, categoryID uuid.UUID) (*Category, error)
 }
 
-// ReportRepository provides persistence operations for ExpenseReport entities.
+// ReportRepository は ExpenseReport エンティティの永続化操作を提供する。
 type ReportRepository interface {
-	// Create persists a new expense report.
+	// Create は新しい経費精算レポートを保存する。
 	Create(ctx context.Context, tenantID, userID uuid.UUID, title string, periodStart, periodEnd time.Time, referenceReportID *uuid.UUID) (*ExpenseReport, error)
-	// GetByID retrieves a report scoped to a tenant.
+	// GetByID はテナントにスコープされたレポートを取得する。
 	GetByID(ctx context.Context, tenantID, reportID uuid.UUID) (*ExpenseReport, error)
-	// List retrieves reports within a tenant matching the given parameters.
-	List(ctx context.Context, tenantID uuid.UUID, params ReportListParams) ([]ExpenseReport, error)
-	// Update applies a partial update to a report (title, period fields).
-	// Implements optimistic locking via updatedAt; returns ErrConflict on version mismatch.
+	// List はテナント内の指定パラメータに一致するレポートを取得する。
+	// 戻り値の int は総件数（ページネーション用）。
+	List(ctx context.Context, tenantID uuid.UUID, params ReportListParams) ([]ExpenseReport, int, error)
+	// Update はレポートの部分更新（タイトル・期間フィールド）を適用する。
+	// updatedAt を用いた楽観的ロックを実装し、バージョン不一致時は ErrConflict を返す。
 	Update(ctx context.Context, report *ExpenseReport) error
-	// UpdateStatus transitions a report to a new status.
-	// Implements optimistic locking via updatedAt; returns ErrConflict on version mismatch.
+	// UpdateStatus はレポートを新しいステータスに遷移させる。
+	// updatedAt を用いた楽観的ロックを実装し、バージョン不一致時は ErrConflict を返す。
 	UpdateStatus(ctx context.Context, report *ExpenseReport) error
-	// SoftDelete marks a report (and its items/attachments) as deleted.
+	// SoftDelete はレポート（およびその明細・添付ファイル）を論理削除する。
 	SoftDelete(ctx context.Context, tenantID, reportID uuid.UUID) error
-	// CountByStatus returns per-status counts for reports matching the filter.
+	// CountByStatus はフィルタに一致するレポートのステータス別件数を返す。
 	CountByStatus(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID) (map[ReportStatus]int, error)
-	// MonthlySummary returns the aggregated total_amount per calendar month
-	// for the last numMonths months within the tenant.
+	// MonthlySummary はテナント内の直近 numMonths か月分の月別 total_amount 集計を返す。
 	MonthlySummary(ctx context.Context, tenantID uuid.UUID, userID *uuid.UUID, numMonths int) ([]MonthlySummary, error)
-	// ListPending returns submitted reports within a tenant.
-	ListPending(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, error)
-	// ListPayable returns approved reports within a tenant.
-	ListPayable(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, error)
+	// ListPending はテナント内の申請中レポートを返す。
+	// 戻り値の int は総件数（ページネーション用）。
+	ListPending(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
+	// ListPayable はテナント内の承認済みレポートを返す。
+	// 戻り値の int は総件数（ページネーション用）。
+	ListPayable(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
 }
 
-// ItemRepository provides persistence operations for ExpenseItem entities.
+// ItemRepository は ExpenseItem エンティティの永続化操作を提供する。
 type ItemRepository interface {
-	// Create persists a new expense item and recalculates the report total.
+	// Create は新しい経費明細を保存し、レポートの合計金額を再計算する。
 	Create(ctx context.Context, tenantID, reportID uuid.UUID, expenseDate time.Time, amount int, categoryID uuid.UUID, description string) (*ExpenseItem, error)
-	// GetByID retrieves an item scoped to a tenant and report.
+	// GetByID はテナントとレポートにスコープされた明細を取得する。
 	GetByID(ctx context.Context, tenantID, reportID, itemID uuid.UUID) (*ExpenseItem, error)
-	// ListByReportID retrieves all active items for a report.
+	// ListByReportID はレポートの全有効明細を取得する。
 	ListByReportID(ctx context.Context, tenantID, reportID uuid.UUID) ([]ExpenseItem, error)
-	// Update replaces mutable item fields. Implements optimistic locking via updatedAt.
+	// Update は変更可能な明細フィールドを置き換える。updatedAt を用いた楽観的ロックを実装する。
 	Update(ctx context.Context, item *ExpenseItem) error
-	// SoftDelete marks an item (and its attachments) as deleted and recalculates the report total.
+	// SoftDelete は明細（およびその添付ファイル）を論理削除し、レポートの合計金額を再計算する。
 	SoftDelete(ctx context.Context, tenantID, reportID, itemID uuid.UUID) error
 }
 
-// AttachmentRepository provides persistence operations for Attachment entities.
+// AttachmentRepository は Attachment エンティティの永続化操作を提供する。
 type AttachmentRepository interface {
-	// Create persists attachment metadata.
+	// Create は添付ファイルのメタデータを保存する。
 	Create(ctx context.Context, tenantID, reportID, itemID uuid.UUID, fileName string, fileSize int, mimeType MimeType, s3Key string) (*Attachment, error)
-	// GetByID retrieves an attachment scoped to a tenant, report, and item.
+	// GetByID はテナント・レポート・明細にスコープされた添付ファイルを取得する。
 	GetByID(ctx context.Context, tenantID, reportID, itemID, attachmentID uuid.UUID) (*Attachment, error)
-	// ListByItemID retrieves all active attachments for an item.
+	// ListByItemID は明細の全有効添付ファイルを取得する。
 	ListByItemID(ctx context.Context, tenantID, reportID, itemID uuid.UUID) ([]Attachment, error)
-	// SoftDelete marks an attachment as deleted.
+	// SoftDelete は添付ファイルを論理削除する。
 	SoftDelete(ctx context.Context, tenantID, reportID, itemID, attachmentID uuid.UUID) error
 }
 
-// RefreshTokenRepository provides persistence operations for RefreshToken entities.
+// RefreshTokenRepository は RefreshToken エンティティの永続化操作を提供する。
 type RefreshTokenRepository interface {
-	// Create persists a new refresh token.
+	// Create は新しいリフレッシュトークンを保存する。
 	Create(ctx context.Context, jti, userID uuid.UUID, tokenHash string, expiresAt time.Time) (*RefreshToken, error)
-	// GetByJTI retrieves a refresh token by its JWT ID.
+	// GetByJTI は JWT ID でリフレッシュトークンを取得する。
 	GetByJTI(ctx context.Context, jti uuid.UUID) (*RefreshToken, error)
-	// Revoke marks a token as revoked.
+	// Revoke はトークンを失効済みとしてマークする。
 	Revoke(ctx context.Context, jti uuid.UUID) error
 }
 
-// PasswordResetTokenRepository provides persistence operations for PasswordResetToken entities.
+// PasswordResetTokenRepository は PasswordResetToken エンティティの永続化操作を提供する。
 type PasswordResetTokenRepository interface {
-	// Create persists a new password reset token.
+	// Create は新しいパスワードリセットトークンを保存する。
 	Create(ctx context.Context, userID uuid.UUID, tokenHash string, expiresAt time.Time) (*PasswordResetToken, error)
-	// GetByTokenHash retrieves a valid (unused, non-expired) token by its hash.
+	// GetByTokenHash はハッシュ値で有効な（未使用かつ未期限切れ）トークンを取得する。
 	GetByTokenHash(ctx context.Context, tokenHash string) (*PasswordResetToken, error)
-	// MarkUsed records the token as used (used_at = now).
+	// MarkUsed はトークンを使用済みとして記録する（used_at = 現在時刻）。
 	MarkUsed(ctx context.Context, id uuid.UUID) error
 }

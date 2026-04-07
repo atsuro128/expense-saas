@@ -9,9 +9,8 @@ import (
 	"expense-saas/internal/repository/postgres/sqlcgen"
 )
 
-// queries returns a sqlcgen.Queries backed by the TenantContext connection stored
-// in ctx. When no such connection is present (e.g., unauthenticated paths), it
-// falls back to the provided pool.
+// queries は ctx に格納されたテナントコンテキスト用コネクションをバックエンドとする sqlcgen.Queries を返す。
+// コネクションが存在しない場合（未認証パスなど）は、指定された pool にフォールバックする。
 func queries(ctx context.Context, pool *pgxpool.Pool) *sqlcgen.Queries {
 	if conn := middleware.GetConn(ctx); conn != nil {
 		return sqlcgen.New(conn)

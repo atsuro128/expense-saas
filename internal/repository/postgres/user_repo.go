@@ -18,7 +18,7 @@ type userRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewUserRepo constructs a UserRepository backed by PostgreSQL.
+// NewUserRepo は PostgreSQL をバックエンドとする UserRepository を生成して返す。
 func NewUserRepo(pool *pgxpool.Pool) domain.UserRepository {
 	return &userRepo{pool: pool}
 }

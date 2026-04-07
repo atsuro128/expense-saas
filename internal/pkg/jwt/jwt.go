@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-// Claims represents the JWT payload for access tokens.
+// Claims はアクセストークンの JWT ペイロードを表す。
 type Claims struct {
 	UserID    string `json:"sub"`
 	TenantID  string `json:"tenant_id"`
@@ -21,12 +21,12 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Verifier holds the RSA public key used to verify JWT RS256 tokens.
+// Verifier は JWT RS256 トークンの検証に使用する RSA 公開鍵を保持する。
 type Verifier struct {
 	publicKey *rsa.PublicKey
 }
 
-// NewVerifier reads an RSA public key from a PEM file and returns a Verifier.
+// NewVerifier は PEM ファイルから RSA 公開鍵を読み込み、Verifier を返す。
 func NewVerifier(publicKeyPath string) (*Verifier, error) {
 	data, err := os.ReadFile(publicKeyPath)
 	if err != nil {
@@ -51,14 +51,14 @@ func NewVerifier(publicKeyPath string) (*Verifier, error) {
 	return &Verifier{publicKey: rsaPub}, nil
 }
 
-// NewVerifierFromKey constructs a Verifier directly from an RSA public key.
-// Intended for use in tests where reading from a file is not practical.
+// NewVerifierFromKey は RSA 公開鍵から直接 Verifier を生成する。
+// ファイルからの読み込みが難しいテスト用途を想定している。
 func NewVerifierFromKey(publicKey *rsa.PublicKey) *Verifier {
 	return &Verifier{publicKey: publicKey}
 }
 
-// Verify parses and validates a JWT token string.
-// It enforces RS256 algorithm, expiry, issuer ("expense-saas"), and token_type ("access").
+// Verify は JWT トークン文字列を解析・検証する。
+// RS256 アルゴリズム、有効期限、発行者（"expense-saas"）、token_type（"access"）を強制検証する。
 func (v *Verifier) Verify(tokenString string) (*Claims, error) {
 	claims := &Claims{}
 

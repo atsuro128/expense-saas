@@ -11,7 +11,7 @@ type dashboardService struct {
 	membershipRepo domain.MembershipRepository
 }
 
-// NewDashboardService constructs a DashboardService.
+// NewDashboardService は DashboardService を生成して返す。
 func NewDashboardService(
 	reportRepo domain.ReportRepository,
 	membershipRepo domain.MembershipRepository,

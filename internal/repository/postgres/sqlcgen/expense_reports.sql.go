@@ -13,6 +13,37 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const countAllReports = `-- name: CountAllReports :one
+SELECT COUNT(*)::int FROM expense_reports
+WHERE tenant_id  = $1
+  AND deleted_at IS NULL
+  AND ($2::text IS NULL OR status = $2)
+  AND ($3::date IS NULL OR period_start >= $3)
+  AND ($4::date IS NULL OR period_end <= $4)
+  AND ($5::uuid IS NULL OR user_id = $5)
+`
+
+type CountAllReportsParams struct {
+	TenantID uuid.UUID   `json:"tenant_id"`
+	Status   pgtype.Text `json:"status"`
+	FromDate pgtype.Date `json:"from_date"`
+	ToDate   pgtype.Date `json:"to_date"`
+	UserID   pgtype.UUID `json:"user_id"`
+}
+
+func (q *Queries) CountAllReports(ctx context.Context, arg CountAllReportsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countAllReports,
+		arg.TenantID,
+		arg.Status,
+		arg.FromDate,
+		arg.ToDate,
+		arg.UserID,
+	)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countMyReportsByStatus = `-- name: CountMyReportsByStatus :many
 SELECT status, COUNT(*)::int AS count
 FROM expense_reports
@@ -52,6 +83,50 @@ func (q *Queries) CountMyReportsByStatus(ctx context.Context, arg CountMyReports
 	return items, nil
 }
 
+const countPayableReports = `-- name: CountPayableReports :one
+SELECT COUNT(*)::int
+FROM expense_reports er
+JOIN users u ON er.user_id = u.id
+WHERE er.tenant_id  = $1
+  AND er.status     = 'approved'
+  AND er.deleted_at IS NULL
+  AND ($2::text IS NULL OR u.name ILIKE '%' || $2 || '%')
+`
+
+type CountPayableReportsParams struct {
+	TenantID      uuid.UUID   `json:"tenant_id"`
+	ApplicantName pgtype.Text `json:"applicant_name"`
+}
+
+func (q *Queries) CountPayableReports(ctx context.Context, arg CountPayableReportsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countPayableReports, arg.TenantID, arg.ApplicantName)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countPendingReports = `-- name: CountPendingReports :one
+SELECT COUNT(*)::int
+FROM expense_reports er
+JOIN users u ON er.user_id = u.id
+WHERE er.tenant_id  = $1
+  AND er.status     = 'submitted'
+  AND er.deleted_at IS NULL
+  AND ($2::text IS NULL OR u.name ILIKE '%' || $2 || '%')
+`
+
+type CountPendingReportsParams struct {
+	TenantID      uuid.UUID   `json:"tenant_id"`
+	ApplicantName pgtype.Text `json:"applicant_name"`
+}
+
+func (q *Queries) CountPendingReports(ctx context.Context, arg CountPendingReportsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countPendingReports, arg.TenantID, arg.ApplicantName)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countReportsByStatus = `-- name: CountReportsByStatus :many
 SELECT status, COUNT(*)::int AS count
 FROM expense_reports
@@ -83,6 +158,37 @@ func (q *Queries) CountReportsByStatus(ctx context.Context, tenantID uuid.UUID) 
 		return nil, err
 	}
 	return items, nil
+}
+
+const countReportsByUser = `-- name: CountReportsByUser :one
+SELECT COUNT(*)::int FROM expense_reports
+WHERE tenant_id = $1
+  AND user_id   = $2
+  AND deleted_at IS NULL
+  AND ($3::text IS NULL OR status = $3)
+  AND ($4::date IS NULL OR period_start >= $4)
+  AND ($5::date IS NULL OR period_end <= $5)
+`
+
+type CountReportsByUserParams struct {
+	TenantID uuid.UUID   `json:"tenant_id"`
+	UserID   uuid.UUID   `json:"user_id"`
+	Status   pgtype.Text `json:"status"`
+	FromDate pgtype.Date `json:"from_date"`
+	ToDate   pgtype.Date `json:"to_date"`
+}
+
+func (q *Queries) CountReportsByUser(ctx context.Context, arg CountReportsByUserParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countReportsByUser,
+		arg.TenantID,
+		arg.UserID,
+		arg.Status,
+		arg.FromDate,
+		arg.ToDate,
+	)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const createReport = `-- name: CreateReport :one
@@ -183,33 +289,32 @@ const listAllReports = `-- name: ListAllReports :many
 SELECT report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, reference_report_id, submitted_by, submitted_at, approved_by, approved_at, approval_comment, rejected_by, rejected_at, rejection_reason, paid_by, paid_at, created_at, updated_at, deleted_at FROM expense_reports
 WHERE tenant_id  = $1
   AND deleted_at IS NULL
-  AND ($3::text IS NULL OR status = $3)
-  AND ($4::date IS NULL OR period_start >= $4)
-  AND ($5::date IS NULL OR period_end <= $5)
-  AND ($6::timestamptz IS NULL OR created_at < $6)
+  AND ($4::text IS NULL OR status = $4)
+  AND ($5::date IS NULL OR period_start >= $5)
+  AND ($6::date IS NULL OR period_end <= $6)
   AND ($7::uuid IS NULL OR user_id = $7)
 ORDER BY created_at DESC
-LIMIT $2
+LIMIT $2 OFFSET $3
 `
 
 type ListAllReportsParams struct {
-	TenantID uuid.UUID          `json:"tenant_id"`
-	Limit    int32              `json:"limit"`
-	Status   pgtype.Text        `json:"status"`
-	FromDate pgtype.Date        `json:"from_date"`
-	ToDate   pgtype.Date        `json:"to_date"`
-	Cursor   pgtype.Timestamptz `json:"cursor"`
-	UserID   pgtype.UUID        `json:"user_id"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+	Status   pgtype.Text `json:"status"`
+	FromDate pgtype.Date `json:"from_date"`
+	ToDate   pgtype.Date `json:"to_date"`
+	UserID   pgtype.UUID `json:"user_id"`
 }
 
 func (q *Queries) ListAllReports(ctx context.Context, arg ListAllReportsParams) ([]ExpenseReport, error) {
 	rows, err := q.db.Query(ctx, listAllReports,
 		arg.TenantID,
 		arg.Limit,
+		arg.Offset,
 		arg.Status,
 		arg.FromDate,
 		arg.ToDate,
-		arg.Cursor,
 		arg.UserID,
 	)
 	if err != nil {
@@ -260,25 +365,24 @@ JOIN users u ON er.user_id = u.id
 WHERE er.tenant_id  = $1
   AND er.status     = 'approved'
   AND er.deleted_at IS NULL
-  AND ($3::text IS NULL OR u.name ILIKE '%' || $3 || '%')
-  AND ($4::timestamptz IS NULL OR er.approved_at < $4)
+  AND ($4::text IS NULL OR u.name ILIKE '%' || $4 || '%')
 ORDER BY er.approved_at DESC
-LIMIT $2
+LIMIT $2 OFFSET $3
 `
 
 type ListPayableReportsParams struct {
-	TenantID      uuid.UUID          `json:"tenant_id"`
-	Limit         int32              `json:"limit"`
-	ApplicantName pgtype.Text        `json:"applicant_name"`
-	Cursor        pgtype.Timestamptz `json:"cursor"`
+	TenantID      uuid.UUID   `json:"tenant_id"`
+	Limit         int32       `json:"limit"`
+	Offset        int32       `json:"offset"`
+	ApplicantName pgtype.Text `json:"applicant_name"`
 }
 
 func (q *Queries) ListPayableReports(ctx context.Context, arg ListPayableReportsParams) ([]ExpenseReport, error) {
 	rows, err := q.db.Query(ctx, listPayableReports,
 		arg.TenantID,
 		arg.Limit,
+		arg.Offset,
 		arg.ApplicantName,
-		arg.Cursor,
 	)
 	if err != nil {
 		return nil, err
@@ -328,25 +432,24 @@ JOIN users u ON er.user_id = u.id
 WHERE er.tenant_id  = $1
   AND er.status     = 'submitted'
   AND er.deleted_at IS NULL
-  AND ($3::text IS NULL OR u.name ILIKE '%' || $3 || '%')
-  AND ($4::timestamptz IS NULL OR er.submitted_at < $4)
+  AND ($4::text IS NULL OR u.name ILIKE '%' || $4 || '%')
 ORDER BY er.submitted_at DESC
-LIMIT $2
+LIMIT $2 OFFSET $3
 `
 
 type ListPendingReportsParams struct {
-	TenantID      uuid.UUID          `json:"tenant_id"`
-	Limit         int32              `json:"limit"`
-	ApplicantName pgtype.Text        `json:"applicant_name"`
-	Cursor        pgtype.Timestamptz `json:"cursor"`
+	TenantID      uuid.UUID   `json:"tenant_id"`
+	Limit         int32       `json:"limit"`
+	Offset        int32       `json:"offset"`
+	ApplicantName pgtype.Text `json:"applicant_name"`
 }
 
 func (q *Queries) ListPendingReports(ctx context.Context, arg ListPendingReportsParams) ([]ExpenseReport, error) {
 	rows, err := q.db.Query(ctx, listPendingReports,
 		arg.TenantID,
 		arg.Limit,
+		arg.Offset,
 		arg.ApplicantName,
-		arg.Cursor,
 	)
 	if err != nil {
 		return nil, err
@@ -452,22 +555,21 @@ SELECT report_id, tenant_id, user_id, title, period_start, period_end, status, t
 WHERE tenant_id = $1
   AND user_id   = $2
   AND deleted_at IS NULL
-  AND ($4::text IS NULL OR status = $4)
-  AND ($5::date IS NULL OR period_start >= $5)
-  AND ($6::date IS NULL OR period_end <= $6)
-  AND ($7::timestamptz IS NULL OR created_at < $7)
+  AND ($5::text IS NULL OR status = $5)
+  AND ($6::date IS NULL OR period_start >= $6)
+  AND ($7::date IS NULL OR period_end <= $7)
 ORDER BY created_at DESC
-LIMIT $3
+LIMIT $3 OFFSET $4
 `
 
 type ListReportsByUserParams struct {
-	TenantID uuid.UUID          `json:"tenant_id"`
-	UserID   uuid.UUID          `json:"user_id"`
-	Limit    int32              `json:"limit"`
-	Status   pgtype.Text        `json:"status"`
-	FromDate pgtype.Date        `json:"from_date"`
-	ToDate   pgtype.Date        `json:"to_date"`
-	Cursor   pgtype.Timestamptz `json:"cursor"`
+	TenantID uuid.UUID   `json:"tenant_id"`
+	UserID   uuid.UUID   `json:"user_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+	Status   pgtype.Text `json:"status"`
+	FromDate pgtype.Date `json:"from_date"`
+	ToDate   pgtype.Date `json:"to_date"`
 }
 
 func (q *Queries) ListReportsByUser(ctx context.Context, arg ListReportsByUserParams) ([]ExpenseReport, error) {
@@ -475,10 +577,10 @@ func (q *Queries) ListReportsByUser(ctx context.Context, arg ListReportsByUserPa
 		arg.TenantID,
 		arg.UserID,
 		arg.Limit,
+		arg.Offset,
 		arg.Status,
 		arg.FromDate,
 		arg.ToDate,
-		arg.Cursor,
 	)
 	if err != nil {
 		return nil, err

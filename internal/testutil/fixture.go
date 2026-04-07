@@ -11,7 +11,7 @@ import (
 	"expense-saas/internal/domain"
 )
 
-// Fixed UUIDs for test fixtures (see test_strategy.md §4).
+// テストフィクスチャ用の固定 UUID（test_strategy.md §4 参照）。
 const (
 	TenantAID       = "aaaaaaaa-0001-0001-0001-000000000001"
 	TenantBID       = "bbbbbbbb-0002-0002-0002-000000000002"
@@ -21,7 +21,7 @@ const (
 	UserAccountingID = "aaaaaaaa-4444-4444-4444-000000000004"
 	UserMemberBID   = "bbbbbbbb-3333-3333-3333-000000000003"
 
-	// Report fixture IDs (tenant A).
+	// レポートフィクスチャ UUID（テナント A）。
 	ReportDraftID        = "cccccccc-0001-0001-0001-000000000001"
 	ReportDraftEmptyID   = "cccccccc-0001-0001-0001-000000000002"
 	ReportSubmittedID    = "cccccccc-0002-0002-0002-000000000002"
@@ -29,24 +29,23 @@ const (
 	ReportRejectedID     = "cccccccc-0004-0004-0004-000000000004"
 	ReportPaidID         = "cccccccc-0005-0005-0005-000000000005"
 
-	// Report fixture IDs (tenant B).
+	// レポートフィクスチャ UUID（テナント B）。
 	ReportTenantBDraftID     = "eeeeeeee-0001-0001-0001-000000000001"
 	ReportTenantBSubmittedID = "eeeeeeee-0002-0002-0002-000000000002"
 	ReportTenantBApprovedID  = "eeeeeeee-0003-0003-0003-000000000003"
 
-	// Item fixture IDs.
+	// 経費項目フィクスチャ UUID。
 	ItemDraftID = "dddddddd-0001-0001-0001-000000000001"
 
-	// testPasswordHash is the Argon2id hash of "TestPass1!" with parameters:
-	// m=65536, t=3, p=4, keyLen=32, saltLen=16.
-	// Format: $argon2id$v=19$m=65536,t=3,p=4$<salt_base64>$<hash_base64>
-	// Pre-computed to avoid runtime cost in tests.
+	// testPasswordHash は "TestPass1!" の Argon2id ハッシュ。パラメータ: m=65536, t=3, p=4, keyLen=32, saltLen=16。
+	// 形式: $argon2id$v=19$m=65536,t=3,p=4$<salt_base64>$<hash_base64>
+	// テスト実行時のコストを避けるため事前計算済み。
 	testPasswordHash = "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2FsdA$YB/V08KjuKzuFdPLBiaPq7OE5PSVT2yNSGGDgxPOO6E"
 )
 
-// SeedFixtures inserts all standard test fixtures into the test database using
-// a direct owner-role connection so that RLS is bypassed.
-// Categories global seeds inserted by migration are not re-inserted here.
+// SeedFixtures は標準テストフィクスチャをすべてテストデータベースに挿入する。
+// RLS をバイパスするため、オーナーロールの直接コネクションを使用する。
+// マイグレーションで挿入済みのグローバルカテゴリシードはここでは再挿入しない。
 func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
@@ -63,7 +62,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 	periodEnd := time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC)
 	expenseDate := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 
-	// --- Tenants ---
+	// --- テナント ---
 	tenantAID := uuid.MustParse(TenantAID)
 	tenantBID := uuid.MustParse(TenantBID)
 
@@ -83,7 +82,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("testutil: SeedFixtures: insert tenant B: %v", err)
 	}
 
-	// --- Users (tenant A) ---
+	// --- ユーザー（テナント A）---
 	type userSeed struct {
 		id    string
 		email string
@@ -105,7 +104,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		}
 	}
 
-	// --- User (tenant B) ---
+	// --- ユーザー（テナント B）---
 	if _, err := conn.Exec(ctx,
 		`INSERT INTO users (user_id, email, name, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)
 		 ON CONFLICT (user_id) DO NOTHING`,
@@ -114,7 +113,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("testutil: SeedFixtures: insert user B: %v", err)
 	}
 
-	// --- Memberships (tenant A) ---
+	// --- メンバーシップ（テナント A）---
 	type membershipSeed struct {
 		tenantID string
 		userID   string
@@ -137,7 +136,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		}
 	}
 
-	// Resolve transportation category ID (from migration seed) for use in item fixture.
+	// 経費項目フィクスチャで使用する交通費カテゴリ ID をマイグレーションシードから取得する。
 	var transportCategoryID uuid.UUID
 	if err := conn.QueryRow(ctx,
 		`SELECT category_id FROM categories WHERE code = 'transportation' AND tenant_id IS NULL`,
@@ -145,7 +144,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("testutil: SeedFixtures: resolve transportation category: %v", err)
 	}
 
-	// --- Expense Reports (tenant A) ---
+	// --- 経費レポート（テナント A）---
 	memberID := uuid.MustParse(UserMemberID)
 
 	type reportSeed struct {
@@ -175,7 +174,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		}
 	}
 
-	// --- Expense Item for report_draft ---
+	// --- report_draft 用の経費項目 ---
 	if _, err := conn.Exec(ctx,
 		`INSERT INTO expense_items
 		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
@@ -188,7 +187,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("testutil: SeedFixtures: insert item: %v", err)
 	}
 
-	// Update total_amount of report_draft to reflect the item.
+	// 経費項目を反映して report_draft の total_amount を更新する。
 	if _, err := conn.Exec(ctx,
 		`UPDATE expense_reports SET total_amount = 1000 WHERE report_id = $1`,
 		uuid.MustParse(ReportDraftID),
@@ -196,7 +195,7 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		t.Fatalf("testutil: SeedFixtures: update report_draft total_amount: %v", err)
 	}
 
-	// --- Expense Reports (tenant B) ---
+	// --- 経費レポート（テナント B）---
 	memberBID := uuid.MustParse(UserMemberBID)
 	type reportBSeed struct {
 		id     string
@@ -223,12 +222,12 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-// --- Individual factory functions (Option pattern) ---
+// --- 個別ファクトリ関数（Option パターン）---
 
-// TenantOption is a functional option for CreateTenant.
+// TenantOption は CreateTenant の関数型オプション。
 type TenantOption func(m map[string]interface{})
 
-// CreateTenant inserts a tenant and returns its UUID.
+// CreateTenant はテナントを挿入してその UUID を返す。
 func CreateTenant(t *testing.T, pool *pgxpool.Pool, opts ...TenantOption) uuid.UUID {
 	t.Helper()
 
@@ -257,17 +256,17 @@ func CreateTenant(t *testing.T, pool *pgxpool.Pool, opts ...TenantOption) uuid.U
 	return id
 }
 
-// WithTenantName sets the company_name for CreateTenant.
+// WithTenantName は CreateTenant の company_name を設定する。
 func WithTenantName(name string) TenantOption {
 	return func(m map[string]interface{}) {
 		m["company_name"] = name
 	}
 }
 
-// UserOption is a functional option for CreateUser.
+// UserOption は CreateUser の関数型オプション。
 type UserOption func(m map[string]interface{})
 
-// CreateUser inserts a user and returns its UUID.
+// CreateUser はユーザーを挿入してその UUID を返す。
 func CreateUser(t *testing.T, pool *pgxpool.Pool, opts ...UserOption) uuid.UUID {
 	t.Helper()
 
@@ -297,24 +296,24 @@ func CreateUser(t *testing.T, pool *pgxpool.Pool, opts ...UserOption) uuid.UUID 
 	return id
 }
 
-// WithUserEmail sets the email for CreateUser.
+// WithUserEmail は CreateUser の email を設定する。
 func WithUserEmail(email string) UserOption {
 	return func(m map[string]interface{}) {
 		m["email"] = email
 	}
 }
 
-// WithUserName sets the name for CreateUser.
+// WithUserName は CreateUser の name を設定する。
 func WithUserName(name string) UserOption {
 	return func(m map[string]interface{}) {
 		m["name"] = name
 	}
 }
 
-// MembershipOption is a functional option for CreateMembership.
+// MembershipOption は CreateMembership の関数型オプション。
 type MembershipOption func(m map[string]interface{})
 
-// CreateMembership inserts a tenant_membership record.
+// CreateMembership は tenant_membership レコードを挿入する。
 func CreateMembership(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, role domain.Role, opts ...MembershipOption) {
 	t.Helper()
 
@@ -334,10 +333,10 @@ func CreateMembership(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UU
 	}
 }
 
-// ReportOption is a functional option for CreateReport.
+// ReportOption は CreateReport の関数型オプション。
 type ReportOption func(m map[string]interface{})
 
-// CreateReport inserts an expense_report and returns its UUID.
+// CreateReport は expense_report を挿入してその UUID を返す。
 func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, opts ...ReportOption) uuid.UUID {
 	t.Helper()
 
@@ -374,24 +373,24 @@ func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, 
 	return id
 }
 
-// WithReportTitle sets the title for CreateReport.
+// WithReportTitle は CreateReport の title を設定する。
 func WithReportTitle(title string) ReportOption {
 	return func(m map[string]interface{}) {
 		m["title"] = title
 	}
 }
 
-// WithReportStatus sets the status for CreateReport.
+// WithReportStatus は CreateReport の status を設定する。
 func WithReportStatus(status domain.ReportStatus) ReportOption {
 	return func(m map[string]interface{}) {
 		m["status"] = string(status)
 	}
 }
 
-// ItemOption is a functional option for CreateItem.
+// ItemOption は CreateItem の関数型オプション。
 type ItemOption func(m map[string]interface{})
 
-// CreateItem inserts an expense_item and returns its UUID.
+// CreateItem は expense_item を挿入してその UUID を返す。
 func CreateItem(t *testing.T, pool *pgxpool.Pool, tenantID, reportID, categoryID uuid.UUID, opts ...ItemOption) uuid.UUID {
 	t.Helper()
 
@@ -425,27 +424,27 @@ func CreateItem(t *testing.T, pool *pgxpool.Pool, tenantID, reportID, categoryID
 	return id
 }
 
-// WithItemAmount sets the amount for CreateItem.
+// WithItemAmount は CreateItem の amount を設定する。
 func WithItemAmount(amount int) ItemOption {
 	return func(m map[string]interface{}) {
 		m["amount"] = amount
 	}
 }
 
-// WithItemDescription sets the description for CreateItem.
+// WithItemDescription は CreateItem の description を設定する。
 func WithItemDescription(desc string) ItemOption {
 	return func(m map[string]interface{}) {
 		m["description"] = desc
 	}
 }
 
-// AttachmentOption is a functional option for CreateAttachment.
+// AttachmentOption は CreateAttachment の関数型オプション。
 type AttachmentOption func(m map[string]interface{})
 
-// CreateAttachment inserts an attachment record and returns its UUID.
-// tenantID, reportID, and itemID are required and are enforced as FK constraints.
-// Defaults: file_name="receipt.jpg", file_size=1024, mime_type="image/jpeg",
-// s3_key derived from tenant/report/item/attachment IDs.
+// CreateAttachment は添付ファイルレコードを挿入してその UUID を返す。
+// tenantID, reportID, itemID は必須で、外部キー制約により強制される。
+// デフォルト値: file_name="receipt.jpg", file_size=1024, mime_type="image/jpeg",
+// s3_key はテナント/レポート/アイテム/添付ファイル各 ID から生成される。
 func CreateAttachment(t *testing.T, pool *pgxpool.Pool, tenantID, reportID, itemID uuid.UUID, opts ...AttachmentOption) uuid.UUID {
 	t.Helper()
 
@@ -480,28 +479,28 @@ func CreateAttachment(t *testing.T, pool *pgxpool.Pool, tenantID, reportID, item
 	return id
 }
 
-// WithAttachmentFileName sets the file_name for CreateAttachment.
+// WithAttachmentFileName は CreateAttachment の file_name を設定する。
 func WithAttachmentFileName(name string) AttachmentOption {
 	return func(m map[string]interface{}) {
 		m["file_name"] = name
 	}
 }
 
-// WithAttachmentFileSize sets the file_size for CreateAttachment.
+// WithAttachmentFileSize は CreateAttachment の file_size を設定する。
 func WithAttachmentFileSize(size int) AttachmentOption {
 	return func(m map[string]interface{}) {
 		m["file_size"] = size
 	}
 }
 
-// WithAttachmentMimeType sets the mime_type for CreateAttachment.
+// WithAttachmentMimeType は CreateAttachment の mime_type を設定する。
 func WithAttachmentMimeType(mt domain.MimeType) AttachmentOption {
 	return func(m map[string]interface{}) {
 		m["mime_type"] = string(mt)
 	}
 }
 
-// WithAttachmentS3Key sets the s3_key for CreateAttachment.
+// WithAttachmentS3Key は CreateAttachment の s3_key を設定する。
 func WithAttachmentS3Key(key string) AttachmentOption {
 	return func(m map[string]interface{}) {
 		m["s3_key"] = key

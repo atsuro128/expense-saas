@@ -18,7 +18,7 @@ type itemRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewItemRepo constructs an ItemRepository backed by PostgreSQL.
+// NewItemRepo は PostgreSQL をバックエンドとする ItemRepository を生成して返す。
 func NewItemRepo(pool *pgxpool.Pool) domain.ItemRepository {
 	return &itemRepo{pool: pool}
 }
@@ -43,7 +43,7 @@ func (r *itemRepo) Create(
 	if err != nil {
 		return nil, fmt.Errorf("itemRepo.Create: %w", err)
 	}
-	// Recalculate report total after insertion.
+	// 挿入後にレポート合計金額を再計算する。
 	if err := q.UpdateReportTotalAmount(ctx, sqlcgen.UpdateReportTotalAmountParams{
 		TenantID: tenantID,
 		ReportID: reportID,
@@ -100,14 +100,14 @@ func (r *itemRepo) Update(ctx context.Context, item *domain.ExpenseItem) error {
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// ErrNoRows means either the item doesn't exist or optimistic lock failed.
+			// ErrNoRows はアイテムが存在しないか、楽観ロックが失敗したことを意味する。
 			return domain.ErrConflict
 		}
 		return fmt.Errorf("itemRepo.Update: %w", err)
 	}
-	// Reflect updated state back into the passed entity.
+	// 更新後の状態を引数のエンティティに反映する。
 	*item = *itemFromRow(updated)
-	// Recalculate report total after update.
+	// 更新後にレポート合計金額を再計算する。
 	if err := q.UpdateReportTotalAmount(ctx, sqlcgen.UpdateReportTotalAmountParams{
 		TenantID: item.TenantID,
 		ReportID: item.ReportID,
@@ -119,7 +119,7 @@ func (r *itemRepo) Update(ctx context.Context, item *domain.ExpenseItem) error {
 
 func (r *itemRepo) SoftDelete(ctx context.Context, tenantID, reportID, itemID uuid.UUID) error {
 	q := queries(ctx, r.pool)
-	// Soft-delete attachments belonging to this item.
+	// このアイテムに紐づく添付ファイルを論理削除する。
 	if err := q.SoftDeleteAttachmentsByItemID(ctx, sqlcgen.SoftDeleteAttachmentsByItemIDParams{
 		TenantID: tenantID,
 		ReportID: reportID,
@@ -134,7 +134,7 @@ func (r *itemRepo) SoftDelete(ctx context.Context, tenantID, reportID, itemID uu
 	}); err != nil {
 		return fmt.Errorf("itemRepo.SoftDelete: %w", err)
 	}
-	// Recalculate report total after deletion.
+	// 削除後にレポート合計金額を再計算する。
 	if err := q.UpdateReportTotalAmount(ctx, sqlcgen.UpdateReportTotalAmountParams{
 		TenantID: tenantID,
 		ReportID: reportID,

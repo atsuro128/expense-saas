@@ -10,8 +10,8 @@ import (
 	"expense-saas/internal/pkg/jwt"
 )
 
-// Auth returns a middleware that validates a Bearer JWT token from the
-// Authorization header and stores claims in the request context.
+// Auth は Authorization ヘッダーの Bearer JWT トークンを検証し、
+// クレームをリクエストコンテキストに格納する middleware を返します。
 func Auth(verifier *jwt.Verifier) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -47,7 +47,7 @@ func Auth(verifier *jwt.Verifier) func(http.Handler) http.Handler {
 			ctx = SetTenantID(ctx, claims.TenantID)
 			ctx = SetRole(ctx, claims.Role)
 
-			// Back-propagate auth values to Logger via the shared RequestInfo.
+			// 認証情報を共有の RequestInfo 経由で Logger に逆伝播する。
 			if info := GetRequestInfo(ctx); info != nil {
 				info.UserID = claims.UserID
 				info.TenantID = claims.TenantID

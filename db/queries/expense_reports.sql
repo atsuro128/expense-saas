@@ -17,9 +17,17 @@ WHERE tenant_id = $1
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('from_date')::date IS NULL OR period_start >= sqlc.narg('from_date'))
   AND (sqlc.narg('to_date')::date IS NULL OR period_end <= sqlc.narg('to_date'))
-  AND (sqlc.narg('cursor')::timestamptz IS NULL OR created_at < sqlc.narg('cursor'))
 ORDER BY created_at DESC
-LIMIT $3;
+LIMIT $3 OFFSET $4;
+
+-- name: CountReportsByUser :one
+SELECT COUNT(*)::int FROM expense_reports
+WHERE tenant_id = $1
+  AND user_id   = $2
+  AND deleted_at IS NULL
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('from_date')::date IS NULL OR period_start >= sqlc.narg('from_date'))
+  AND (sqlc.narg('to_date')::date IS NULL OR period_end <= sqlc.narg('to_date'));
 
 -- name: ListAllReports :many
 SELECT * FROM expense_reports
@@ -28,10 +36,18 @@ WHERE tenant_id  = $1
   AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
   AND (sqlc.narg('from_date')::date IS NULL OR period_start >= sqlc.narg('from_date'))
   AND (sqlc.narg('to_date')::date IS NULL OR period_end <= sqlc.narg('to_date'))
-  AND (sqlc.narg('cursor')::timestamptz IS NULL OR created_at < sqlc.narg('cursor'))
   AND (sqlc.narg('user_id')::uuid IS NULL OR user_id = sqlc.narg('user_id'))
 ORDER BY created_at DESC
-LIMIT $2;
+LIMIT $2 OFFSET $3;
+
+-- name: CountAllReports :one
+SELECT COUNT(*)::int FROM expense_reports
+WHERE tenant_id  = $1
+  AND deleted_at IS NULL
+  AND (sqlc.narg('status')::text IS NULL OR status = sqlc.narg('status'))
+  AND (sqlc.narg('from_date')::date IS NULL OR period_start >= sqlc.narg('from_date'))
+  AND (sqlc.narg('to_date')::date IS NULL OR period_end <= sqlc.narg('to_date'))
+  AND (sqlc.narg('user_id')::uuid IS NULL OR user_id = sqlc.narg('user_id'));
 
 -- name: UpdateReport :one
 UPDATE expense_reports
@@ -81,9 +97,17 @@ WHERE er.tenant_id  = $1
   AND er.status     = 'submitted'
   AND er.deleted_at IS NULL
   AND (sqlc.narg('applicant_name')::text IS NULL OR u.name ILIKE '%' || sqlc.narg('applicant_name') || '%')
-  AND (sqlc.narg('cursor')::timestamptz IS NULL OR er.submitted_at < sqlc.narg('cursor'))
 ORDER BY er.submitted_at DESC
-LIMIT $2;
+LIMIT $2 OFFSET $3;
+
+-- name: CountPendingReports :one
+SELECT COUNT(*)::int
+FROM expense_reports er
+JOIN users u ON er.user_id = u.id
+WHERE er.tenant_id  = $1
+  AND er.status     = 'submitted'
+  AND er.deleted_at IS NULL
+  AND (sqlc.narg('applicant_name')::text IS NULL OR u.name ILIKE '%' || sqlc.narg('applicant_name') || '%');
 
 -- name: ListPayableReports :many
 SELECT er.report_id, er.tenant_id, er.user_id, er.title, er.period_start, er.period_end, er.status, er.total_amount, er.reference_report_id, er.submitted_by, er.submitted_at, er.approved_by, er.approved_at, er.approval_comment, er.rejected_by, er.rejected_at, er.rejection_reason, er.paid_by, er.paid_at, er.created_at, er.updated_at, er.deleted_at
@@ -93,9 +117,17 @@ WHERE er.tenant_id  = $1
   AND er.status     = 'approved'
   AND er.deleted_at IS NULL
   AND (sqlc.narg('applicant_name')::text IS NULL OR u.name ILIKE '%' || sqlc.narg('applicant_name') || '%')
-  AND (sqlc.narg('cursor')::timestamptz IS NULL OR er.approved_at < sqlc.narg('cursor'))
 ORDER BY er.approved_at DESC
-LIMIT $2;
+LIMIT $2 OFFSET $3;
+
+-- name: CountPayableReports :one
+SELECT COUNT(*)::int
+FROM expense_reports er
+JOIN users u ON er.user_id = u.id
+WHERE er.tenant_id  = $1
+  AND er.status     = 'approved'
+  AND er.deleted_at IS NULL
+  AND (sqlc.narg('applicant_name')::text IS NULL OR u.name ILIKE '%' || sqlc.narg('applicant_name') || '%');
 
 -- name: CountReportsByStatus :many
 SELECT status, COUNT(*)::int AS count

@@ -13,15 +13,15 @@ import (
 	"golang.org/x/time/rate"
 )
 
-// limiterEntry wraps a token-bucket rate limiter with a last-seen timestamp
-// to allow periodic cleanup of stale entries.
+// limiterEntry はトークンバケット方式のレートリミッターに最終アクセス時刻を付与したラッパーです。
+// 定期的な古いエントリのクリーンアップに使用します。
 type limiterEntry struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
 	mu       sync.Mutex
 }
 
-// rateLimitStore manages per-key rate limiters with background cleanup.
+// rateLimitStore はキーごとのレートリミッターをバックグラウンドクリーンアップ付きで管理します。
 type rateLimitStore struct {
 	mu       sync.Map
 	limit    rate.Limit
@@ -30,7 +30,7 @@ type rateLimitStore struct {
 }
 
 func newRateLimitStore(limit int, window time.Duration) *rateLimitStore {
-	// Calculate rate: limit requests per window.
+	// レートを算出する: ウィンドウあたり limit リクエスト。
 	r := rate.Every(window / time.Duration(limit))
 	return &rateLimitStore{
 		limit:    r,
@@ -39,7 +39,7 @@ func newRateLimitStore(limit int, window time.Duration) *rateLimitStore {
 	}
 }
 
-// get returns (or lazily creates) a rate limiter for the given key.
+// get は指定されたキーのレートリミッターを返します（存在しない場合は遅延生成します）。
 func (s *rateLimitStore) get(key string) *rate.Limiter {
 	now := time.Now()
 	val, _ := s.mu.LoadOrStore(key, &limiterEntry{
@@ -53,7 +53,7 @@ func (s *rateLimitStore) get(key string) *rate.Limiter {
 	return entry.limiter
 }
 
-// cleanup removes entries that have not been accessed within 2x the window.
+// cleanup はウィンドウの 2 倍の期間アクセスされなかったエントリを削除します。
 func (s *rateLimitStore) cleanup(ttl time.Duration) {
 	cutoff := time.Now().Add(-ttl)
 	s.mu.Range(func(key, value any) bool {
@@ -68,8 +68,8 @@ func (s *rateLimitStore) cleanup(ttl time.Duration) {
 	})
 }
 
-// startCleanup launches a background goroutine that periodically purges old entries.
-// It stops when ctx is cancelled.
+// startCleanup は古いエントリを定期的に削除するバックグラウンド goroutine を起動します。
+// ctx がキャンセルされると停止します。
 func startCleanup(ctx context.Context, store *rateLimitStore) {
 	go func() {
 		ticker := time.NewTicker(5 * time.Minute)
@@ -86,9 +86,8 @@ func startCleanup(ctx context.Context, store *rateLimitStore) {
 	}()
 }
 
-// setRateLimitHeaders attaches X-RateLimit-* headers to the response.
-// remaining is the number of tokens currently available (floored at 0).
-// resetAt is the approximate time when the window resets.
+// setRateLimitHeaders はレスポンスに X-RateLimit-* ヘッダーを付与します。
+// remaining は現在利用可能なトークン数（下限 0）、resetAt はウィンドウがリセットされる概算時刻です。
 func setRateLimitHeaders(w http.ResponseWriter, limit int, l *rate.Limiter, window time.Duration) {
 	remaining := int(math.Max(0, math.Floor(l.Tokens())))
 	resetAt := time.Now().Add(window).Unix()
@@ -98,15 +97,15 @@ func setRateLimitHeaders(w http.ResponseWriter, limit int, l *rate.Limiter, wind
 	h.Set("X-RateLimit-Reset", strconv.FormatInt(resetAt, 10))
 }
 
-// respond429 writes a 429 Too Many Requests response with Retry-After header.
+// respond429 は Retry-After ヘッダー付きの 429 Too Many Requests レスポンスを書き込みます。
 func respond429(w http.ResponseWriter, retryAfter int) {
 	w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 	RespondError(w, http.StatusTooManyRequests, "RATE_LIMIT_EXCEEDED", "Too many requests. Please try again later.")
 }
 
-// RateLimitByIP returns a middleware that enforces a per-IP rate limit.
-// Intended for unauthenticated routes.
-// ctx controls the lifecycle of the background cleanup goroutine.
+// RateLimitByIP は IP アドレスごとにレート制限を適用する middleware を返します。
+// 未認証ルート向けを想定しています。
+// ctx はバックグラウンドクリーンアップ goroutine のライフサイクルを制御します。
 func RateLimitByIP(ctx context.Context, limit int, window time.Duration) func(http.Handler) http.Handler {
 	store := newRateLimitStore(limit, window)
 	startCleanup(ctx, store)
@@ -129,10 +128,10 @@ func RateLimitByIP(ctx context.Context, limit int, window time.Duration) func(ht
 	}
 }
 
-// RateLimitByUser returns a middleware that enforces a per-user rate limit.
-// Intended for authenticated routes where the user ID is set in context.
-// Falls back to IP-based limiting when no user ID is present.
-// ctx controls the lifecycle of the background cleanup goroutine.
+// RateLimitByUser はユーザーごとにレート制限を適用する middleware を返します。
+// コンテキストにユーザー ID が設定された認証済みルート向けを想定しています。
+// ユーザー ID が存在しない場合は IP ベースの制限にフォールバックします。
+// ctx はバックグラウンドクリーンアップ goroutine のライフサイクルを制御します。
 func RateLimitByUser(ctx context.Context, limit int, window time.Duration) func(http.Handler) http.Handler {
 	store := newRateLimitStore(limit, window)
 	startCleanup(ctx, store)
@@ -143,7 +142,7 @@ func RateLimitByUser(ctx context.Context, limit int, window time.Duration) func(
 			if key == "" {
 				key = "ip:" + remoteIP(r)
 			}
-			// Combine with tenant to prevent cross-tenant key collision.
+			// テナント横断でキーが衝突しないよう、テナント ID を結合する。
 			if tid := GetTenantID(r.Context()); tid != "" {
 				key = strings.Join([]string{tid, key}, ":")
 			}

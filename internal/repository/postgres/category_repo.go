@@ -18,7 +18,7 @@ type categoryRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewCategoryRepo constructs a CategoryRepository backed by PostgreSQL.
+// NewCategoryRepo は PostgreSQL をバックエンドとする CategoryRepository を生成して返す。
 func NewCategoryRepo(pool *pgxpool.Pool) domain.CategoryRepository {
 	return &categoryRepo{pool: pool}
 }
