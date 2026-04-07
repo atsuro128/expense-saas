@@ -3,13 +3,10 @@ export interface ApiResponse<T> {
   data: T;
 }
 
-// 成功レスポンス（一覧、カーソルベースページネーション）
+// 成功レスポンス（一覧、オフセットベースページネーション）
 export interface ApiListResponse<T> {
   data: T[];
-  pagination: {
-    next_cursor: string | null;
-    has_more: boolean;
-  };
+  pagination: Pagination;
 }
 
 // エラーレスポンス
@@ -77,8 +74,10 @@ export interface Category {
 }
 
 export interface Pagination {
-  next_cursor: string | null;
-  has_more: boolean;
+  current_page: number;
+  per_page: number;
+  total_count: number;
+  total_pages: number;
 }
 
 export interface HealthCheckResponse {

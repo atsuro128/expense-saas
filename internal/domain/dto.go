@@ -6,13 +6,13 @@ import (
 	"github.com/google/uuid"
 )
 
-// UserSummary is a minimal user representation used in nested responses.
+// UserSummary はネストされたレスポンスで使用する最小限のユーザー表現。
 type UserSummary struct {
 	ID   uuid.UUID `json:"id"`
 	Name string    `json:"name"`
 }
 
-// UserProfile is the full authenticated user profile returned by GET /api/auth/me.
+// UserProfile は GET /api/auth/me が返す認証済みユーザーの完全なプロフィール情報。
 type UserProfile struct {
 	ID     uuid.UUID `json:"id"`
 	Name   string    `json:"name"`
@@ -24,7 +24,7 @@ type UserProfile struct {
 	} `json:"tenant"`
 }
 
-// AuthResult is returned after successful signup, login, or token refresh.
+// AuthResult はサインアップ・ログイン・トークンリフレッシュ成功時に返す。
 type AuthResult struct {
 	User struct {
 		ID    uuid.UUID `json:"id"`
@@ -40,7 +40,7 @@ type AuthResult struct {
 	RefreshToken string `json:"refresh_token"`
 }
 
-// CategoryDTO is the category representation used in API responses.
+// CategoryDTO は API レスポンスで使用するカテゴリの表現。
 type CategoryDTO struct {
 	ID        uuid.UUID `json:"id"`
 	Code      string    `json:"code"`
@@ -48,14 +48,14 @@ type CategoryDTO struct {
 	SortOrder int       `json:"sort_order"`
 }
 
-// TenantInfoDTO is the tenant representation returned by GET /api/tenant.
+// TenantInfoDTO は GET /api/tenant が返すテナント情報の表現。
 type TenantInfoDTO struct {
 	ID        uuid.UUID `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// AttachmentDTO is the attachment metadata representation used in API responses.
+// AttachmentDTO は API レスポンスで使用する添付ファイルのメタデータ表現。
 type AttachmentDTO struct {
 	ID        uuid.UUID `json:"id"`
 	ItemID    uuid.UUID `json:"item_id"`
@@ -65,8 +65,8 @@ type AttachmentDTO struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-// AttachmentDownload contains the signed URL returned by
-// GET /api/reports/{id}/items/{itemId}/attachments/{attId}.
+// AttachmentDownload は GET /api/reports/{id}/items/{itemId}/attachments/{attId}
+// が返す署名済みダウンロード URL を含む。
 type AttachmentDownload struct {
 	DownloadURL string    `json:"download_url"`
 	FileName    string    `json:"file_name"`
@@ -75,7 +75,7 @@ type AttachmentDownload struct {
 	ExpiresAt   time.Time `json:"expires_at"`
 }
 
-// ExpenseItemDTO is the item representation used in API responses.
+// ExpenseItemDTO は API レスポンスで使用する経費明細の表現。
 type ExpenseItemDTO struct {
 	ID          uuid.UUID       `json:"id"`
 	ReportID    uuid.UUID       `json:"report_id"`
@@ -88,7 +88,7 @@ type ExpenseItemDTO struct {
 	UpdatedAt   time.Time       `json:"updated_at"`
 }
 
-// ExpenseReportSummary is the lightweight list item representation.
+// ExpenseReportSummary は一覧表示用の軽量なレポート表現。
 type ExpenseReportSummary struct {
 	ID          uuid.UUID    `json:"id"`
 	Title       string       `json:"title"`
@@ -99,11 +99,11 @@ type ExpenseReportSummary struct {
 	SubmittedAt *time.Time   `json:"submitted_at,omitempty"`
 	CreatedAt   time.Time    `json:"created_at"`
 	UpdatedAt   time.Time    `json:"updated_at"`
-	// Submitter is populated in the listAllReports response.
+	// Submitter は listAllReports レスポンスで設定される。
 	Submitter *UserSummary `json:"submitter,omitempty"`
 }
 
-// ExpenseReportDetail is the full report representation including nested items.
+// ExpenseReportDetail は明細を含む完全なレポートの表現。
 type ExpenseReportDetail struct {
 	ID                uuid.UUID        `json:"id"`
 	Title             string           `json:"title"`
@@ -128,7 +128,7 @@ type ExpenseReportDetail struct {
 	UpdatedAt         time.Time        `json:"updated_at"`
 }
 
-// PendingReport is the item in the Approver's pending list.
+// PendingReport は承認者の承認待ちリストの各項目。
 type PendingReport struct {
 	ID          uuid.UUID   `json:"id"`
 	Title       string      `json:"title"`
@@ -138,7 +138,7 @@ type PendingReport struct {
 	IsOwnReport bool        `json:"is_own_report"`
 }
 
-// PayableReport is the item in the Accounting team's payable list.
+// PayableReport は経理チームの支払い待ちリストの各項目。
 type PayableReport struct {
 	ID          uuid.UUID   `json:"id"`
 	Title       string      `json:"title"`
@@ -148,13 +148,13 @@ type PayableReport struct {
 	IsOwnReport bool        `json:"is_own_report"`
 }
 
-// MonthlySummary holds aggregate spend data for a single calendar month.
+// MonthlySummary は1か月分の支出集計データを保持する。
 type MonthlySummary struct {
 	YearMonth   string `json:"year_month"`
 	TotalAmount int    `json:"total_amount"`
 }
 
-// RecentReport is a compact report record used on the dashboard.
+// RecentReport はダッシュボードで使用するコンパクトなレポートレコード。
 type RecentReport struct {
 	ID          uuid.UUID    `json:"id"`
 	Title       string       `json:"title"`
@@ -165,21 +165,21 @@ type RecentReport struct {
 	UpdatedAt   time.Time    `json:"updated_at"`
 }
 
-// DashboardData is the role-specific dashboard payload.
-// Fields are populated based on the actor's role.
+// DashboardData はロールごとに異なるダッシュボードのペイロード。
+// 各フィールドはアクターのロールに応じて設定される。
 type DashboardData struct {
-	// Member, Approver, Accounting
+	// メンバー・承認者・経理 共通
 	MyDraftCount     *int            `json:"my_draft_count,omitempty"`
 	MySubmittedCount *int            `json:"my_submitted_count,omitempty"`
 	MyRejectedCount  *int            `json:"my_rejected_count,omitempty"`
 	RecentReports    []RecentReport  `json:"recent_reports,omitempty"`
-	// Approver only
+	// 承認者専用
 	PendingApprovalCount *int             `json:"pending_approval_count,omitempty"`
-	// Accounting only
+	// 経理専用
 	PendingPaymentCount *int `json:"pending_payment_count,omitempty"`
-	// Approver, Accounting, Admin
+	// 承認者・経理・管理者 共通
 	MonthlySummary []MonthlySummary `json:"monthly_summary,omitempty"`
-	// Admin only
+	// 管理者専用
 	TenantDraftCount     *int `json:"tenant_draft_count,omitempty"`
 	TenantSubmittedCount *int `json:"tenant_submitted_count,omitempty"`
 	TenantApprovedCount  *int `json:"tenant_approved_count,omitempty"`
@@ -188,8 +188,10 @@ type DashboardData struct {
 	TenantMemberCount    *int `json:"tenant_member_count,omitempty"`
 }
 
-// Pagination is the cursor-based pagination metadata included in list responses.
+// Pagination は一覧レスポンスに含まれるオフセットベースのページネーションメタデータ。
 type Pagination struct {
-	NextCursor *string `json:"next_cursor"`
-	HasMore    bool    `json:"has_more"`
+	CurrentPage int `json:"current_page"`
+	PerPage     int `json:"per_page"`
+	TotalCount  int `json:"total_count"`
+	TotalPages  int `json:"total_pages"`
 }

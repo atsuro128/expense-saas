@@ -10,9 +10,9 @@ import (
 
 const defaultTestDatabaseURL = "postgresql://testuser:testpass@localhost:5433/expense_test"
 
-// SetupTestDB creates and returns a pgxpool.Pool connected to the test database.
-// The connection URL is read from TEST_DATABASE_URL env var, defaulting to localhost:5433.
-// The pool is automatically closed via t.Cleanup.
+// SetupTestDB はテストデータベースに接続した pgxpool.Pool を生成して返す。
+// 接続 URL は TEST_DATABASE_URL 環境変数から読み込み、未設定の場合は localhost:5433 を使用する。
+// pool は t.Cleanup で自動的にクローズされる。
 func SetupTestDB(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 
@@ -38,14 +38,14 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 	return pool
 }
 
-// CleanupTables truncates all application tables in FK dependency order.
-// It acquires a direct owner-role connection (TEST_DATABASE_URL) so that RLS is bypassed.
+// CleanupTables は外部キー依存順にすべてのアプリケーションテーブルを TRUNCATE する。
+// RLS をバイパスするため、オーナーロールの直接コネクション（TEST_DATABASE_URL）を使用する。
 func CleanupTables(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
 	ctx := context.Background()
 
-	// Truncate in reverse FK dependency order so CASCADE handles child rows.
+	// CASCADE で子レコードが処理されるよう、FK 依存の逆順で TRUNCATE する。
 	tables := []string{
 		"password_reset_tokens",
 		"refresh_tokens",
@@ -70,9 +70,9 @@ func CleanupTables(t *testing.T, pool *pgxpool.Pool) {
 	}
 }
 
-// SetTenantContext acquires a dedicated connection from pool, sets the RLS tenant parameter,
-// and returns the enriched context, the acquired connection, and a cleanup func.
-// The caller must invoke the cleanup func (typically via defer) to release the connection.
+// SetTenantContext は pool から専用コネクションを取得し、RLS のテナントパラメータを設定した上で、
+// 拡張済みコンテキスト・取得したコネクション・クリーンアップ関数を返す。
+// 呼び出し元は（通常 defer で）クリーンアップ関数を呼び出してコネクションを解放する必要がある。
 func SetTenantContext(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tenantID string) (context.Context, *pgxpool.Conn, func()) {
 	conn, err := pool.Acquire(ctx)
 	if err != nil {

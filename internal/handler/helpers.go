@@ -9,9 +9,11 @@ import (
 	"expense-saas/internal/middleware"
 )
 
-// actorFromRequest constructs a domain.Actor from context values set by the
-// Auth and TenantContext middlewares.
-// Returns false when any required value is missing or malformed.
+// actorFromRequest は Auth および TenantContext middleware がセットしたコンテキスト値から
+// domain.Actor を生成して返します。
+// 必須値が存在しないか不正な形式の場合は false を返します。
+//
+//lint:ignore U1000 Step 10（機能実装）で各ハンドラから呼び出されるスケルトン関数。
 func actorFromRequest(r *http.Request) (domain.Actor, bool) {
 	userIDStr := middleware.GetUserID(r.Context())
 	tenantIDStr := middleware.GetTenantID(r.Context())

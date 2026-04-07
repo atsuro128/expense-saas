@@ -17,72 +17,72 @@ const (
 	requestInfoKey contextKey = "request_info"
 )
 
-// RequestInfo is a mutable struct stored in context by Logger, allowing
-// downstream middleware (Auth, TenantContext) to propagate user/tenant
-// information back to the Logger after ServeHTTP returns.
+// RequestInfo は Logger がコンテキストに格納するミュータブルな構造体です。
+// ServeHTTP の呼び出し後、下流の middleware（Auth、TenantContext）が
+// ユーザー・テナント情報を Logger へ逆伝播するために使用します。
 type RequestInfo struct {
 	UserID   string
 	TenantID string
 	Role     string
 }
 
-// GetRequestInfo retrieves the RequestInfo pointer from the context.
-// Returns nil when not set.
+// GetRequestInfo はコンテキストから RequestInfo ポインタを取得します。
+// 未設定の場合は nil を返します。
 func GetRequestInfo(ctx context.Context) *RequestInfo {
 	info, _ := ctx.Value(requestInfoKey).(*RequestInfo)
 	return info
 }
 
-// SetRequestID stores the request ID in the context.
+// SetRequestID はリクエスト ID をコンテキストに格納します。
 func SetRequestID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, requestIDKey, id)
 }
 
-// GetRequestID retrieves the request ID from the context.
+// GetRequestID はコンテキストからリクエスト ID を取得します。
 func GetRequestID(ctx context.Context) string {
 	v, _ := ctx.Value(requestIDKey).(string)
 	return v
 }
 
-// SetUserID stores the user ID in the context.
+// SetUserID はユーザー ID をコンテキストに格納します。
 func SetUserID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, userIDKey, id)
 }
 
-// GetUserID retrieves the user ID from the context.
+// GetUserID はコンテキストからユーザー ID を取得します。
 func GetUserID(ctx context.Context) string {
 	v, _ := ctx.Value(userIDKey).(string)
 	return v
 }
 
-// SetTenantID stores the tenant ID in the context.
+// SetTenantID はテナント ID をコンテキストに格納します。
 func SetTenantID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, tenantIDKey, id)
 }
 
-// GetTenantID retrieves the tenant ID from the context.
+// GetTenantID はコンテキストからテナント ID を取得します。
 func GetTenantID(ctx context.Context) string {
 	v, _ := ctx.Value(tenantIDKey).(string)
 	return v
 }
 
-// SetRole stores the role in the context.
+// SetRole はロールをコンテキストに格納します。
 func SetRole(ctx context.Context, role string) context.Context {
 	return context.WithValue(ctx, roleKey, role)
 }
 
-// GetRole retrieves the role from the context.
+// GetRole はコンテキストからロールを取得します。
 func GetRole(ctx context.Context) string {
 	v, _ := ctx.Value(roleKey).(string)
 	return v
 }
 
-// SetConn stores the database connection in the context.
+// SetConn はデータベース接続をコンテキストに格納します。
 func SetConn(ctx context.Context, conn *pgxpool.Conn) context.Context {
 	return context.WithValue(ctx, connKey, conn)
 }
 
-// GetConn retrieves the database connection from the context.
+// GetConn はコンテキストからデータベース接続を取得します。
 func GetConn(ctx context.Context) *pgxpool.Conn {
 	v, _ := ctx.Value(connKey).(*pgxpool.Conn)
 	return v

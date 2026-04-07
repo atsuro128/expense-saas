@@ -5,10 +5,10 @@ import (
 	"strings"
 )
 
-// SecurityHeaders returns a middleware that sets security-related HTTP response headers
-// on every response to mitigate common web vulnerabilities.
-// For /api/ prefixed paths, Cache-Control: no-store is also set to prevent
-// sensitive API responses from being cached.
+// SecurityHeaders は一般的な Web 脆弱性を緩和するためのセキュリティ関連 HTTP レスポンスヘッダーを
+// 全レスポンスに付与する middleware を返します。
+// /api/ プレフィックスのパスには、機密 API レスポンスのキャッシュを防ぐため
+// Cache-Control: no-store も追加します。
 func SecurityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		h := w.Header()

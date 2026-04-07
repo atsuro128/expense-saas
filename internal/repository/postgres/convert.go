@@ -1,5 +1,5 @@
-// Package postgres provides sqlcgen-backed implementations of the domain repository interfaces.
-// All public functions in this package enforce tenant_id isolation via the generated queries.
+// Package postgres は sqlcgen を使用したドメイン repository インターフェースの実装を提供する。
+// このパッケージの全公開関数は、生成クエリを通じて tenant_id 分離を強制する。
 package postgres
 
 import (
@@ -12,7 +12,7 @@ import (
 	"expense-saas/internal/repository/postgres/sqlcgen"
 )
 
-// --- pgtype helpers ---
+// --- pgtype ヘルパー ---
 
 func toPgtypeUUID(id *uuid.UUID) pgtype.UUID {
 	if id == nil {
@@ -57,7 +57,7 @@ func toPgtypeDate(t time.Time) pgtype.Date {
 	}
 }
 
-// --- Tenant ---
+// --- テナント ---
 
 func tenantFromRow(r sqlcgen.Tenant) *domain.Tenant {
 	return &domain.Tenant{
@@ -68,7 +68,7 @@ func tenantFromRow(r sqlcgen.Tenant) *domain.Tenant {
 	}
 }
 
-// --- User ---
+// --- ユーザー ---
 
 func userFromRow(r sqlcgen.User) *domain.User {
 	return &domain.User{
@@ -81,7 +81,7 @@ func userFromRow(r sqlcgen.User) *domain.User {
 	}
 }
 
-// --- TenantMembership ---
+// --- テナントメンバーシップ ---
 
 func membershipFromRow(r sqlcgen.TenantMembership) *domain.TenantMembership {
 	return &domain.TenantMembership{
@@ -93,7 +93,7 @@ func membershipFromRow(r sqlcgen.TenantMembership) *domain.TenantMembership {
 	}
 }
 
-// --- Category ---
+// --- カテゴリ ---
 
 func categoryFromRow(r sqlcgen.Category) *domain.Category {
 	return &domain.Category{
@@ -108,7 +108,7 @@ func categoryFromRow(r sqlcgen.Category) *domain.Category {
 	}
 }
 
-// --- ExpenseReport ---
+// --- 経費レポート ---
 
 func reportFromRow(r sqlcgen.ExpenseReport) *domain.ExpenseReport {
 	return &domain.ExpenseReport{
@@ -137,7 +137,7 @@ func reportFromRow(r sqlcgen.ExpenseReport) *domain.ExpenseReport {
 	}
 }
 
-// --- ExpenseItem ---
+// --- 経費項目 ---
 
 func itemFromRow(r sqlcgen.ExpenseItem) *domain.ExpenseItem {
 	return &domain.ExpenseItem{
@@ -154,7 +154,7 @@ func itemFromRow(r sqlcgen.ExpenseItem) *domain.ExpenseItem {
 	}
 }
 
-// --- Attachment ---
+// --- 添付ファイル ---
 
 func attachmentFromRow(r sqlcgen.Attachment) *domain.Attachment {
 	return &domain.Attachment{
@@ -171,7 +171,7 @@ func attachmentFromRow(r sqlcgen.Attachment) *domain.Attachment {
 	}
 }
 
-// --- RefreshToken ---
+// --- refresh token ---
 
 func refreshTokenFromRow(r sqlcgen.RefreshToken) *domain.RefreshToken {
 	return &domain.RefreshToken{
@@ -184,7 +184,7 @@ func refreshTokenFromRow(r sqlcgen.RefreshToken) *domain.RefreshToken {
 	}
 }
 
-// --- PasswordResetToken ---
+// --- パスワードリセットトークン ---
 
 func passwordResetTokenFromRow(r sqlcgen.PasswordResetToken) *domain.PasswordResetToken {
 	return &domain.PasswordResetToken{

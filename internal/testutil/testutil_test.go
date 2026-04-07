@@ -8,7 +8,7 @@ import (
 	"expense-saas/internal/testutil"
 )
 
-// TestSetupTestDB verifies that the test DB pool can be created and pinged.
+// TestSetupTestDB はテスト DB pool の生成と疎通確認を検証する。
 func TestSetupTestDB(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
 	if pool == nil {
@@ -16,7 +16,7 @@ func TestSetupTestDB(t *testing.T) {
 	}
 }
 
-// TestSeedFixtures verifies that standard fixtures can be inserted without error.
+// TestSeedFixtures は標準フィクスチャがエラーなく挿入できることを検証する。
 func TestSeedFixtures(t *testing.T) {
 	pool := testutil.SetupTestDB(t)
 
@@ -30,7 +30,7 @@ func TestSeedFixtures(t *testing.T) {
 	testutil.SeedFixtures(t, pool)
 }
 
-// TestGenerateTestToken verifies that the test JWT can be generated and verified.
+// TestGenerateTestToken はテスト用 JWT の生成と検証ができることを確認する。
 func TestGenerateTestToken(t *testing.T) {
 	token := testutil.GenerateTestToken(t, testutil.UserMemberID, testutil.TenantAID, "member")
 	if token == "" {

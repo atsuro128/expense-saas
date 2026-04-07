@@ -16,7 +16,7 @@ type workflowService struct {
 	authorizer     Authorizer
 }
 
-// NewWorkflowService constructs a WorkflowService.
+// NewWorkflowService は WorkflowService を生成して返す。
 func NewWorkflowService(
 	reportRepo domain.ReportRepository,
 	userRepo domain.UserRepository,

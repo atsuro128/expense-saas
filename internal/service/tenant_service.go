@@ -12,7 +12,7 @@ type tenantService struct {
 	membershipRepo domain.MembershipRepository
 }
 
-// NewTenantService constructs a TenantService.
+// NewTenantService は TenantService を生成して返す。
 func NewTenantService(
 	tenantRepo domain.TenantRepository,
 	userRepo domain.UserRepository,

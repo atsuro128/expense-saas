@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// AssertStatus checks that the recorded response has the expected HTTP status code.
+// AssertStatus は記録されたレスポンスが期待する HTTP ステータスコードかを検証する。
 func AssertStatus(t *testing.T, rec *httptest.ResponseRecorder, want int) {
 	t.Helper()
 	if rec.Code != want {
@@ -14,8 +14,8 @@ func AssertStatus(t *testing.T, rec *httptest.ResponseRecorder, want int) {
 	}
 }
 
-// AssertErrorCode checks that the JSON error response body contains the expected code.
-// Expected body shape: {"error": {"code": "...", "message": "..."}}
+// AssertErrorCode は JSON エラーレスポンスのボディに期待するコードが含まれているかを検証する。
+// 期待するボディ形式: {"error": {"code": "...", "message": "..."}}
 func AssertErrorCode(t *testing.T, rec *httptest.ResponseRecorder, wantCode string) {
 	t.Helper()
 
@@ -35,8 +35,8 @@ func AssertErrorCode(t *testing.T, rec *httptest.ResponseRecorder, wantCode stri
 	}
 }
 
-// ParseJSON decodes the recorded response body into a value of type T.
-// The test fails if decoding fails.
+// ParseJSON は記録されたレスポンスボディを型 T の値にデコードする。
+// デコードに失敗した場合はテストを失敗させる。
 func ParseJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	t.Helper()
 

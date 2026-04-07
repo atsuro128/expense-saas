@@ -19,7 +19,7 @@ type reportRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewReportRepo constructs a ReportRepository backed by PostgreSQL.
+// NewReportRepo は PostgreSQL をバックエンドとする ReportRepository を生成して返す。
 func NewReportRepo(pool *pgxpool.Pool) domain.ReportRepository {
 	return &reportRepo{pool: pool}
 }
@@ -61,15 +61,24 @@ func (r *reportRepo) GetByID(ctx context.Context, tenantID, reportID uuid.UUID) 
 	return reportFromRow(row), nil
 }
 
-func (r *reportRepo) List(ctx context.Context, tenantID uuid.UUID, params domain.ReportListParams) ([]domain.ExpenseReport, error) {
+func (r *reportRepo) List(ctx context.Context, tenantID uuid.UUID, params domain.ReportListParams) ([]domain.ExpenseReport, int, error) {
 	q := queries(ctx, r.pool)
 
-	limit := params.Limit
-	if limit <= 0 {
-		limit = 20
+	// PerPage のデフォルト・上限を設定する。
+	perPage := params.PerPage
+	if perPage <= 0 {
+		perPage = 20
 	}
+	if perPage > 100 {
+		perPage = 100
+	}
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * perPage
 
-	// Build nullable filter params.
+	// NULL 許容フィルタパラメータを構築する。
 	var statusParam pgtype.Text
 	if params.Status != nil {
 		statusParam = pgtype.Text{String: string(*params.Status), Valid: true}
@@ -82,37 +91,54 @@ func (r *reportRepo) List(ctx context.Context, tenantID uuid.UUID, params domain
 	if params.To != nil {
 		toParam = pgtype.Date{Time: *params.To, Valid: true}
 	}
-	var cursorParam pgtype.Timestamptz
-	if params.Cursor != nil {
-		cursorParam = pgtype.Timestamptz{Time: *params.Cursor, Valid: true}
-	}
 
 	var rows []sqlcgen.ExpenseReport
+	var total int32
 	var err error
 
 	if params.UserID != nil {
 		rows, err = q.ListReportsByUser(ctx, sqlcgen.ListReportsByUserParams{
 			TenantID: tenantID,
 			UserID:   *params.UserID,
-			Limit:    int32(limit),
+			Limit:    int32(perPage),
+			Offset:   int32(offset),
 			Status:   statusParam,
 			FromDate: fromParam,
 			ToDate:   toParam,
-			Cursor:   cursorParam,
+		})
+		if err != nil {
+			return nil, 0, fmt.Errorf("reportRepo.List: %w", err)
+		}
+		total, err = q.CountReportsByUser(ctx, sqlcgen.CountReportsByUserParams{
+			TenantID: tenantID,
+			UserID:   *params.UserID,
+			Status:   statusParam,
+			FromDate: fromParam,
+			ToDate:   toParam,
 		})
 	} else {
 		rows, err = q.ListAllReports(ctx, sqlcgen.ListAllReportsParams{
 			TenantID: tenantID,
-			Limit:    int32(limit),
+			Limit:    int32(perPage),
+			Offset:   int32(offset),
 			Status:   statusParam,
 			FromDate: fromParam,
 			ToDate:   toParam,
-			Cursor:   cursorParam,
+			UserID:   toPgtypeUUID(params.SubmitterID),
+		})
+		if err != nil {
+			return nil, 0, fmt.Errorf("reportRepo.List: %w", err)
+		}
+		total, err = q.CountAllReports(ctx, sqlcgen.CountAllReportsParams{
+			TenantID: tenantID,
+			Status:   statusParam,
+			FromDate: fromParam,
+			ToDate:   toParam,
 			UserID:   toPgtypeUUID(params.SubmitterID),
 		})
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reportRepo.List: %w", err)
+		return nil, 0, fmt.Errorf("reportRepo.List: %w", err)
 	}
 
 	result := make([]domain.ExpenseReport, len(rows))
@@ -120,7 +146,7 @@ func (r *reportRepo) List(ctx context.Context, tenantID uuid.UUID, params domain
 		rpt := reportFromRow(row)
 		result[i] = *rpt
 	}
-	return result, nil
+	return result, int(total), nil
 }
 
 func (r *reportRepo) Update(ctx context.Context, report *domain.ExpenseReport) error {
@@ -135,26 +161,26 @@ func (r *reportRepo) Update(ctx context.Context, report *domain.ExpenseReport) e
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// ErrNoRows means either the report doesn't exist or optimistic lock failed.
+			// ErrNoRows はレポートが存在しないか、楽観ロックが失敗したことを意味する。
 			return domain.ErrConflict
 		}
 		return fmt.Errorf("reportRepo.Update: %w", err)
 	}
-	// Reflect updated state back into the passed entity.
+	// 更新後の状態を引数のエンティティに反映する。
 	*report = *reportFromRow(updated)
 	return nil
 }
 
 func (r *reportRepo) SoftDelete(ctx context.Context, tenantID, reportID uuid.UUID) error {
 	q := queries(ctx, r.pool)
-	// Cascade soft-delete to related items.
+	// 関連する経費項目を論理削除（カスケード）する。
 	if err := q.SoftDeleteExpenseItemsByReportID(ctx, sqlcgen.SoftDeleteExpenseItemsByReportIDParams{
 		TenantID: tenantID,
 		ReportID: reportID,
 	}); err != nil {
 		return fmt.Errorf("reportRepo.SoftDelete (items): %w", err)
 	}
-	// Cascade soft-delete to related attachments.
+	// 関連する添付ファイルを論理削除（カスケード）する。
 	if err := q.SoftDeleteAttachmentsByReportID(ctx, sqlcgen.SoftDeleteAttachmentsByReportIDParams{
 		TenantID: tenantID,
 		ReportID: reportID,
@@ -204,12 +230,12 @@ func (r *reportRepo) UpdateStatus(ctx context.Context, report *domain.ExpenseRep
 	})
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			// ErrNoRows means either the report doesn't exist or optimistic lock failed.
+			// ErrNoRows はレポートが存在しないか、楽観ロックが失敗したことを意味する。
 			return domain.ErrConflict
 		}
 		return fmt.Errorf("reportRepo.UpdateStatus: %w", err)
 	}
-	// Reflect updated state back into the passed entity.
+	// 更新後の状態を引数のエンティティに反映する。
 	*report = *reportFromRow(updated)
 	return nil
 }
@@ -284,18 +310,22 @@ func (r *reportRepo) MonthlySummary(ctx context.Context, tenantID uuid.UUID, use
 	return result, nil
 }
 
-func (r *reportRepo) ListPending(ctx context.Context, tenantID uuid.UUID, params domain.WorkflowListParams) ([]domain.ExpenseReport, error) {
+func (r *reportRepo) ListPending(ctx context.Context, tenantID uuid.UUID, params domain.WorkflowListParams) ([]domain.ExpenseReport, int, error) {
 	q := queries(ctx, r.pool)
 
-	limit := params.Limit
-	if limit <= 0 {
-		limit = 20
+	// PerPage のデフォルト・上限を設定する。
+	perPage := params.PerPage
+	if perPage <= 0 {
+		perPage = 20
 	}
-
-	var cursorParam pgtype.Timestamptz
-	if params.Cursor != nil {
-		cursorParam = pgtype.Timestamptz{Time: *params.Cursor, Valid: true}
+	if perPage > 100 {
+		perPage = 100
 	}
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * perPage
 
 	var applicantNameParam pgtype.Text
 	if params.ApplicantName != nil {
@@ -304,33 +334,46 @@ func (r *reportRepo) ListPending(ctx context.Context, tenantID uuid.UUID, params
 
 	rows, err := q.ListPendingReports(ctx, sqlcgen.ListPendingReportsParams{
 		TenantID:      tenantID,
-		Limit:         int32(limit),
+		Limit:         int32(perPage),
+		Offset:        int32(offset),
 		ApplicantName: applicantNameParam,
-		Cursor:        cursorParam,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("reportRepo.ListPending: %w", err)
+		return nil, 0, fmt.Errorf("reportRepo.ListPending: %w", err)
 	}
+
+	total, err := q.CountPendingReports(ctx, sqlcgen.CountPendingReportsParams{
+		TenantID:      tenantID,
+		ApplicantName: applicantNameParam,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("reportRepo.ListPending (count): %w", err)
+	}
+
 	result := make([]domain.ExpenseReport, len(rows))
 	for i, row := range rows {
 		rpt := reportFromRow(row)
 		result[i] = *rpt
 	}
-	return result, nil
+	return result, int(total), nil
 }
 
-func (r *reportRepo) ListPayable(ctx context.Context, tenantID uuid.UUID, params domain.WorkflowListParams) ([]domain.ExpenseReport, error) {
+func (r *reportRepo) ListPayable(ctx context.Context, tenantID uuid.UUID, params domain.WorkflowListParams) ([]domain.ExpenseReport, int, error) {
 	q := queries(ctx, r.pool)
 
-	limit := params.Limit
-	if limit <= 0 {
-		limit = 20
+	// PerPage のデフォルト・上限を設定する。
+	perPage := params.PerPage
+	if perPage <= 0 {
+		perPage = 20
 	}
-
-	var cursorParam pgtype.Timestamptz
-	if params.Cursor != nil {
-		cursorParam = pgtype.Timestamptz{Time: *params.Cursor, Valid: true}
+	if perPage > 100 {
+		perPage = 100
 	}
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * perPage
 
 	var applicantNameParam pgtype.Text
 	if params.ApplicantName != nil {
@@ -339,17 +382,26 @@ func (r *reportRepo) ListPayable(ctx context.Context, tenantID uuid.UUID, params
 
 	rows, err := q.ListPayableReports(ctx, sqlcgen.ListPayableReportsParams{
 		TenantID:      tenantID,
-		Limit:         int32(limit),
+		Limit:         int32(perPage),
+		Offset:        int32(offset),
 		ApplicantName: applicantNameParam,
-		Cursor:        cursorParam,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("reportRepo.ListPayable: %w", err)
+		return nil, 0, fmt.Errorf("reportRepo.ListPayable: %w", err)
 	}
+
+	total, err := q.CountPayableReports(ctx, sqlcgen.CountPayableReportsParams{
+		TenantID:      tenantID,
+		ApplicantName: applicantNameParam,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("reportRepo.ListPayable (count): %w", err)
+	}
+
 	result := make([]domain.ExpenseReport, len(rows))
 	for i, row := range rows {
 		rpt := reportFromRow(row)
 		result[i] = *rpt
 	}
-	return result, nil
+	return result, int(total), nil
 }

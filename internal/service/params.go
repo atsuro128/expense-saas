@@ -8,7 +8,7 @@ import (
 	"expense-saas/internal/domain"
 )
 
-// SignupParams holds the parameters required to create a new tenant and its first user.
+// SignupParams は新規テナントと最初のユーザーを作成するために必要なパラメータを保持する。
 type SignupParams struct {
 	CompanyName string
 	Email       string
@@ -16,7 +16,7 @@ type SignupParams struct {
 	Password    string
 }
 
-// CreateReportParams holds the parameters required to create a new expense report.
+// CreateReportParams は新規経費レポートを作成するために必要なパラメータを保持する。
 type CreateReportParams struct {
 	Title             string
 	PeriodStart       time.Time
@@ -24,7 +24,7 @@ type CreateReportParams struct {
 	ReferenceReportID *uuid.UUID
 }
 
-// UpdateReportParams holds the mutable fields for updating an expense report.
+// UpdateReportParams は経費レポートの更新対象フィールドを保持する。
 type UpdateReportParams struct {
 	Title       string
 	PeriodStart time.Time
@@ -32,7 +32,7 @@ type UpdateReportParams struct {
 	UpdatedAt   time.Time
 }
 
-// CreateItemParams holds the parameters required to create a new expense item.
+// CreateItemParams は新規経費項目を作成するために必要なパラメータを保持する。
 type CreateItemParams struct {
 	ExpenseDate time.Time
 	Amount      int
@@ -40,7 +40,7 @@ type CreateItemParams struct {
 	Description string
 }
 
-// UpdateItemParams holds the mutable fields for updating an expense item.
+// UpdateItemParams は経費項目の更新対象フィールドを保持する。
 type UpdateItemParams struct {
 	ExpenseDate time.Time
 	Amount      int
@@ -49,7 +49,7 @@ type UpdateItemParams struct {
 	UpdatedAt   time.Time
 }
 
-// FileUpload holds metadata for an uploaded file together with its binary content.
+// FileUpload はアップロードされたファイルのメタデータとバイナリ内容を保持する。
 type FileUpload struct {
 	FileName string
 	FileSize int

@@ -15,8 +15,8 @@ type healthResponse struct {
 	Checks map[string]string `json:"checks"`
 }
 
-// NewHealthHandler returns an http.HandlerFunc that reports application health.
-// It pings the database with a 5-second timeout and reflects the result in the response.
+// NewHealthHandler はアプリケーションのヘルスチェックを行う http.HandlerFunc を返します。
+// データベースに対して 5 秒のタイムアウトで ping を実行し、その結果をレスポンスに反映します。
 func NewHealthHandler(pool *pgxpool.Pool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)

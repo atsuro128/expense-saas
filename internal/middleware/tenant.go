@@ -7,10 +7,9 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-// TenantContext returns a middleware that acquires a database connection,
-// begins a transaction, sets the RLS tenant parameter, and stores the
-// connection in the request context. The transaction is committed on
-// success (status < 400) and rolled back otherwise.
+// TenantContext はデータベース接続を取得し、トランザクションを開始したうえで
+// RLS テナントパラメータをセットし、接続をリクエストコンテキストに格納する middleware を返します。
+// ステータスコードが 400 未満の場合はコミット、それ以外はロールバックします。
 func TenantContext(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -29,7 +28,7 @@ func TenantContext(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 				return
 			}
 
-			// Ensure connection is always released, even on panic.
+			// panic が発生した場合でも接続を必ず解放する。
 			committed := false
 			defer func() {
 				p := recover()

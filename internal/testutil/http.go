@@ -18,23 +18,23 @@ import (
 	"expense-saas/internal/service"
 )
 
-// TestServer wraps a chi.Router with test helpers for issuing authenticated HTTP requests.
+// TestServer は認証済み HTTP リクエストを発行するテストヘルパーを備えた chi.Router のラッパー。
 type TestServer struct {
 	Router  http.Handler
 	Pool    *pgxpool.Pool
 	KeyPair *TestKeyPair
 }
 
-// NewTestServer wires up a full application router equivalent to main.go, but
-// without rate limiting middleware (which would interfere with tests).
-// The router is backed by the given pool; the test JWT key pair is used for auth.
+// NewTestServer は main.go と同等のアプリケーションルーターを構成して返す。
+// ただし、テストに干渉するレート制限ミドルウェアは含まない。
+// ルーターは指定された pool をバックエンドとし、テスト用 JWT 鍵ペアで認証する。
 func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	t.Helper()
 
 	kp := GenerateTestKeyPair(t)
 	verifier := appjwt.NewVerifierFromKey(kp.PublicKey)
 
-	// Repositories.
+	// repository 層。
 	tenantRepo := postgres.NewTenantRepo(pool)
 	userRepo := postgres.NewUserRepo(pool)
 	membershipRepo := postgres.NewMembershipRepo(pool)
@@ -45,10 +45,10 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	refreshTokenRepo := postgres.NewRefreshTokenRepo(pool)
 	passwordResetRepo := postgres.NewPasswordResetRepo(pool)
 
-	// Authorizer.
+	// 認可チェッカー。
 	authorizer := service.NewAuthorizer()
 
-	// Services.
+	// service 層。
 	authSvc := service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
@@ -58,7 +58,7 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	categorySvc := service.NewCategoryService(categoryRepo)
 	tenantSvc := service.NewTenantService(tenantRepo, userRepo, membershipRepo)
 
-	// Handlers.
+	// ハンドラ層。
 	authHandler := handler.NewAuthHandler(authSvc)
 	reportHandler := handler.NewReportHandler(reportSvc)
 	itemHandler := handler.NewItemHandler(itemSvc)
@@ -68,11 +68,11 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	categoryHandler := handler.NewCategoryHandler(categorySvc)
 	tenantHandler := handler.NewTenantHandler(tenantSvc)
 
-	// Router (no rate limiting, no CORS in tests).
+	// ルーター（テストではレート制限・CORS なし）。
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 
-	// Unauthenticated routes.
+	// 未認証ルート。
 	r.Group(func(pub chi.Router) {
 		pub.Get("/health", handler.NewHealthHandler(pool))
 
@@ -84,18 +84,18 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 		pub.Put("/api/auth/password-reset/{token}", authHandler.ExecutePasswordReset)
 	})
 
-	// Authenticated group.
+	// 認証済みグループ。
 	r.Group(func(priv chi.Router) {
 		priv.Use(middleware.Auth(verifier))
 		priv.Use(middleware.TenantContext(pool))
 
-		// All authenticated roles.
+		// 全認証ロール共通。
 		priv.With(middleware.RequireRole("member", "approver", "admin", "accounting")).Group(func(all chi.Router) {
 			all.Get("/api/auth/me", authHandler.GetMe)
 			all.Get("/api/dashboard", dashboardHandler.GetDashboard)
 			all.Get("/api/categories", categoryHandler.ListCategories)
 
-			// Reports.
+			// 経費レポート。
 			all.Get("/api/reports", reportHandler.ListMyReports)
 			all.Post("/api/reports", reportHandler.CreateReport)
 			all.Get("/api/reports/{id}", reportHandler.GetReport)
@@ -103,38 +103,38 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 			all.Delete("/api/reports/{id}", reportHandler.DeleteReport)
 			all.Post("/api/reports/{id}/submit", reportHandler.SubmitReport)
 
-			// Items.
+			// 経費項目。
 			all.Post("/api/reports/{id}/items", itemHandler.CreateItem)
 			all.Put("/api/reports/{id}/items/{itemId}", itemHandler.UpdateItem)
 			all.Delete("/api/reports/{id}/items/{itemId}", itemHandler.DeleteItem)
 
-			// Attachments.
+			// 添付ファイル。
 			all.Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.GetAttachmentDownload)
 			all.Delete("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.DeleteAttachment)
 		})
 
-		// Approver only.
+		// Approver 専用。
 		priv.With(middleware.RequireRole("approver")).Group(func(approver chi.Router) {
 			approver.Get("/api/workflow/pending", workflowHandler.ListPendingReports)
 			approver.Post("/api/workflow/{id}/approve", workflowHandler.ApproveReport)
 			approver.Post("/api/workflow/{id}/reject", workflowHandler.RejectReport)
 		})
 
-		// Accounting only.
+		// Accounting 専用。
 		priv.With(middleware.RequireRole("accounting")).Group(func(accounting chi.Router) {
 			accounting.Get("/api/workflow/payable", workflowHandler.ListPayableReports)
 			accounting.Post("/api/workflow/{id}/pay", workflowHandler.MarkReportAsPaid)
 		})
 
-		// Admin and Accounting.
+		// Admin および Accounting 共通。
 		priv.With(middleware.RequireRole("admin", "accounting")).Group(func(adminAcct chi.Router) {
 			adminAcct.Get("/api/reports/all", reportHandler.ListAllReports)
 			adminAcct.Get("/api/tenant/members", tenantHandler.ListTenantMembers)
 		})
 
-		// Admin only.
+		// Admin 専用。
 		priv.With(middleware.RequireRole("admin")).Group(func(admin chi.Router) {
 			admin.Get("/api/tenant", tenantHandler.GetTenant)
 		})
@@ -147,8 +147,8 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	}
 }
 
-// AuthRequest builds an authenticated HTTP request for the test server.
-// body may be nil for requests without a body (GET, DELETE).
+// AuthRequest はテストサーバー向けの認証済み HTTP リクエストを生成する。
+// GET や DELETE などボディなしのリクエストでは body に nil を渡す。
 func (ts *TestServer) AuthRequest(t *testing.T, method, path string, body io.Reader, userID, tenantID, role string) *http.Request {
 	t.Helper()
 
@@ -163,16 +163,16 @@ func (ts *TestServer) AuthRequest(t *testing.T, method, path string, body io.Rea
 	return req
 }
 
-// Execute dispatches the request through the router and returns the recorded response.
+// Execute はリクエストをルーター経由でディスパッチし、記録されたレスポンスを返す。
 func (ts *TestServer) Execute(req *http.Request) *httptest.ResponseRecorder {
 	rec := httptest.NewRecorder()
 	ts.Router.ServeHTTP(rec, req)
 	return rec
 }
 
-// NewAuthenticatedRequest is a standalone helper that builds an http.Request with
-// a Bearer token generated from the shared test key pair.
-// body may be nil.
+// NewAuthenticatedRequest は共有テスト鍵ペアから生成した Bearer トークンを持つ
+// http.Request を構築するスタンドアロンヘルパー。
+// body には nil を渡せる。
 func NewAuthenticatedRequest(t *testing.T, method, target string, body io.Reader, userID, tenantID, role string) *http.Request {
 	t.Helper()
 
@@ -186,8 +186,8 @@ func NewAuthenticatedRequest(t *testing.T, method, target string, body io.Reader
 	return req
 }
 
-// SetRequestTimeout wraps the request context with a deadline useful for slow integration tests.
-// The cancel function is registered via t.Cleanup to avoid context leak.
+// SetRequestTimeout はリクエストコンテキストにデッドラインを設定する（低速な統合テスト向け）。
+// コンテキストリークを防ぐため、cancel 関数は t.Cleanup に登録する。
 func SetRequestTimeout(t *testing.T, req *http.Request, d time.Duration) *http.Request {
 	ctx, cancel := context.WithTimeout(req.Context(), d)
 	t.Cleanup(cancel)

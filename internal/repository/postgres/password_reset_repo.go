@@ -18,7 +18,7 @@ type passwordResetRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewPasswordResetRepo constructs a PasswordResetTokenRepository backed by PostgreSQL.
+// NewPasswordResetRepo は PostgreSQL をバックエンドとする PasswordResetTokenRepository を生成して返す。
 func NewPasswordResetRepo(pool *pgxpool.Pool) domain.PasswordResetTokenRepository {
 	return &passwordResetRepo{pool: pool}
 }

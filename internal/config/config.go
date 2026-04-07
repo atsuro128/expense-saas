@@ -5,19 +5,19 @@ import (
 	"os"
 )
 
-// Config holds application configuration loaded from environment variables.
+// Config は環境変数から読み込んだアプリケーション設定を保持する。
 type Config struct {
-	DatabaseURL        string // DATABASE_URL (required)
-	AppDatabaseURL     string // APP_DATABASE_URL (required)
+	DatabaseURL        string // DATABASE_URL（必須）
+	AppDatabaseURL     string // APP_DATABASE_URL（必須）
 	JWTPrivateKeyPath  string // JWT_PRIVATE_KEY_PATH
 	JWTPublicKeyPath   string // JWT_PUBLIC_KEY_PATH
 	CORSAllowedOrigins string // CORS_ALLOWED_ORIGINS
-	LogLevel           string // LOG_LEVEL (default: "info")
-	Port               string // PORT (default: "8080")
+	LogLevel           string // LOG_LEVEL（デフォルト: "info"）
+	Port               string // PORT（デフォルト: "8080"）
 }
 
-// LoadConfig reads configuration from environment variables and returns a Config.
-// Returns an error if required variables are missing.
+// LoadConfig は環境変数から設定を読み込み、Config を返す。
+// 必須変数が未設定の場合はエラーを返す。
 func LoadConfig() (*Config, error) {
 	databaseURL := os.Getenv("DATABASE_URL")
 	if databaseURL == "" {
@@ -27,6 +27,16 @@ func LoadConfig() (*Config, error) {
 	appDatabaseURL := os.Getenv("APP_DATABASE_URL")
 	if appDatabaseURL == "" {
 		return nil, errors.New("environment variable APP_DATABASE_URL is required")
+	}
+
+	jwtPrivateKeyPath := os.Getenv("JWT_PRIVATE_KEY_PATH")
+	if jwtPrivateKeyPath == "" {
+		return nil, errors.New("environment variable JWT_PRIVATE_KEY_PATH is required")
+	}
+
+	jwtPublicKeyPath := os.Getenv("JWT_PUBLIC_KEY_PATH")
+	if jwtPublicKeyPath == "" {
+		return nil, errors.New("environment variable JWT_PUBLIC_KEY_PATH is required")
 	}
 
 	logLevel := os.Getenv("LOG_LEVEL")
@@ -42,8 +52,8 @@ func LoadConfig() (*Config, error) {
 	return &Config{
 		DatabaseURL:        databaseURL,
 		AppDatabaseURL:     appDatabaseURL,
-		JWTPrivateKeyPath:  os.Getenv("JWT_PRIVATE_KEY_PATH"),
-		JWTPublicKeyPath:   os.Getenv("JWT_PUBLIC_KEY_PATH"),
+		JWTPrivateKeyPath: jwtPrivateKeyPath,
+		JWTPublicKeyPath:  jwtPublicKeyPath,
 		CORSAllowedOrigins: os.Getenv("CORS_ALLOWED_ORIGINS"),
 		LogLevel:           logLevel,
 		Port:               port,

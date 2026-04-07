@@ -7,22 +7,22 @@ import (
 	"expense-saas/internal/service"
 )
 
-// TenantHandler handles tenant management endpoints.
+// TenantHandler はテナント管理エンドポイントの handler です。
 type TenantHandler struct {
 	svc service.TenantService
 }
 
-// NewTenantHandler constructs a TenantHandler.
+// NewTenantHandler は TenantHandler を生成して返します。
 func NewTenantHandler(svc service.TenantService) *TenantHandler {
 	return &TenantHandler{svc: svc}
 }
 
-// GetTenant handles GET /api/tenant.
+// GetTenant は GET /api/tenant を処理します。
 func (h *TenantHandler) GetTenant(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
-// ListTenantMembers handles GET /api/tenant/members.
+// ListTenantMembers は GET /api/tenant/members を処理します。
 func (h *TenantHandler) ListTenantMembers(w http.ResponseWriter, r *http.Request) {
 	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }

@@ -15,7 +15,7 @@ type itemService struct {
 	authorizer   Authorizer
 }
 
-// NewItemService constructs an ItemService.
+// NewItemService は ItemService を生成して返す。
 func NewItemService(
 	reportRepo domain.ReportRepository,
 	itemRepo domain.ItemRepository,

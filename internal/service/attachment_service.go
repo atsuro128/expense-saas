@@ -15,7 +15,7 @@ type attachmentService struct {
 	authorizer     Authorizer
 }
 
-// NewAttachmentService constructs an AttachmentService.
+// NewAttachmentService は AttachmentService を生成して返す。
 func NewAttachmentService(
 	reportRepo domain.ReportRepository,
 	itemRepo domain.ItemRepository,

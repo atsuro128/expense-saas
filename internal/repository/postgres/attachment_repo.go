@@ -17,7 +17,7 @@ type attachmentRepo struct {
 	pool *pgxpool.Pool
 }
 
-// NewAttachmentRepo constructs an AttachmentRepository backed by PostgreSQL.
+// NewAttachmentRepo は PostgreSQL をバックエンドとする AttachmentRepository を生成して返す。
 func NewAttachmentRepo(pool *pgxpool.Pool) domain.AttachmentRepository {
 	return &attachmentRepo{pool: pool}
 }

@@ -12,7 +12,7 @@ import (
 	appjwt "expense-saas/internal/pkg/jwt"
 )
 
-// TestKeyPair holds an in-memory RSA key pair used exclusively for testing.
+// TestKeyPair はテスト専用のインメモリ RSA 鍵ペアを保持する。
 type TestKeyPair struct {
 	PrivateKey *rsa.PrivateKey
 	PublicKey  *rsa.PublicKey
@@ -23,15 +23,15 @@ var (
 	sharedKeyPair     *TestKeyPair
 )
 
-// GenerateTestKeyPair returns a package-level singleton RSA 2048-bit key pair.
-// The key pair is generated once per test binary run via sync.Once.
+// GenerateTestKeyPair はパッケージレベルのシングルトン RSA 2048 ビット鍵ペアを返す。
+// 鍵ペアは sync.Once でテストバイナリ実行ごとに一度だけ生成される。
 func GenerateTestKeyPair(t *testing.T) *TestKeyPair {
 	t.Helper()
 
 	sharedKeyPairOnce.Do(func() {
 		priv, err := rsa.GenerateKey(rand.Reader, 2048)
 		if err != nil {
-			// sync.Once body does not receive t, so we store nil and let callers detect it.
+			// sync.Once のクロージャは t を受け取れないため、nil を格納して呼び出し元で検出する。
 			return
 		}
 		sharedKeyPair = &TestKeyPair{
@@ -46,8 +46,8 @@ func GenerateTestKeyPair(t *testing.T) *TestKeyPair {
 	return sharedKeyPair
 }
 
-// GenerateTestToken creates a signed RS256 JWT access token for the given user/tenant/role.
-// The token is signed with the shared test key pair and expires in 1 hour.
+// GenerateTestToken は指定したユーザー/テナント/ロールの RS256 署名済み JWT アクセストークンを生成する。
+// トークンは共有テスト鍵ペアで署名され、1 時間後に期限切れとなる。
 func GenerateTestToken(t *testing.T, userID, tenantID, role string) string {
 	t.Helper()
 
@@ -74,7 +74,35 @@ func GenerateTestToken(t *testing.T, userID, tenantID, role string) string {
 	return signed
 }
 
-// TestVerifier constructs a jwt.Verifier backed by the shared test public key.
+// GenerateTestRefreshToken は指定した jti・userID・expiry で RS256 署名済み JWT リフレッシュトークンを生成する。
+// テスト鍵ペアで署名し、token_type="refresh" を設定する。
+// expiry に過去時刻を渡すと期限切れトークンを生成できる。
+func GenerateTestRefreshToken(t *testing.T, jti, userID string, expiry time.Time) string {
+	t.Helper()
+
+	kp := GenerateTestKeyPair(t)
+
+	now := time.Now()
+	claims := appjwt.Claims{
+		UserID:    userID,
+		TokenType: "refresh",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			ID:        jti,
+			IssuedAt:  gojwt.NewNumericDate(now),
+			ExpiresAt: gojwt.NewNumericDate(expiry),
+		},
+	}
+
+	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	signed, err := token.SignedString(kp.PrivateKey)
+	if err != nil {
+		t.Fatalf("testutil: failed to sign refresh JWT: %v", err)
+	}
+	return signed
+}
+
+// TestVerifier は共有テスト公開鍵をバックエンドとする jwt.Verifier を生成して返す。
 func TestVerifier(t *testing.T) *appjwt.Verifier {
 	t.Helper()
 	kp := GenerateTestKeyPair(t)
