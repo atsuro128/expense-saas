@@ -24,6 +24,7 @@ export interface WorkflowActionsProps {
  * WorkflowActions はレポートに対するワークフロー操作ボタンを表示する。
  * スタブ実装のため、何も描画しない。
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function WorkflowActions(_props: WorkflowActionsProps) {
   // スタブ: Step10 で実装する。
   return null;
