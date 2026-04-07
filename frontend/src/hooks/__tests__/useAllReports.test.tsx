@@ -74,7 +74,7 @@ describe('useAllReports', () => {
     expect(result.current.data?.data).toBeInstanceOf(Array);
 
     // API が page=1 で呼び出されること。
-    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const calledUrl = fetchMock.mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain('page=1');
   });
 
@@ -95,7 +95,7 @@ describe('useAllReports', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const calledUrl = fetchMock.mock.calls[0]?.[0] as string;
 
     // 各クエリパラメータが含まれること。
     expect(calledUrl).toContain('status=submitted');
@@ -115,7 +115,7 @@ describe('useAllReports', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    const calledUrl = fetchMock.mock.calls[0][0] as string;
+    const calledUrl = fetchMock.mock.calls[0]?.[0] as string;
 
     expect(calledUrl).toContain('page=3');
     expect(calledUrl).toContain('per_page=20');
