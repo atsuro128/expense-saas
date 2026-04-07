@@ -4,6 +4,34 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, beforeEach, afterEach } from 'vitest';
+
+// MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
+vi.mock('../../../components/ui/AppDataGrid', () => ({
+  default: (props: { rows: unknown[]; columns: unknown[]; onRowClick?: (row: unknown) => void; loading?: boolean }) => {
+    if (props.loading) return <div data-testid="page-skeleton-table">Loading...</div>;
+    return (
+      <table data-testid="app-data-grid">
+        <tbody>
+          {(props.rows as Array<{ id: string; title: string }>).map((row) => (
+            <tr key={row.id} onClick={() => props.onRowClick?.(row)} data-testid={`row-${row.id}`}>
+              <td>{row.title}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  },
+}));
+vi.mock('../../../components/ui/StatusChip', () => ({
+  default: (props: { status: string }) => <span data-testid="status-chip">{props.status}</span>,
+}));
+vi.mock('../../../components/ui/EmptyState', () => ({
+  default: (props: { message: string }) => <div data-testid="empty-state">{props.message}</div>,
+}));
+vi.mock('../../../components/ui/PageSkeleton', () => ({
+  default: (props: { variant: string }) => <div data-testid={`page-skeleton-${props.variant}`}>Loading...</div>,
+}));
+
 import AllReportsTable from '../AllReportsTable';
 import type { AllReportRow } from '../../../api/adminTypes';
 

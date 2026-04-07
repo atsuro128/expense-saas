@@ -17,6 +17,45 @@ vi.mock('../../../components/layout/AppLayout', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div data-testid="app-layout">{children}</div>,
 }));
 
+// MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
+vi.mock('../../../components/ui/AppSelect', () => ({
+  default: (props: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; disabled?: boolean }) => (
+    <select aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} disabled={props.disabled}>
+      {props.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  ),
+}));
+vi.mock('../../../components/ui/AppDatePicker', () => ({
+  default: (props: { label: string; value: string | null; onChange: (v: string | null) => void }) => (
+    <input type="date" aria-label={props.label} value={props.value ?? ''} onChange={(e) => props.onChange(e.target.value || null)} />
+  ),
+}));
+vi.mock('../../../components/ui/AppDataGrid', () => ({
+  default: (props: { rows: unknown[]; columns: unknown[]; onRowClick?: (row: unknown) => void; loading?: boolean }) => {
+    if (props.loading) return <div data-testid="page-skeleton-table">Loading...</div>;
+    return (
+      <table data-testid="app-data-grid">
+        <tbody>
+          {(props.rows as Array<{ id: string; title: string }>).map((row) => (
+            <tr key={row.id} onClick={() => props.onRowClick?.(row)} data-testid={`row-${row.id}`}>
+              <td>{row.title}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  },
+}));
+vi.mock('../../../components/ui/StatusChip', () => ({
+  default: (props: { status: string }) => <span data-testid="status-chip">{props.status}</span>,
+}));
+vi.mock('../../../components/ui/EmptyState', () => ({
+  default: (props: { message: string }) => <div data-testid="empty-state">{props.message}</div>,
+}));
+vi.mock('../../../components/ui/PageSkeleton', () => ({
+  default: (props: { variant: string }) => <div data-testid={`page-skeleton-${props.variant}`}>Loading...</div>,
+}));
+
 function createQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 }

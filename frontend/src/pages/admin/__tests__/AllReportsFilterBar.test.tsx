@@ -5,6 +5,24 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, beforeEach, afterEach } from 'vitest';
+
+// MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
+vi.mock('../../../components/ui/AppSelect', () => ({
+  default: (props: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; disabled?: boolean }) => (
+    <select aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} disabled={props.disabled}>
+      {props.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+    </select>
+  ),
+}));
+vi.mock('../../../components/ui/AppDatePicker', () => ({
+  default: (props: { label: string; value: string | null; onChange: (v: string | null) => void; error?: string }) => (
+    <div>
+      <input type="date" aria-label={props.label} value={props.value ?? ''} onChange={(e) => props.onChange(e.target.value || null)} />
+      {props.error && <p role="alert">{props.error}</p>}
+    </div>
+  ),
+}));
+
 import AllReportsFilterBar, { type AllReportsFilterValues } from '../AllReportsFilterBar';
 
 // デフォルトのフィルタ値。
