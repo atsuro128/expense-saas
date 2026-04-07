@@ -84,7 +84,7 @@ export default function DashboardPage() {
           label="承認待ち"
           count={dashboard.pending_approval_count ?? 0}
           showBadge={true}
-          href="/workflow/pending"
+          href="/approvals"
           accentColor="info"
         />
       )}
@@ -95,7 +95,7 @@ export default function DashboardPage() {
           label="支払待ち"
           count={dashboard.pending_payment_count ?? 0}
           showBadge={true}
-          href="/workflow/payable"
+          href="/payments"
           accentColor="success"
         />
       )}

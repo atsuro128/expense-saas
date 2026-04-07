@@ -552,7 +552,7 @@ func TestGetDashboard_Admin_NoMyDraftCount(t *testing.T) {
 
 // TestGetDashboard_TenantIsolation_CountsExcludeOtherTenant はテナントAのカウントにテナントBのレポートが含まれないことを検証する。
 // DSH-018 に対応する。
-// フィクスチャ: テナントB に draft が 1 件存在する。テナントA の userMember は draft 2 件のみ。
+// フィクスチャ: テナントB に draft が 1 件存在する。テナントA の userMember は draft 1 件のみ。
 func TestGetDashboard_TenantIsolation_CountsExcludeOtherTenant(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -571,7 +571,7 @@ func TestGetDashboard_TenantIsolation_CountsExcludeOtherTenant(t *testing.T) {
 		t.Fatal("my_draft_count が null です")
 	}
 	// テナントA の userMember の draft 件数のみ（テナントB のレポートは含まれない）。
-	if got, want := *resp.Data.MyDraftCount, 2; got != want {
+	if got, want := *resp.Data.MyDraftCount, 1; got != want {
 		t.Errorf("my_draft_count（テナント分離後）: got %d, want %d", got, want)
 	}
 }

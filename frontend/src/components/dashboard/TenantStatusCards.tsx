@@ -36,7 +36,7 @@ export default function TenantStatusCards({
           label="下書き"
           count={draftCount}
           accentColor="default"
-          href="/admin/reports?status=draft"
+          href="/reports/all?status=draft"
         />
       </Grid>
       <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
@@ -44,7 +44,7 @@ export default function TenantStatusCards({
           label="提出済み"
           count={submittedCount}
           accentColor="info"
-          href="/admin/reports?status=submitted"
+          href="/reports/all?status=submitted"
         />
       </Grid>
       <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
@@ -52,7 +52,7 @@ export default function TenantStatusCards({
           label="承認済み"
           count={approvedCount}
           accentColor="success"
-          href="/admin/reports?status=approved"
+          href="/reports/all?status=approved"
         />
       </Grid>
       <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
@@ -60,7 +60,7 @@ export default function TenantStatusCards({
           label="却下"
           count={rejectedCount}
           accentColor="error"
-          href="/admin/reports?status=rejected"
+          href="/reports/all?status=rejected"
         />
       </Grid>
       <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
@@ -68,7 +68,7 @@ export default function TenantStatusCards({
           label="支払済み"
           count={paidCount}
           accentColor="secondary"
-          href="/admin/reports?status=paid"
+          href="/reports/all?status=paid"
         />
       </Grid>
     </Grid>

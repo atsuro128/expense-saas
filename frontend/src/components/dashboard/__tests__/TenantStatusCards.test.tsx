@@ -46,7 +46,7 @@ describe('TenantStatusCards', () => {
   });
 
   // DSH-FE-021: 各カードのリンクが SCR-ADM-001（管理者レポート一覧）に遷移すること。
-  it('DSH-FE-021: 各カードのリンクが /admin/reports?status=XXX に設定されている', () => {
+  it('DSH-FE-021: 各カードのリンクが /reports/all?status=XXX に設定されている', () => {
     renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -60,6 +60,6 @@ describe('TenantStatusCards', () => {
     expect(links.length).toBe(5);
 
     const hrefs = links.map((l) => l.getAttribute('href') ?? '');
-    expect(hrefs.some((h) => h.includes('/admin/reports'))).toBe(true);
+    expect(hrefs.some((h) => h.includes('/reports/all'))).toBe(true);
   });
 });
