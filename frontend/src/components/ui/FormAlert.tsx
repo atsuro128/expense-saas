@@ -2,6 +2,8 @@
 // message が null の場合は非表示。
 // 認証画面ではトースト通知を使用しないため、API エラー表示はこのコンポーネントが担う。
 
+import Alert from '@mui/material/Alert';
+
 export type AlertSeverity = 'error' | 'warning' | 'info' | 'success';
 
 export interface FormAlertProps {
@@ -14,15 +16,15 @@ export interface FormAlertProps {
 /**
  * FormAlert はフォーム上部にエラーメッセージを表示する。
  * message が null のときは何も描画しない。
+ * 既存テストとの互換性のため data-severity 属性を付与する。
  */
 export default function FormAlert({ message, severity = 'error' }: FormAlertProps) {
-  // 未実装スタブ。実装後に MUI Alert を使用する。
   if (message === null) {
     return null;
   }
   return (
-    <div role="alert" data-severity={severity}>
+    <Alert severity={severity} data-severity={severity} sx={{ mb: 2 }}>
       {message}
-    </div>
+    </Alert>
   );
 }
