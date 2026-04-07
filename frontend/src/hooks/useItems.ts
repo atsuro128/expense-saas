@@ -1,9 +1,10 @@
-// 経費明細に関する React Query Hook のスタブ実装。
-// 本実装は Step 10 で行う。現時点では型定義のみを提供し、テスト時には vi.mock でモックする。
+// 経費明細に関する React Query ミューテーション Hook。
 // state-management.md §3 ミューテーション系に準拠する。
+// invalidate: ['reports', 'detail', reportId]
 
+import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { api } from '../api/client';
 import type { ApiResponse, ExpenseItemWithAttachments, ExpenseItemCreateRequest, ExpenseItemUpdateRequest } from '../api/types';
-import type { UseMutationResult } from '@tanstack/react-query';
 
 // useCreateItem の入力型。
 export interface CreateItemInput extends ExpenseItemCreateRequest {
@@ -27,20 +28,61 @@ export interface DeleteItemInput {
   itemId: string;
 }
 
-// useCreateItem: POST /api/reports/:id/items — 明細を新規追加する Hook のスタブ。
-// invalidate: ['reports', 'detail', reportId]
-export function useCreateItem(): UseMutationResult<ApiResponse<ExpenseItemWithAttachments>, Error, CreateItemInput> {
-  throw new Error('useCreateItem is not implemented yet');
+// useCreateItem: POST /api/reports/:id/items — 明細を新規追加する Hook。
+// 成功時に ['reports', 'detail', reportId] のキャッシュを無効化する。
+export function useCreateItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: CreateItemInput): Promise<ExpenseItemWithAttachments> => {
+      const { reportId, ...body } = input;
+      const res = await api.post<ApiResponse<ExpenseItemWithAttachments>>(
+        `/api/reports/${reportId}/items`,
+        body,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      // レポート詳細のクエリキャッシュを無効化する
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
+    },
+  });
 }
 
-// useUpdateItem: PUT /api/reports/:id/items/:itemId — 明細を更新する Hook のスタブ。
-// invalidate: ['reports', 'detail', reportId]
-export function useUpdateItem(): UseMutationResult<ApiResponse<ExpenseItemWithAttachments>, Error, UpdateItemInput> {
-  throw new Error('useUpdateItem is not implemented yet');
+// useUpdateItem: PUT /api/reports/:id/items/:itemId — 明細を更新する Hook。
+// 成功時に ['reports', 'detail', reportId] のキャッシュを無効化する。
+export function useUpdateItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: UpdateItemInput): Promise<ExpenseItemWithAttachments> => {
+      const { reportId, itemId, ...body } = input;
+      const res = await api.put<ApiResponse<ExpenseItemWithAttachments>>(
+        `/api/reports/${reportId}/items/${itemId}`,
+        body,
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      // レポート詳細のクエリキャッシュを無効化する
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
+    },
+  });
 }
 
-// useDeleteItem: DELETE /api/reports/:id/items/:itemId — 明細を削除する Hook のスタブ。
-// invalidate: ['reports', 'detail', reportId]
-export function useDeleteItem(): UseMutationResult<void, Error, DeleteItemInput> {
-  throw new Error('useDeleteItem is not implemented yet');
+// useDeleteItem: DELETE /api/reports/:id/items/:itemId — 明細を削除する Hook。
+// 成功時に ['reports', 'detail', reportId] のキャッシュを無効化する。
+export function useDeleteItem() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: async (input: DeleteItemInput): Promise<void> => {
+      const { reportId, itemId } = input;
+      await api.delete<void>(`/api/reports/${reportId}/items/${itemId}`);
+    },
+    onSuccess: (_data, variables) => {
+      // レポート詳細のクエリキャッシュを無効化する
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
+    },
+  });
 }

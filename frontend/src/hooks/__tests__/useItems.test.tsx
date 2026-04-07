@@ -1,14 +1,13 @@
 // useCreateItem / useUpdateItem / useDeleteItem Hook のユニットテスト。
 // ITM-FE-048〜056 に対応する。
-// 実 Hook ファイル（useItems.ts）を import し、vi.mock で fetch を呼ぶ実装に差し替える。
+// 実 Hook（useItems.ts）を直接 import し、globalThis.fetch のみモックする。
 // state-management.md §3 ミューテーション系に準拠する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
 import { useCreateItem, useUpdateItem, useDeleteItem } from '../useItems';
-import type { CreateItemInput, UpdateItemInput, DeleteItemInput } from '../useItems';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -19,77 +18,6 @@ function createWrapper() {
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
 }
-
-// vi.mock で実 Hook を fetch を呼ぶ実装に差し替える。
-// useItems.ts はスタブのため throw new Error するが、テスト用に fetch ベースの実装を提供する。
-vi.mock('../useItems', () => ({
-  useCreateItem: () => {
-    const queryClient = useQueryClient();
-    return useMutation<unknown, Error, CreateItemInput>({
-      mutationFn: async (input: CreateItemInput) => {
-        const { reportId, ...body } = input;
-        const res = await fetch(`/api/reports/${reportId}/items`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const err = await res.json() as { error: { code: string; message: string } };
-          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-        }
-        const data = await res.json() as { data: unknown };
-        return data.data;
-      },
-      onSuccess: (_data, variables) => {
-        // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
-        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
-      },
-    });
-  },
-  useUpdateItem: () => {
-    const queryClient = useQueryClient();
-    return useMutation<unknown, Error, UpdateItemInput>({
-      mutationFn: async (input: UpdateItemInput) => {
-        const { reportId, itemId, ...body } = input;
-        const res = await fetch(`/api/reports/${reportId}/items/${itemId}`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(body),
-        });
-        if (!res.ok) {
-          const err = await res.json() as { error: { code: string; message: string } };
-          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-        }
-        const data = await res.json() as { data: unknown };
-        return data.data;
-      },
-      onSuccess: (_data, variables) => {
-        // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
-        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
-      },
-    });
-  },
-  useDeleteItem: () => {
-    const queryClient = useQueryClient();
-    return useMutation<void, Error, DeleteItemInput>({
-      mutationFn: async (input: DeleteItemInput) => {
-        const { reportId, itemId } = input;
-        const res = await fetch(`/api/reports/${reportId}/items/${itemId}`, {
-          method: 'DELETE',
-        });
-        if (!res.ok) {
-          const err = await res.json() as { error: { code: string; message: string } };
-          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-        }
-        // 204 No Content
-      },
-      onSuccess: (_data, variables) => {
-        // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
-        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
-      },
-    });
-  },
-}));
 
 // ===========================================================================
 // useCreateItem テスト（ITM-FE-048〜050）

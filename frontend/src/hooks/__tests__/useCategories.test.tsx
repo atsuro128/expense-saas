@@ -1,12 +1,12 @@
 // useCategories Hook のユニットテスト。
 // ITM-FE-057〜059 に対応する。
-// 実 Hook ファイル（useCategories.ts）を import し、vi.mock で fetch を呼ぶ実装に差し替える。
+// 実 Hook（useCategories.ts）を直接 import し、globalThis.fetch のみモックする。
 // state-management.md §3 データフェッチ系に準拠する。
 // queryKey: ['categories'], staleTime: Infinity
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
 import { useCategories } from '../useCategories';
 
@@ -19,26 +19,6 @@ function createWrapper(queryClient?: QueryClient) {
     <QueryClientProvider client={client}>{children}</QueryClientProvider>
   );
 }
-
-// vi.mock で実 Hook を fetch を呼ぶ実装に差し替える。
-// useCategories.ts はスタブのため throw new Error するが、テスト用に fetch ベースの実装を提供する。
-vi.mock('../useCategories', () => ({
-  useCategories: () => {
-    return useQuery({
-      queryKey: ['categories'],
-      queryFn: async () => {
-        const res = await fetch('/api/categories');
-        if (!res.ok) {
-          const err = await res.json() as { error: { code: string; message: string } };
-          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-        }
-        const data = await res.json() as { data: unknown };
-        return data.data;
-      },
-      staleTime: Infinity,
-    });
-  },
-}));
 
 // 6 件の標準カテゴリフィクスチャ。
 const mockCategories = [
@@ -77,8 +57,12 @@ describe('useCategories', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
+    // GET /api/categories が呼ばれていること
+    expect(globalThis.fetch).toHaveBeenCalledWith(
+      '/api/categories',
+      expect.objectContaining({ method: 'GET' }),
+    );
     // data に 6 件のカテゴリ配列が含まれること
-    expect(globalThis.fetch).toHaveBeenCalledWith('/api/categories');
     expect(result.current.data).toEqual(mockCategories);
   });
 
