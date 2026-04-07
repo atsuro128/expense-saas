@@ -25,13 +25,35 @@ function renderWithProviders(ui: React.ReactElement) {
 }
 
 /**
- * Emotion が document に注入した全 style タグのテキストを返す。
+ * 指定した Card 要素（MuiCard-root）の Emotion クラスに紐づく CSS ルールのみを返す。
  * MUI v6 + Emotion は data-emotion 属性を持つ style タグにスタイルを注入する。
+ * document 全体のスタイルではなく対象要素固有のクラスに絞ることで、
+ * 他のテストで注入された Badge 等の色コードによる false positive を防止する。
  */
-function getInjectedStyles(): string {
-  return Array.from(document.querySelectorAll('style[data-emotion]'))
+function getStylesForCard(cardElement: HTMLElement): string {
+  // Emotion が付与したクラス名（css- プレフィックス）を抽出する。
+  const emotionClasses = Array.from(cardElement.classList).filter((cls) =>
+    cls.startsWith('css-'),
+  );
+  if (emotionClasses.length === 0) return '';
+
+  // 全 style タグのテキストを連結し、対象クラスに該当するルールブロックのみを抽出する。
+  const allStyles = Array.from(document.querySelectorAll('style[data-emotion]'))
     .map((el) => el.textContent ?? '')
     .join('\n');
+
+  // 各 Emotion クラスに対応する CSS ルールを正規表現で抽出する。
+  // 例: ".css-abc123{border-color:#0288d1;}" のようなルールを取得する。
+  const matchedRules: string[] = [];
+  for (const cls of emotionClasses) {
+    // クラスセレクタを含む CSS ルールブロックを抽出する（{...} の内容を含む）。
+    const pattern = new RegExp(`\\.${cls}[^{]*\\{[^}]*\\}`, 'g');
+    const matches = allStyles.match(pattern);
+    if (matches) {
+      matchedRules.push(...matches);
+    }
+  }
+  return matchedRules.join('\n');
 }
 
 describe('CountCard', () => {
@@ -81,9 +103,11 @@ describe('CountCard', () => {
   });
 
   // DSH-FE-014: accentColor ごとに正しいパレットカラーが borderColor に適用されること。
-  // ThemeProvider でラップし、Emotion が注入した style タグから期待する色コードを検証する。
-  // 各 accentColor に対応する MUI palette の main 色が CSS に含まれることを確認することで、
-  // 色を入れ替えた場合にテストが失敗することを保証する。
+  // ThemeProvider でラップし、対象 Card 要素の Emotion クラスに紐づく CSS ルールのみを検証する。
+  // document 全体のスタイルではなく Card 固有のクラスに絞ることで、
+  // 先行テスト（DSH-FE-012: Badge color="error" が注入する #d32f2f）による false positive を防止する。
+  // CountCard 実装: CountCard.tsx L43-44 の borderColor: `${accentColor}.main` が
+  // 期待する palette.main 色コードに変換されることを保証する。
   it.each([
     // MUI v6 デフォルトテーマのパレット色コード（info/success/error）と
     // theme.ts で定義したカスタム色（secondary）を使用する。
@@ -94,10 +118,16 @@ describe('CountCard', () => {
   ])(
     'DSH-FE-014: accentColor="$color" で $expectedHex が borderColor として CSS に注入される',
     ({ color, label, expectedHex }) => {
-      renderWithProviders(<CountCard label={label} count={2} accentColor={color} />);
-      // Emotion が生成した style タグに、対応する palette.main 色コードが含まれることを検証する。
+      // showBadge を渡さない（デフォルト false）ため Badge は描画されない。
+      // Badge 由来の error 色（#d32f2f）が style タグに注入されることを防ぐ。
+      const { container } = renderWithProviders(
+        <CountCard label={label} count={2} accentColor={color} />,
+      );
+      // MuiCard-root 要素を取得し、その Emotion クラスに紐づく CSS ルールのみを検証する。
       // CountCard 実装: borderColor: `${accentColor}.main` → MUI が解決して実際の色コードに変換。
-      const styles = getInjectedStyles();
+      const cardElement = container.querySelector('.MuiCard-root') as HTMLElement;
+      expect(cardElement).not.toBeNull();
+      const styles = getStylesForCard(cardElement);
       expect(styles).toContain(expectedHex);
     },
   );
