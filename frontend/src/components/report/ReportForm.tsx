@@ -1,5 +1,5 @@
 // レポートのタイトル・対象期間を入力するフォームコンポーネント。
-// React Hook Form + Zod でバリデーションを行い、送信時に onSubmit コールバックを呼び出す。
+// React Hook Form でバリデーションを行い、送信時に onSubmit コールバックを呼び出す。
 // SCR-RPT-002（レポート作成）、SCR-RPT-003（レポート編集）で共有する。
 
 import Box from '@mui/material/Box';

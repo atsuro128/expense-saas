@@ -14,9 +14,10 @@ import Toolbar from '@mui/material/Toolbar';
 import { Link as RouterLink } from 'react-router-dom';
 import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptIcon from '@mui/icons-material/Receipt';
+import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import PaymentIcon from '@mui/icons-material/Payment';
-import PeopleIcon from '@mui/icons-material/People';
+import FolderIcon from '@mui/icons-material/Folder';
 import BusinessIcon from '@mui/icons-material/Business';
 
 export interface AppSidebarProps {
@@ -53,34 +54,38 @@ const NAV_ITEMS: NavItem[] = [
     roles: ['admin', 'approver', 'member', 'accounting'],
   },
   {
-    label: 'レポート一覧',
+    label: 'マイレポート',
     path: '/reports',
     icon: <ReceiptIcon />,
     roles: ['admin', 'approver', 'member', 'accounting'],
   },
   {
-    label: '承認待ち一覧',
-    path: '/approvals',
-    icon: <CheckCircleIcon />,
-    // approver と admin が承認操作を行う
-    roles: ['approver', 'admin'],
+    label: 'レポート作成',
+    path: '/reports/new',
+    icon: <AddIcon />,
+    roles: ['admin', 'approver', 'member', 'accounting'],
   },
   {
-    label: '支払待ち一覧',
+    label: '承認待ち',
+    path: '/approvals',
+    icon: <CheckCircleIcon />,
+    roles: ['approver'],
+  },
+  {
+    label: '支払待ち',
     path: '/payments',
     icon: <PaymentIcon />,
-    // accounting が支払操作を行う
+    roles: ['accounting'],
+  },
+  {
+    label: '全レポート',
+    path: '/admin/reports',
+    icon: <FolderIcon />,
     roles: ['accounting', 'admin'],
   },
   {
-    label: 'メンバー管理',
-    path: '/admin/members',
-    icon: <PeopleIcon />,
-    roles: ['admin'],
-  },
-  {
     label: 'テナント情報',
-    path: '/admin/tenant',
+    path: '/settings/tenant',
     icon: <BusinessIcon />,
     roles: ['admin'],
   },
