@@ -70,7 +70,10 @@ export default function ReportForm({
       <Controller
         name="title"
         control={control}
-        rules={{ required: 'タイトルは必須です' }}
+        rules={{
+          required: 'タイトルは必須です',
+          maxLength: { value: 200, message: 'タイトルは200文字以内で入力してください' },
+        }}
         render={({ field }) => (
           <AppTextField
             {...field}
@@ -98,7 +101,7 @@ export default function ReportForm({
             validate: (value: string) => {
               const start = getValues('periodStart');
               if (start && value && value < start) {
-                return '終了日は開始日以降にしてください';
+                return '開始日は終了日以前を指定してください';
               }
               return true;
             },

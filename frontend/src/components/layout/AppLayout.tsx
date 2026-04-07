@@ -29,8 +29,10 @@ function decodeUserFromToken(): HeaderUser | null {
   const token = getAccessToken();
   if (!token) return null;
   try {
-    const payloadBase64 = token.split('.')[1];
-    if (!payloadBase64) return null;
+    const payloadBase64url = token.split('.')[1];
+    if (!payloadBase64url) return null;
+    // base64url → base64 に正規化してからデコードする
+    const payloadBase64 = payloadBase64url.replace(/-/g, '+').replace(/_/g, '/');
     const payload = JSON.parse(atob(payloadBase64)) as Record<string, unknown>;
     const role = payload['role'];
     if (
