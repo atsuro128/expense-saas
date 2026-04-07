@@ -22,6 +22,9 @@ import (
 )
 
 func main() {
+	// アプリケーション起動時刻（稼働時間算出用）。
+	startedAt := time.Now()
+
 	// 1. 環境変数から設定を読み込む。
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -126,7 +129,7 @@ func main() {
 
 	// 9. 認証不要なルート。
 	r.Group(func(pub chi.Router) {
-		pub.Get("/health", handler.NewHealthHandler(pool))
+		pub.Get("/health", handler.NewHealthHandler(pool, startedAt))
 
 		pub.Post("/api/auth/signup", authHandler.Signup)
 		pub.Post("/api/auth/login", authHandler.Login)

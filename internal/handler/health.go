@@ -12,12 +12,14 @@ import (
 
 type healthResponse struct {
 	Status string            `json:"status"`
+	Uptime string            `json:"uptime"`
 	Checks map[string]string `json:"checks"`
 }
 
 // NewHealthHandler はアプリケーションのヘルスチェックを行う http.HandlerFunc を返します。
 // データベースに対して 5 秒のタイムアウトで ping を実行し、その結果をレスポンスに反映します。
-func NewHealthHandler(pool *pgxpool.Pool) http.HandlerFunc {
+// startedAt はアプリケーション起動時刻で、稼働時間（Uptime）の算出に使用します。
+func NewHealthHandler(pool *pgxpool.Pool, startedAt time.Time) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
 		defer cancel()
@@ -28,6 +30,7 @@ func NewHealthHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		resp := healthResponse{
+			Uptime: time.Since(startedAt).String(),
 			Checks: map[string]string{
 				"database": dbStatus,
 			},

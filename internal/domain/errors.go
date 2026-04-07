@@ -79,4 +79,8 @@ var (
 	// ErrTokenRevoked は失効済みのリフレッシュトークンが使用された場合に返す。
 	// HTTP: 401 UNAUTHORIZED
 	ErrTokenRevoked = errors.New("token has been revoked")
+
+	// ErrAttachmentLimitExceeded は1明細あたりの添付ファイル数上限を超えた場合に返す。
+	// HTTP: 422 ATTACHMENT_LIMIT_EXCEEDED
+	ErrAttachmentLimitExceeded = errors.New("attachment limit exceeded for this expense item")
 )

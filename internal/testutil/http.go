@@ -74,7 +74,7 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 
 	// 未認証ルート。
 	r.Group(func(pub chi.Router) {
-		pub.Get("/health", handler.NewHealthHandler(pool))
+		pub.Get("/health", handler.NewHealthHandler(pool, time.Now()))
 
 		pub.Post("/api/auth/signup", authHandler.Signup)
 		pub.Post("/api/auth/login", authHandler.Login)
