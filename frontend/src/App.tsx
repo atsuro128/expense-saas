@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import ReportListPage from './pages/ReportListPage';
@@ -13,7 +13,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<DashboardPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        {/* screens.md §3.2: SCR-DASH-001 = /dashboard。ルートは /dashboard にリダイレクト */}
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/reports" element={<ReportListPage />} />
         <Route path="/reports/new" element={<ReportCreatePage />} />
         <Route path="/reports/:id" element={<ReportDetailPage />} />

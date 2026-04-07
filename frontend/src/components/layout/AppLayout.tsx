@@ -9,7 +9,7 @@ import Container from '@mui/material/Container';
 import Toolbar from '@mui/material/Toolbar';
 import AppHeader from './AppHeader';
 import AppSidebar from './AppSidebar';
-import { clearTokens, getAccessToken } from '../../stores/auth';
+import { clearTokens, getCurrentUser } from '../../stores/auth';
 import type { HeaderUser } from './AppHeader';
 
 export interface AppLayoutProps {
@@ -21,33 +21,13 @@ export interface AppLayoutProps {
 const DRAWER_WIDTH = 240;
 
 /**
- * JWT ペイロードからロールを取得する（署名検証なし、表示用途のみ）。
- * access token の claims は sub, tenant_id, role, token_type のみ。
- * name は含まれないため、Step 10 で /api/auth/me レスポンスから取得する。
+ * auth store からユーザー情報を取得し、HeaderUser に変換する。
+ * login 時に /api/auth/me で取得した AuthUser が保持されている。
  */
-function decodeUserFromToken(): HeaderUser | null {
-  const token = getAccessToken();
-  if (!token) return null;
-  try {
-    const payloadBase64url = token.split('.')[1];
-    if (!payloadBase64url) return null;
-    // base64url → base64 に正規化してからデコードする
-    const payloadBase64 = payloadBase64url.replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(atob(payloadBase64)) as Record<string, unknown>;
-    const role = payload['role'];
-    if (
-      role === 'admin' ||
-      role === 'approver' ||
-      role === 'member' ||
-      role === 'accounting'
-    ) {
-      // name は access token に含まれない。Step 10 で認証コンテキスト経由に切り替える。
-      return { name: '', role };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+function getHeaderUser(): HeaderUser | null {
+  const user = getCurrentUser();
+  if (!user) return null;
+  return { name: user.name, role: user.role };
 }
 
 /**
@@ -59,8 +39,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // JWT からユーザー情報を取得（Step 10 で認証コンテキストに切り替え）
-  const user = decodeUserFromToken();
+  const user = getHeaderUser();
 
   const handleToggleSidebar = () => {
     setSidebarOpen((prev) => !prev);
@@ -75,7 +54,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     navigate('/login');
   };
 
-  // トークンが無い場合はログイン画面に遷移
+  // ユーザー情報が無い場合はログイン画面にリダイレクト
   if (!user) {
     navigate('/login');
     return null;
