@@ -1,22 +1,40 @@
 // レポートのタイトル・対象期間を入力するフォームコンポーネント。
-// React Hook Form でバリデーションを行い、送信時に onSubmit コールバックを呼び出す。
+// React Hook Form + Zod でクライアントサイドバリデーションを行い、送信時に onSubmit コールバックを呼び出す。
 // SCR-RPT-002（レポート作成）、SCR-RPT-003（レポート編集）で共有する。
 
 import Box from '@mui/material/Box';
 import { useForm, Controller } from 'react-hook-form';
+import { z } from 'zod/v4';
+import { zodResolver } from '@hookform/resolvers/zod';
 import FormAlert from '../ui/FormAlert';
 import AppTextField from '../ui/AppTextField';
 import ReportPeriodField from './ReportPeriodField';
 import ReportFormActions from './ReportFormActions';
 
-export interface ReportFormValues {
-  /** レポートタイトル */
-  title: string;
-  /** 対象期間開始日（YYYY-MM-DD 形式） */
-  periodStart: string;
-  /** 対象期間終了日（YYYY-MM-DD 形式） */
-  periodEnd: string;
-}
+/**
+ * レポートフォームの Zod バリデーションスキーマ。
+ * report-create.md / report-edit.md の V1〜V5 に準拠。
+ */
+export const reportFormSchema = z
+  .object({
+    // V1: タイトル必須
+    title: z
+      .string()
+      .min(1, 'タイトルを入力してください')
+      // V2: 200文字以内
+      .max(200, 'タイトルは200文字以内で入力してください'),
+    // V3: 開始日必須
+    periodStart: z.string().min(1, '開始日を入力してください'),
+    // V4: 終了日必須
+    periodEnd: z.string().min(1, '終了日を入力してください'),
+  })
+  // V5: 開始日 <= 終了日
+  .refine((data) => !data.periodStart || !data.periodEnd || data.periodStart <= data.periodEnd, {
+    message: '開始日は終了日以前を指定してください',
+    path: ['periodEnd'],
+  });
+
+export type ReportFormValues = z.infer<typeof reportFormSchema>;
 
 export interface ReportFormProps {
   /** フォーム送信時のコールバック */
@@ -56,8 +74,8 @@ export default function ReportForm({
     control,
     handleSubmit,
     formState: { errors },
-    getValues,
   } = useForm<ReportFormValues>({
+    resolver: zodResolver(reportFormSchema),
     defaultValues: defaultValues ?? DEFAULT_VALUES,
     // V1/V3/V4: フォーカスアウト時にバリデーション、V2: 入力時（リアルタイム）
     mode: 'onBlur',
@@ -73,10 +91,6 @@ export default function ReportForm({
       <Controller
         name="title"
         control={control}
-        rules={{
-          required: 'タイトルを入力してください',
-          maxLength: { value: 200, message: 'タイトルは200文字以内で入力してください' },
-        }}
         render={({ field }) => (
           <AppTextField
             {...field}
@@ -95,21 +109,6 @@ export default function ReportForm({
         periodStartError={errors.periodStart?.message}
         periodEndError={errors.periodEnd?.message}
         disabled={isPending}
-        rules={{
-          periodStart: {
-            required: '開始日を入力してください',
-          },
-          periodEnd: {
-            required: '終了日を入力してください',
-            validate: (value: string) => {
-              const start = getValues('periodStart');
-              if (start && value && value < start) {
-                return '開始日は終了日以前を指定してください';
-              }
-              return true;
-            },
-          },
-        }}
       />
 
       {/* アクションボタン */}

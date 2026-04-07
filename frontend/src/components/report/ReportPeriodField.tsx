@@ -5,15 +5,9 @@
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
 import { Controller } from 'react-hook-form';
-import type { Control, RegisterOptions } from 'react-hook-form';
+import type { Control } from 'react-hook-form';
 import AppDatePicker from '../ui/AppDatePicker';
 import type { ReportFormValues } from './ReportForm';
-
-/** periodStart / periodEnd のバリデーションルール */
-export interface PeriodFieldRules {
-  periodStart?: RegisterOptions<ReportFormValues, 'periodStart'>;
-  periodEnd?: RegisterOptions<ReportFormValues, 'periodEnd'>;
-}
 
 export interface ReportPeriodFieldProps {
   /** React Hook Form の control インスタンス */
@@ -24,8 +18,6 @@ export interface ReportPeriodFieldProps {
   periodEndError?: string;
   /** 無効化フラグ */
   disabled?: boolean;
-  /** バリデーションルール（親フォームから渡す） */
-  rules?: PeriodFieldRules;
 }
 
 /**
@@ -37,7 +29,6 @@ export default function ReportPeriodField({
   periodStartError,
   periodEndError,
   disabled = false,
-  rules,
 }: ReportPeriodFieldProps) {
   return (
     <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
@@ -45,7 +36,6 @@ export default function ReportPeriodField({
       <Controller
         name="periodStart"
         control={control}
-        rules={rules?.periodStart}
         render={({ field }) => (
           <AppDatePicker
             name="periodStart"
@@ -71,7 +61,6 @@ export default function ReportPeriodField({
       <Controller
         name="periodEnd"
         control={control}
-        rules={rules?.periodEnd}
         render={({ field }) => (
           <AppDatePicker
             name="periodEnd"

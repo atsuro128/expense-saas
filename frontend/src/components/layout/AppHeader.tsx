@@ -13,6 +13,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Box from '@mui/material/Box';
 import MenuIcon from '@mui/icons-material/Menu';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import { Link as RouterLink } from 'react-router-dom';
 
 /** ユーザー情報（openapi.yaml UserProfile に準拠） */
 export interface HeaderUser {
@@ -85,8 +86,17 @@ export default function AppHeader({ user, onToggleSidebar, onLogout }: AppHeader
           </IconButton>
         </Tooltip>
 
-        {/* アプリロゴ */}
-        <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+        {/* アプリロゴ（クリックでダッシュボードに遷移: screens.md §4.2） */}
+        <Typography
+          variant="h6"
+          component={RouterLink}
+          to="/dashboard"
+          sx={{
+            flexGrow: 1,
+            color: 'inherit',
+            textDecoration: 'none',
+          }}
+        >
           経費精算
         </Typography>
 
