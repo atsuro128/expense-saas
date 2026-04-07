@@ -1243,13 +1243,7 @@ func TestExecutePasswordReset_Success(t *testing.T) {
 		t.Error("data.message が空です")
 	}
 
-	// 副作用 1: 新パスワードでログインできること（security.md 2.3）。
-	_, newRefreshToken := loginAndGetTokens(t, srv, "test-member@example.com", newPassword)
-	if newRefreshToken == "" {
-		t.Error("新パスワードでのログインに失敗しました: refresh_token が空です")
-	}
-
-	// 副作用 2: password_reset_tokens.used_at が設定されていること（security.md 2.3）。
+	// 副作用 1: password_reset_tokens.used_at が設定されていること（security.md 2.3）。
 	ctx := context.Background()
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
@@ -1268,7 +1262,8 @@ func TestExecutePasswordReset_Success(t *testing.T) {
 		t.Error("password_reset_tokens.used_at が設定されていません（トークンが使用済みマークされていない）")
 	}
 
-	// 副作用 3: 対象ユーザーの全 refresh_token が無効化されていること（security.md 2.3）。
+	// 副作用 2: 対象ユーザーの全 refresh_token が無効化されていること（security.md 2.3）。
+	// ログイン前に確認することで、ログインで発行される新規トークンによる誤検知を防ぐ。
 	var activeCount int
 	if err := conn.QueryRow(ctx,
 		`SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1 AND is_revoked = false`,
@@ -1278,6 +1273,13 @@ func TestExecutePasswordReset_Success(t *testing.T) {
 	}
 	if activeCount > 0 {
 		t.Errorf("パスワードリセット後も有効な refresh_token が %d 件残存しています", activeCount)
+	}
+
+	// 副作用 3: 新パスワードでログインできること（security.md 2.3）。
+	// ログインで新しい refresh_token が発行されるため、token 無効化確認より後に実行する。
+	_, newRefreshToken := loginAndGetTokens(t, srv, "test-member@example.com", newPassword)
+	if newRefreshToken == "" {
+		t.Error("新パスワードでのログインに失敗しました: refresh_token が空です")
 	}
 }
 
