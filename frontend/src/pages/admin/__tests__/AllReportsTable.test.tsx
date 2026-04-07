@@ -7,15 +7,15 @@ import { vi, describe, it, beforeEach, afterEach } from 'vitest';
 import AllReportsTable from '../AllReportsTable';
 import type { AllReportRow } from '../../../api/adminTypes';
 
-// テスト用レポートデータ。
+// テスト用レポートデータ。openapi.yaml ExpenseReportSummary に準拠した snake_case プロパティを使用する。
 const mockReport: AllReportRow = {
   id: 'rpt-1',
   title: '出張費',
   submitter: { id: 'u1', name: 'User1' },
-  totalAmount: 10000,
+  total_amount: 10000,
   status: 'submitted',
-  submittedAt: '2025-01-15T00:00:00Z',
-  createdAt: '2025-01-10T00:00:00Z',
+  submitted_at: '2025-01-15T00:00:00Z',
+  created_at: '2025-01-10T00:00:00Z',
 };
 
 describe('AllReportsTable', () => {
@@ -46,8 +46,8 @@ describe('AllReportsTable', () => {
     // タイトルが表示されること。
     expect(screen.getByText('出張費')).toBeInTheDocument();
 
-    // 合計金額が表示されること（「10,000」形式）。
-    expect(screen.getByText('10,000')).toBeInTheDocument();
+    // 合計金額が ¥ プレフィックス付きで表示されること。
+    expect(screen.getByText('¥10,000')).toBeInTheDocument();
 
     // ステータス「提出済み」が表示されること。
     expect(screen.getByText('提出済み')).toBeInTheDocument();
@@ -103,6 +103,7 @@ describe('AllReportsTable', () => {
   });
 
   // TNT-FE-034: 行クリック時に onRowClick が reportId で呼ばれること。
+  // AppDataGrid（MUI DataGrid）の行クリックイベントを使用する。
   it('TNT-FE-034: テーブル行をクリックすると onRowClick が "rpt-1" で呼ばれる', async () => {
     const user = userEvent.setup();
 
@@ -115,7 +116,8 @@ describe('AllReportsTable', () => {
       />
     );
 
-    await user.click(screen.getByTestId('report-row-rpt-1'));
+    // DataGrid の行セル（タイトル列）をクリックして行クリックイベントを発火させる。
+    await user.click(screen.getByText('出張費'));
 
     expect(mockOnRowClick).toHaveBeenCalledWith('rpt-1');
   });

@@ -1,8 +1,16 @@
 // AllReportsTable: テナント全レポートのテーブル表示を管理するコンポーネント。
-// データが存在する場合はテーブルで一覧を描画し、0件の場合は EmptyState を表示する。
+// データが存在する場合は AppDataGrid で一覧を描画し、0件の場合は EmptyState を表示する。
 // ローディング中は PageSkeleton を表示する。行クリックでレポート詳細画面に遷移する。
+// 共通コンポーネント AppDataGrid / StatusChip / EmptyState / PageSkeleton を使用する。
+// 55_ui_component/screens/admin-all-reports.md §AllReportsTable 参照。
 
+import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
+import AppDataGrid from '../../components/ui/AppDataGrid';
+import StatusChip from '../../components/ui/StatusChip';
+import EmptyState from '../../components/ui/EmptyState';
+import PageSkeleton from '../../components/ui/PageSkeleton';
 import type { AllReportRow } from '../../api/adminTypes';
+import type { ReportStatus } from '../../components/ui/StatusChip';
 
 /** AllReportsTable コンポーネントの Props。 */
 interface AllReportsTableProps {
@@ -16,17 +24,44 @@ interface AllReportsTableProps {
   onRowClick: (reportId: string) => void;
 }
 
-/** ステータスの日本語ラベルマップ。 */
-const STATUS_LABEL: Record<string, string> = {
-  draft: '下書き',
-  submitted: '提出済み',
-  approved: '承認済み',
-  rejected: '却下',
-  paid: '支払済み',
-};
+/** テーブルのカラム定義。openapi.yaml の ExpenseReportSummary に準拠した snake_case プロパティを参照する。 */
+const COLUMNS: GridColDef[] = [
+  {
+    field: 'submitter_name',
+    headerName: '申請者名',
+    flex: 1,
+  },
+  {
+    field: 'title',
+    headerName: 'タイトル',
+    flex: 2,
+  },
+  {
+    field: 'total_amount',
+    headerName: '合計金額',
+    flex: 1,
+    // 金額を ¥ プレフィックス付きで表示する。
+    valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
+  },
+  {
+    field: 'status',
+    headerName: 'ステータス',
+    flex: 1,
+    // StatusChip コンポーネントで色分け表示する。
+    renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
+  },
+  {
+    field: 'submitted_at',
+    headerName: '提出日',
+    flex: 1,
+    valueFormatter: (value: string | null) =>
+      value ? new Date(value).toLocaleDateString('ja-JP') : '-',
+  },
+];
 
 /**
  * AllReportsTable はテナント全レポートのテーブル表示を担うコンポーネント。
+ * AppDataGrid / StatusChip / EmptyState / PageSkeleton 共通コンポーネントを使用する。
  */
 export default function AllReportsTable({
   reports,
@@ -34,54 +69,40 @@ export default function AllReportsTable({
   hasActiveFilters,
   onRowClick,
 }: AllReportsTableProps) {
-  // ローディング中は PageSkeleton を表示する（variant="table"）。
+  // ローディング中は PageSkeleton（variant="table"）を表示する。
   if (loading) {
-    return <div data-testid="page-skeleton-table" aria-label="読み込み中" />;
+    return (
+      <div data-testid="page-skeleton-table">
+        <PageSkeleton variant="table" />
+      </div>
+    );
   }
 
-  // データが 0 件の場合は EmptyState を表示する。
+  // データが 0 件の場合は EmptyState を表示する。フィルタ有無でメッセージを切り替える。
   if (reports.length === 0) {
     const message = hasActiveFilters
       ? '条件に一致するレポートはありません。フィルタを変更してお試しください。'
       : 'レポートはまだ作成されていません。';
     return (
       <div data-testid="empty-state">
-        <p>{message}</p>
+        <EmptyState message={message} />
       </div>
     );
   }
 
+  // AppDataGrid の rows に変換する。申請者名は submitter.name をフラットにする。
+  const rows = reports.map((report) => ({
+    ...report,
+    submitter_name: report.submitter.name,
+  })) as readonly Record<string, unknown>[];
+
   return (
-    <table>
-      <thead>
-        <tr>
-          <th>申請者名</th>
-          <th>タイトル</th>
-          <th>合計金額</th>
-          <th>ステータス</th>
-          <th>提出日</th>
-        </tr>
-      </thead>
-      <tbody>
-        {reports.map((report) => (
-          <tr
-            key={report.id}
-            onClick={() => onRowClick(report.id)}
-            style={{ cursor: 'pointer' }}
-            data-testid={`report-row-${report.id}`}
-          >
-            <td>{report.submitter.name}</td>
-            <td>{report.title}</td>
-            <td>{report.totalAmount.toLocaleString()}</td>
-            <td data-testid={`status-chip-${report.status}`}>
-              {STATUS_LABEL[report.status] ?? report.status}
-            </td>
-            <td>
-              {report.submittedAt ? new Date(report.submittedAt).toLocaleDateString('ja-JP') : '-'}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <AppDataGrid
+      columns={COLUMNS}
+      rows={rows}
+      hideFooterPagination
+      onRowClick={(params: GridRowParams) => onRowClick(params.row.id as string)}
+      sx={{ cursor: 'pointer' }}
+    />
   );
 }

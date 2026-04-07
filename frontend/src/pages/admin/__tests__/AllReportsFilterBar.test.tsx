@@ -1,7 +1,8 @@
 // AllReportsFilterBar のユニットテスト。
 // TNT-FE-024〜029 に対応する。
+// AppSelect / AppDatePicker 共通コンポーネントを使用した実装に対応する。
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, beforeEach, afterEach } from 'vitest';
 import AllReportsFilterBar, { type AllReportsFilterValues } from '../AllReportsFilterBar';
@@ -42,10 +43,10 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    // ステータスセレクト。
+    // ステータスセレクト（AppSelect は MUI Select で role="combobox"）。
     expect(screen.getByRole('combobox', { name: 'ステータス' })).toBeInTheDocument();
 
-    // 期間（開始日）の入力。
+    // 期間（開始日）の入力（AppDatePicker は textfield に name/id を設定）。
     expect(screen.getByLabelText('期間（開始日）')).toBeInTheDocument();
 
     // 期間（終了日）の入力。
@@ -56,6 +57,7 @@ describe('AllReportsFilterBar', () => {
   });
 
   // TNT-FE-025: ステータス変更時に onFilterChange が呼ばれること。
+  // AppSelect（MUI Select）は click + option 選択で操作する。
   it('TNT-FE-025: ステータスセレクトで「提出済み」を選択すると onFilterChange が呼ばれる', async () => {
     const user = userEvent.setup();
 
@@ -68,14 +70,16 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    await user.selectOptions(screen.getByRole('combobox', { name: 'ステータス' }), 'submitted');
+    // MUI Select を開く。
+    await user.click(screen.getByRole('combobox', { name: 'ステータス' }));
 
-    expect(mockOnFilterChange).toHaveBeenCalledWith({
-      status: 'submitted',
-      from: null,
-      to: null,
-      submitterId: '',
-    });
+    // ドロップダウンリストから「提出済み」を選択する。
+    const listbox = screen.getByRole('listbox');
+    await user.click(within(listbox).getByText('提出済み'));
+
+    expect(mockOnFilterChange).toHaveBeenCalledWith(
+      expect.objectContaining({ status: 'submitted' })
+    );
   });
 
   // TNT-FE-026: 申請者変更時に onFilterChange が submitterId を含む値で呼ばれること。
@@ -91,7 +95,12 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    await user.selectOptions(screen.getByRole('combobox', { name: '申請者' }), 'u1');
+    // MUI Select（申請者）を開く。
+    await user.click(screen.getByRole('combobox', { name: '申請者' }));
+
+    // ドロップダウンリストから「User1」を選択する。
+    const listbox = screen.getByRole('listbox');
+    await user.click(within(listbox).getByText('User1'));
 
     expect(mockOnFilterChange).toHaveBeenCalledWith(
       expect.objectContaining({ submitterId: 'u1' })
@@ -99,6 +108,7 @@ describe('AllReportsFilterBar', () => {
   });
 
   // TNT-FE-027: 開始日変更時に onFilterChange が from を含む値で呼ばれること。
+  // AppDatePicker の onChange は YYYY-MM-DD 形式の文字列を渡す。
   it('TNT-FE-027: 開始日 DatePicker で「2025-01-01」を入力すると from: "2025-01-01" を含む値で onFilterChange が呼ばれる', async () => {
     const user = userEvent.setup();
 
@@ -112,7 +122,7 @@ describe('AllReportsFilterBar', () => {
     );
 
     const fromInput = screen.getByLabelText('期間（開始日）');
-    await user.type(fromInput, '2025-01-01');
+    await user.type(fromInput, '2025/01/01');
     await user.tab(); // フォーカスを外す。
 
     expect(mockOnFilterChange).toHaveBeenCalledWith(
@@ -121,6 +131,7 @@ describe('AllReportsFilterBar', () => {
   });
 
   // TNT-FE-028: 開始日 > 終了日の場合、バリデーションエラーが表示されること。
+  // バリデーション文言: 「開始日は終了日以前を指定してください」（50_detail_design/screens 準拠）。
   it('TNT-FE-028: 開始日が終了日より後の場合、DatePicker にバリデーションエラーが表示される', () => {
     render(
       <AllReportsFilterBar
@@ -134,6 +145,8 @@ describe('AllReportsFilterBar', () => {
     // バリデーションエラーが表示されること。
     expect(screen.getByRole('alert')).toBeInTheDocument();
     expect(screen.getByTestId('date-error')).toBeInTheDocument();
+    // 文言が設計書準拠であること。
+    expect(screen.getByText('開始日は終了日以前を指定してください')).toBeInTheDocument();
   });
 
   // TNT-FE-029: membersLoading = true の場合、申請者セレクトが disabled になること。
@@ -147,7 +160,7 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    // 申請者セレクトが disabled になること。
-    expect(screen.getByRole('combobox', { name: '申請者' })).toBeDisabled();
+    // 申請者セレクト（AppSelect）が disabled になること。
+    expect(screen.getByRole('combobox', { name: '申請者' })).toHaveAttribute('aria-disabled', 'true');
   });
 });

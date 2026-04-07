@@ -22,16 +22,17 @@ function createWrapper() {
   );
 }
 
+// API レスポンスモック。openapi.yaml ExpenseReportSummary に準拠した snake_case プロパティを使用する。
 const mockReportsResponse = {
   data: [
     {
       id: 'rpt-001',
       title: '出張費',
       submitter: { id: 'u1', name: 'User1' },
-      totalAmount: 10000,
+      total_amount: 10000,
       status: 'submitted',
-      submittedAt: '2025-01-15T00:00:00Z',
-      createdAt: '2025-01-10T00:00:00Z',
+      submitted_at: '2025-01-15T00:00:00Z',
+      created_at: '2025-01-10T00:00:00Z',
     },
   ],
   pagination: {

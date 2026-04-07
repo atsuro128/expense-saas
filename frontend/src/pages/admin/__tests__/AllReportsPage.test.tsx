@@ -1,7 +1,7 @@
 // AllReportsPage のユニットテスト。
 // TNT-FE-016〜023 に対応する。
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -36,25 +36,25 @@ function renderAllReportsPage(initialEntries: string[] = ['/reports/all']) {
   );
 }
 
-// テスト用フィクスチャデータ。
+// テスト用フィクスチャデータ。openapi.yaml ExpenseReportSummary に準拠した snake_case プロパティを使用する。
 const mockReports = [
   {
     id: 'rpt-001',
     title: '出張費',
     submitter: { id: 'u1', name: 'User1' },
-    totalAmount: 10000,
+    total_amount: 10000,
     status: 'submitted' as const,
-    submittedAt: '2025-01-15T00:00:00Z',
-    createdAt: '2025-01-10T00:00:00Z',
+    submitted_at: '2025-01-15T00:00:00Z',
+    created_at: '2025-01-10T00:00:00Z',
   },
   {
     id: 'rpt-002',
     title: '交通費',
     submitter: { id: 'u2', name: 'User2' },
-    totalAmount: 5000,
+    total_amount: 5000,
     status: 'approved' as const,
-    submittedAt: '2025-01-20T00:00:00Z',
-    createdAt: '2025-01-15T00:00:00Z',
+    submitted_at: '2025-01-20T00:00:00Z',
+    created_at: '2025-01-15T00:00:00Z',
   },
 ];
 
@@ -305,9 +305,10 @@ describe('AllReportsPage', () => {
       expect(screen.getByTestId('all-reports-filter-bar')).toBeInTheDocument();
     });
 
-    // ステータスセレクトで「提出済み」を選択するとフィルタが変更される。
-    const statusSelect = screen.getByRole('combobox', { name: 'ステータス' });
-    await user.selectOptions(statusSelect, 'submitted');
+    // ステータスセレクト（AppSelect = MUI Select）を開いて「提出済み」を選択する。
+    await user.click(screen.getByRole('combobox', { name: 'ステータス' }));
+    const listbox = screen.getByRole('listbox');
+    await user.click(within(listbox).getByText('提出済み'));
 
     // useAllReports が page=1 で呼び出されること（ページがリセットされること）。
     expect(mockUseAllReports).toHaveBeenCalledWith(
@@ -316,6 +317,7 @@ describe('AllReportsPage', () => {
   });
 
   // TNT-FE-023: テーブル行クリック時にレポート詳細画面に遷移すること。
+  // AppDataGrid（MUI DataGrid）の行クリックイベントを使用する。
   it('TNT-FE-023: テーブル行クリック時にレポート詳細画面（/reports/rpt-001）に遷移する', async () => {
     const user = userEvent.setup();
 
@@ -345,13 +347,13 @@ describe('AllReportsPage', () => {
 
     renderAllReportsPage();
 
-    // テーブル行が描画されること。
+    // テーブルのタイトルセルが描画されること。
     await waitFor(() => {
-      expect(screen.getByTestId('report-row-rpt-001')).toBeInTheDocument();
+      expect(screen.getByText('出張費')).toBeInTheDocument();
     });
 
-    // 行をクリックする。
-    await user.click(screen.getByTestId('report-row-rpt-001'));
+    // DataGrid の行セル（タイトル列）をクリックして行クリックイベントを発火させる。
+    await user.click(screen.getByText('出張費'));
 
     // レポート詳細画面に遷移すること。
     await waitFor(() => {
