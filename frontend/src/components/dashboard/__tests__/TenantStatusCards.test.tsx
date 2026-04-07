@@ -3,11 +3,18 @@
 
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { describe, it, expect } from 'vitest';
 import TenantStatusCards from '../TenantStatusCards';
 
+const theme = createTheme();
+
 function renderWithRouter(ui: React.ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>);
+  return render(
+    <ThemeProvider theme={theme}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </ThemeProvider>,
+  );
 }
 
 describe('TenantStatusCards', () => {
@@ -29,8 +36,8 @@ describe('TenantStatusCards', () => {
     expect(screen.getByText('支払済み')).toBeInTheDocument();
   });
 
-  // DSH-FE-020: 各カードにステータスに対応するアクセントカラーが適用されること。
-  it('DSH-FE-020: 各カードにステータス対応のアクセントカラーが個別に適用される', () => {
+  // DSH-FE-020: 各カードにステータスに対応するアクセントカラー（borderColor）が適用されること。
+  it('DSH-FE-020: 各カードにステータス対応の borderColor が個別に適用される', () => {
     const { container } = renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -43,12 +50,17 @@ describe('TenantStatusCards', () => {
     const cards = container.querySelectorAll('.MuiCard-root');
     expect(cards.length).toBe(5);
 
-    // 各カードの data-accent-color 属性でステータス別の色マッピングを検証する。
-    const expectedColors = ['default', 'info', 'success', 'error', 'secondary'];
     const cardsArray = Array.from(cards) as HTMLElement[];
-    cardsArray.forEach((card, i) => {
-      expect(card.getAttribute('data-accent-color')).toBe(expectedColors[i]);
-    });
+    // 下書き（default）: borderTop なし
+    expect(cardsArray[0]!.style.borderTop).toBe('');
+    // 提出済み（info）: borderColor = theme.palette.info.main
+    expect(cardsArray[1]!.style.borderColor).toBe(theme.palette.info.main);
+    // 承認済み（success）: borderColor = theme.palette.success.main
+    expect(cardsArray[2]!.style.borderColor).toBe(theme.palette.success.main);
+    // 却下（error）: borderColor = theme.palette.error.main
+    expect(cardsArray[3]!.style.borderColor).toBe(theme.palette.error.main);
+    // 支払済み（secondary）: borderColor = theme.palette.secondary.main
+    expect(cardsArray[4]!.style.borderColor).toBe(theme.palette.secondary.main);
   });
 
   // DSH-FE-021: 各カードのリンクが SCR-ADM-001（管理者レポート一覧）に遷移すること。

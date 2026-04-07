@@ -3,12 +3,19 @@
 
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { describe, it, expect } from 'vitest';
 import CountCard from '../CountCard';
 
-/** テストで MemoryRouter を提供するヘルパー。 */
+const theme = createTheme();
+
+/** テストで MemoryRouter + ThemeProvider を提供するヘルパー。 */
 function renderWithRouter(ui: React.ReactElement) {
-  return render(<MemoryRouter>{ui}</MemoryRouter>);
+  return render(
+    <ThemeProvider theme={theme}>
+      <MemoryRouter>{ui}</MemoryRouter>
+    </ThemeProvider>,
+  );
 }
 
 describe('CountCard', () => {
@@ -57,19 +64,27 @@ describe('CountCard', () => {
     expect(badge).not.toBeInTheDocument();
   });
 
-  // DSH-FE-014: accentColor ごとに正しい色マッピングが適用されること。
+  // DSH-FE-014: accentColor ごとに正しい borderColor が視覚的に適用されること。
   it.each([
-    { color: 'default' as const, label: '下書き' },
-    { color: 'info' as const, label: '提出済み' },
-    { color: 'success' as const, label: '承認済み' },
-    { color: 'error' as const, label: '却下' },
-    { color: 'secondary' as const, label: '支払済み' },
-  ])('DSH-FE-014: accentColor="$color" が data-accent-color 属性に反映される', ({ color, label }) => {
+    { color: 'info' as const, label: '提出済み', paletteKey: 'info' as const },
+    { color: 'success' as const, label: '承認済み', paletteKey: 'success' as const },
+    { color: 'error' as const, label: '却下', paletteKey: 'error' as const },
+    { color: 'secondary' as const, label: '支払済み', paletteKey: 'secondary' as const },
+  ])('DSH-FE-014: accentColor="$color" で borderColor が theme.palette.$paletteKey.main になる', ({ color, label, paletteKey }) => {
     const { container } = renderWithRouter(<CountCard label={label} count={2} accentColor={color} />);
     const card = container.querySelector('.MuiCard-root') as HTMLElement;
     expect(card).toBeInTheDocument();
-    // data-accent-color 属性で色マッピングを検証する。
-    expect(card.getAttribute('data-accent-color')).toBe(color);
+    // MUI sx prop により borderColor が theme.palette[paletteKey].main の色値に解決されること。
+    const expectedColor = theme.palette[paletteKey].main;
+    expect(card.style.borderColor).toBe(expectedColor);
+  });
+
+  // DSH-FE-014: accentColor="default" のとき borderTop が適用されないこと。
+  it('DSH-FE-014: accentColor="default" で borderTop が適用されない', () => {
+    const { container } = renderWithRouter(<CountCard label="下書き" count={2} accentColor="default" />);
+    const card = container.querySelector('.MuiCard-root') as HTMLElement;
+    expect(card).toBeInTheDocument();
+    expect(card.style.borderTop).toBe('');
   });
 
   // DSH-FE-015: unit="人" を指定したとき「人」で表示されること。
