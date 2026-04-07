@@ -20,17 +20,17 @@ function createWrapper() {
 }
 
 describe('useLogin', () => {
-  let originalFetch: typeof global.fetch;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    originalFetch = global.fetch;
+    originalFetch = globalThis.fetch;
     vi.spyOn(authStore, 'setTokens');
     vi.spyOn(authStore, 'getAccessToken').mockReturnValue(null);
     vi.spyOn(authStore, 'getRefreshToken').mockReturnValue(null);
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -43,7 +43,7 @@ describe('useLogin', () => {
       refresh_token: 'refresh456',
     };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
       headers: { get: () => null },
@@ -65,7 +65,7 @@ describe('useLogin', () => {
 
   // AUTH-FE-022: 401 INVALID_CREDENTIALS エラー時に ApiClientError が投げられること。
   it('AUTH-FE-022: 401 エラー時に ApiClientError が投げられる', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 401,
       statusText: 'Unauthorized',
@@ -84,7 +84,7 @@ describe('useLogin', () => {
 
   // AUTH-FE-023: 429 RATE_LIMIT_EXCEEDED エラー時に ApiClientError が投げられること。
   it('AUTH-FE-023: 429 エラー時に ApiClientError が投げられる', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 429,
       statusText: 'Too Many Requests',
@@ -112,7 +112,7 @@ describe('useLogin', () => {
       refresh_token: 'refresh456',
     };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
       headers: { get: () => null },

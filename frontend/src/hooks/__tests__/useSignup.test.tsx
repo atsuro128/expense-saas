@@ -18,17 +18,17 @@ function createWrapper() {
 }
 
 describe('useSignup', () => {
-  let originalFetch: typeof global.fetch;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    originalFetch = global.fetch;
+    originalFetch = globalThis.fetch;
     vi.spyOn(authStore, 'setTokens');
     vi.spyOn(authStore, 'getAccessToken').mockReturnValue(null);
     vi.spyOn(authStore, 'getRefreshToken').mockReturnValue(null);
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -41,7 +41,7 @@ describe('useSignup', () => {
       refresh_token: 'refresh456',
     };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 201,
       headers: { get: () => null },
@@ -65,7 +65,7 @@ describe('useSignup', () => {
 
   // AUTH-FE-041: 409 EMAIL_ALREADY_EXISTS エラー時に ApiClientError が投げられること。
   it('AUTH-FE-041: 409 EMAIL_ALREADY_EXISTS エラー時に ApiClientError が投げられる', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 409,
       statusText: 'Conflict',
@@ -98,7 +98,7 @@ describe('useSignup', () => {
       refresh_token: 'refresh456',
     };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 201,
       headers: { get: () => null },

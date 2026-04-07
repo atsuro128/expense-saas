@@ -18,16 +18,16 @@ function createWrapper() {
 }
 
 describe('useExecutePasswordReset', () => {
-  let originalFetch: typeof global.fetch;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    originalFetch = global.fetch;
+    originalFetch = globalThis.fetch;
     vi.spyOn(authStore, 'getAccessToken').mockReturnValue(null);
     vi.spyOn(authStore, 'getRefreshToken').mockReturnValue(null);
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -35,7 +35,7 @@ describe('useExecutePasswordReset', () => {
   it('AUTH-FE-073: mutateAsync が成功しレスポンスに message が含まれる', async () => {
     const mockResponse = { message: 'パスワードを変更しました' };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
       headers: { get: () => null },
@@ -44,7 +44,7 @@ describe('useExecutePasswordReset', () => {
 
     const { result } = renderHook(() => useExecutePasswordReset(), { wrapper: createWrapper() });
 
-    let response;
+    let response: unknown;
     await act(async () => {
       response = await result.current.mutateAsync({
         token: 'valid-token',
@@ -58,7 +58,7 @@ describe('useExecutePasswordReset', () => {
 
   // AUTH-FE-074: 422 INVALID_TOKEN エラー時に ApiClientError が投げられること。
   it('AUTH-FE-074: 422 INVALID_TOKEN エラー時に ApiClientError が投げられる', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 422,
       statusText: 'Unprocessable Entity',
@@ -84,7 +84,7 @@ describe('useExecutePasswordReset', () => {
 
   // AUTH-FE-075: 期限切れトークン（422 INVALID_TOKEN）でも ApiClientError が投げられること。
   it('AUTH-FE-075: 期限切れトークンでも ApiClientError が投げられエラーコードが INVALID_TOKEN である', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 422,
       statusText: 'Unprocessable Entity',
@@ -111,7 +111,7 @@ describe('useExecutePasswordReset', () => {
 
   // AUTH-FE-076: 500 エラー時に ApiClientError が投げられること。
   it('AUTH-FE-076: 500 エラー時に ApiClientError が投げられる', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',

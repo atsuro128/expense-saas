@@ -18,16 +18,16 @@ function createWrapper() {
 }
 
 describe('useRequestPasswordReset', () => {
-  let originalFetch: typeof global.fetch;
+  let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
-    originalFetch = global.fetch;
+    originalFetch = globalThis.fetch;
     vi.spyOn(authStore, 'getAccessToken').mockReturnValue(null);
     vi.spyOn(authStore, 'getRefreshToken').mockReturnValue(null);
   });
 
   afterEach(() => {
-    global.fetch = originalFetch;
+    globalThis.fetch = originalFetch;
     vi.restoreAllMocks();
   });
 
@@ -35,7 +35,7 @@ describe('useRequestPasswordReset', () => {
   it('AUTH-FE-055: mutateAsync が成功しレスポンスに message が含まれる', async () => {
     const mockResponse = { message: 'メールを送信しました' };
 
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
       headers: { get: () => null },
@@ -44,7 +44,7 @@ describe('useRequestPasswordReset', () => {
 
     const { result } = renderHook(() => useRequestPasswordReset(), { wrapper: createWrapper() });
 
-    let response;
+    let response: unknown;
     await act(async () => {
       response = await result.current.mutateAsync({ email: 'user@example.com' });
     });
@@ -55,7 +55,7 @@ describe('useRequestPasswordReset', () => {
 
   // AUTH-FE-056: 500 エラー時に ApiClientError が投げられること。
   it('AUTH-FE-056: 500 エラー時に ApiClientError が投げられる', async () => {
-    global.fetch = vi.fn().mockResolvedValueOnce({
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 500,
       statusText: 'Internal Server Error',
