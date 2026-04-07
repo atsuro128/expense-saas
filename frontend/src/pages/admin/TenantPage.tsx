@@ -3,12 +3,13 @@
 // 403 エラー時もダッシュボードにリダイレクトする。
 // 500 系エラーは SnackbarContext を通じてトーストで通知する。
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../../hooks/useTenant';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { useSnackbar } from '../../hooks/useSnackbar';
 import { ApiClientError } from '../../api/client';
+import PageTitle from '../../components/ui/PageTitle';
+import AppToast from '../../components/ui/AppToast';
 import TenantInfoCard from './TenantInfoCard';
 import PhaseNotice from './PhaseNotice';
 
@@ -20,7 +21,8 @@ export default function TenantPage() {
   const navigate = useNavigate();
   const { data: currentUser } = useCurrentUser();
   const { data, isLoading, error } = useTenant();
-  const { showError } = useSnackbar();
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Admin 以外のロールはダッシュボードにリダイレクトする。
   useEffect(() => {
@@ -39,22 +41,29 @@ export default function TenantPage() {
   // 500 系エラーはトーストで通知する。
   useEffect(() => {
     if (error instanceof ApiClientError && error.status >= 500) {
-      showError('サーバーエラーが発生しました');
+      setToastMessage('サーバーエラーが発生しました');
+      setToastOpen(true);
     }
-  }, [error, showError]);
+  }, [error]);
 
   const tenantData = data?.data;
   const apiError = error instanceof ApiClientError ? error : null;
 
   return (
     <div>
-      <h1>テナント情報</h1>
+      <PageTitle title="テナント情報" />
       <TenantInfoCard
         tenant={tenantData}
         loading={isLoading}
         error={apiError}
       />
       <PhaseNotice message="テナント情報の編集機能は今後追加予定です。" />
+      <AppToast
+        open={toastOpen}
+        severity="error"
+        message={toastMessage}
+        onClose={() => setToastOpen(false)}
+      />
     </div>
   );
 }

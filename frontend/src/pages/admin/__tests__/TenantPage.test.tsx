@@ -4,17 +4,11 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { vi, describe, it, beforeEach, afterEach } from 'vitest';
+import { vi, describe, it, afterEach } from 'vitest';
 import TenantPage from '../TenantPage';
 import * as useTenantModule from '../../../hooks/useTenant';
 import * as useCurrentUserModule from '../../../hooks/useCurrentUser';
-import * as useSnackbarModule from '../../../hooks/useSnackbar';
 import { ApiClientError } from '../../../api/client';
-
-// useSnackbar のモック。
-vi.mock('../../../hooks/useSnackbar', () => ({
-  useSnackbar: vi.fn(),
-}));
 
 function createQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
@@ -35,18 +29,8 @@ function renderTenantPage(initialEntries: string[] = ['/settings/tenant']) {
 }
 
 describe('TenantPage', () => {
-  const mockShowError = vi.fn();
-
-  beforeEach(() => {
-    vi.spyOn(useSnackbarModule, 'useSnackbar').mockReturnValue({
-      showError: mockShowError,
-      showSuccess: vi.fn(),
-    });
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
-    mockShowError.mockClear();
   });
 
   // TNT-FE-001: useTenant が成功データを返す場合、TenantInfoCard が描画されること。
@@ -186,8 +170,9 @@ describe('TenantPage', () => {
 
     renderTenantPage();
 
+    // AppToast にエラーメッセージが表示されること。
     await waitFor(() => {
-      expect(mockShowError).toHaveBeenCalledWith('サーバーエラーが発生しました');
+      expect(screen.getByText('サーバーエラーが発生しました')).toBeInTheDocument();
     });
   });
 

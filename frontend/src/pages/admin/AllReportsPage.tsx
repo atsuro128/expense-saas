@@ -7,9 +7,11 @@ import { useNavigate } from 'react-router-dom';
 import { useAllReports, type AllReportsParams } from '../../hooks/useAllReports';
 import { useTenantMembers } from '../../hooks/useTenantMembers';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
-import { useSnackbar } from '../../hooks/useSnackbar';
 import { ApiClientError } from '../../api/client';
 import type { AllReportRow } from '../../api/adminTypes';
+import PageTitle from '../../components/ui/PageTitle';
+import AppToast from '../../components/ui/AppToast';
+import AppPagination from '../../components/ui/AppPagination';
 import AllReportsFilterBar, { type AllReportsFilterValues } from './AllReportsFilterBar';
 import AllReportsTable from './AllReportsTable';
 
@@ -45,7 +47,8 @@ export default function AllReportsPage() {
   };
   const { data, isLoading, error } = useAllReports(queryParams);
   const { data: membersData, isLoading: membersLoading } = useTenantMembers();
-  const { showError } = useSnackbar();
+  const [toastOpen, setToastOpen] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
 
   // Admin / Accounting 以外のロールはダッシュボードにリダイレクトする。
   useEffect(() => {
@@ -64,9 +67,10 @@ export default function AllReportsPage() {
   // 500 系エラーはトーストで通知する。
   useEffect(() => {
     if (error instanceof ApiClientError && error.status >= 500) {
-      showError('サーバーエラーが発生しました');
+      setToastMessage('サーバーエラーが発生しました');
+      setToastOpen(true);
     }
-  }, [error, showError]);
+  }, [error]);
 
   // フィルタ変更時にページをリセットする。
   const handleFilterChange = (newFilters: AllReportsFilterValues) => {
@@ -81,6 +85,7 @@ export default function AllReportsPage() {
 
   const reports = data?.data ?? [];
   const members = membersData?.data ?? [];
+  const totalPages = data?.pagination?.total_pages ?? 1;
 
   // アクティブなフィルタが存在するか判定する。
   const hasActiveFilters =
@@ -88,7 +93,7 @@ export default function AllReportsPage() {
 
   return (
     <div>
-      <h1>全レポート一覧</h1>
+      <PageTitle title="全レポート" />
       <AllReportsFilterBar
         filters={filters}
         onFilterChange={handleFilterChange}
@@ -100,6 +105,17 @@ export default function AllReportsPage() {
         loading={isLoading}
         hasActiveFilters={hasActiveFilters}
         onRowClick={handleRowClick}
+      />
+      <AppPagination
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={(newPage) => setPage(newPage)}
+      />
+      <AppToast
+        open={toastOpen}
+        severity="error"
+        message={toastMessage}
+        onClose={() => setToastOpen(false)}
       />
     </div>
   );
