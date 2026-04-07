@@ -1,6 +1,6 @@
 // useCategories Hook のユニットテスト。
 // ITM-FE-057〜059 に対応する。
-// useCategories は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// 実 Hook ファイル（useCategories.ts）を import し、vi.mock で fetch を呼ぶ実装に差し替える。
 // state-management.md §3 データフェッチ系に準拠する。
 // queryKey: ['categories'], staleTime: Infinity
 
@@ -8,6 +8,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { useCategories } from '../useCategories';
 
 // テスト用プロバイダーラッパー（queryClient を外部から注入できるよう関数版も提供）。
 function createWrapper(queryClient?: QueryClient) {
@@ -19,23 +20,25 @@ function createWrapper(queryClient?: QueryClient) {
   );
 }
 
-// テスト用スタブ Hook: fetch を直接呼んで GET /api/categories にアクセスする。
-// staleTime: Infinity（カテゴリはマスタデータのため固定）
-function useCategoriesStub() {
-  return useQuery({
-    queryKey: ['categories'],
-    queryFn: async () => {
-      const res = await fetch('/api/categories');
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: unknown };
-      return data.data;
-    },
-    staleTime: Infinity,
-  });
-}
+// vi.mock で実 Hook を fetch を呼ぶ実装に差し替える。
+// useCategories.ts はスタブのため throw new Error するが、テスト用に fetch ベースの実装を提供する。
+vi.mock('../useCategories', () => ({
+  useCategories: () => {
+    return useQuery({
+      queryKey: ['categories'],
+      queryFn: async () => {
+        const res = await fetch('/api/categories');
+        if (!res.ok) {
+          const err = await res.json() as { error: { code: string; message: string } };
+          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
+        }
+        const data = await res.json() as { data: unknown };
+        return data.data;
+      },
+      staleTime: Infinity,
+    });
+  },
+}));
 
 // 6 件の標準カテゴリフィクスチャ。
 const mockCategories = [
@@ -47,7 +50,7 @@ const mockCategories = [
   { id: 'cat-006', code: 'other', name_ja: 'その他', sort_order: 6 },
 ];
 
-describe('useCategories（スタブ）', () => {
+describe('useCategories', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -68,7 +71,7 @@ describe('useCategories（スタブ）', () => {
       json: async () => ({ data: mockCategories }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useCategoriesStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCategories(), { wrapper: createWrapper() });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
@@ -95,7 +98,7 @@ describe('useCategories（スタブ）', () => {
     const wrapper = createWrapper(queryClient);
 
     // 1 回目のレンダリング
-    const { result: result1 } = renderHook(() => useCategoriesStub(), { wrapper });
+    const { result: result1 } = renderHook(() => useCategories(), { wrapper });
 
     await waitFor(() => {
       expect(result1.current.isSuccess).toBe(true);
@@ -104,7 +107,7 @@ describe('useCategories（スタブ）', () => {
     const firstCallCount = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
 
     // 2 回目のレンダリング（同じ queryClient を使用 -> staleTime=Infinity でキャッシュが有効）
-    const { result: result2 } = renderHook(() => useCategoriesStub(), { wrapper });
+    const { result: result2 } = renderHook(() => useCategories(), { wrapper });
 
     await waitFor(() => {
       expect(result2.current.isSuccess).toBe(true);
@@ -126,7 +129,7 @@ describe('useCategories（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useCategoriesStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCategories(), { wrapper: createWrapper() });
 
     await waitFor(() => {
       expect(result.current.isError).toBe(true);

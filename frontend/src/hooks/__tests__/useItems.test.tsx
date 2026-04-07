@@ -1,12 +1,14 @@
 // useCreateItem / useUpdateItem / useDeleteItem Hook のユニットテスト。
 // ITM-FE-048〜056 に対応する。
-// 各 Hook は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// 実 Hook ファイル（useItems.ts）を import し、vi.mock で fetch を呼ぶ実装に差し替える。
 // state-management.md §3 ミューテーション系に準拠する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { useCreateItem, useUpdateItem, useDeleteItem } from '../useItems';
+import type { CreateItemInput, UpdateItemInput, DeleteItemInput } from '../useItems';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -18,119 +20,82 @@ function createWrapper() {
   );
 }
 
-// ---------------------------------------------------------------------------
-// useCreateItem スタブ
-// ---------------------------------------------------------------------------
-
-interface CreateItemInput {
-  reportId: string;
-  expense_date: string;
-  amount: number;
-  category_id: string;
-  description: string;
-}
-
-function useCreateItemStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: CreateItemInput) => {
-      const { reportId, ...body } = input;
-      const res = await fetch(`/api/reports/${reportId}/items`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: unknown };
-      return data.data;
-    },
-    onSuccess: (_data, variables) => {
-      // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
-// useUpdateItem スタブ
-// ---------------------------------------------------------------------------
-
-interface UpdateItemInput {
-  reportId: string;
-  itemId: string;
-  expense_date: string;
-  amount: number;
-  category_id: string;
-  description: string;
-  updated_at: string;
-}
-
-function useUpdateItemStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: UpdateItemInput) => {
-      const { reportId, itemId, ...body } = input;
-      const res = await fetch(`/api/reports/${reportId}/items/${itemId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: unknown };
-      return data.data;
-    },
-    onSuccess: (_data, variables) => {
-      // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
-    },
-  });
-}
-
-// ---------------------------------------------------------------------------
-// useDeleteItem スタブ
-// ---------------------------------------------------------------------------
-
-interface DeleteItemInput {
-  reportId: string;
-  itemId: string;
-}
-
-function useDeleteItemStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: DeleteItemInput) => {
-      const { reportId, itemId } = input;
-      const res = await fetch(`/api/reports/${reportId}/items/${itemId}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      // 204 No Content
-      return undefined;
-    },
-    onSuccess: (_data, variables) => {
-      // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
-    },
-  });
-}
+// vi.mock で実 Hook を fetch を呼ぶ実装に差し替える。
+// useItems.ts はスタブのため throw new Error するが、テスト用に fetch ベースの実装を提供する。
+vi.mock('../useItems', () => ({
+  useCreateItem: () => {
+    const queryClient = useQueryClient();
+    return useMutation<unknown, Error, CreateItemInput>({
+      mutationFn: async (input: CreateItemInput) => {
+        const { reportId, ...body } = input;
+        const res = await fetch(`/api/reports/${reportId}/items`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.json() as { error: { code: string; message: string } };
+          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
+        }
+        const data = await res.json() as { data: unknown };
+        return data.data;
+      },
+      onSuccess: (_data, variables) => {
+        // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
+        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
+      },
+    });
+  },
+  useUpdateItem: () => {
+    const queryClient = useQueryClient();
+    return useMutation<unknown, Error, UpdateItemInput>({
+      mutationFn: async (input: UpdateItemInput) => {
+        const { reportId, itemId, ...body } = input;
+        const res = await fetch(`/api/reports/${reportId}/items/${itemId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const err = await res.json() as { error: { code: string; message: string } };
+          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
+        }
+        const data = await res.json() as { data: unknown };
+        return data.data;
+      },
+      onSuccess: (_data, variables) => {
+        // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
+        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
+      },
+    });
+  },
+  useDeleteItem: () => {
+    const queryClient = useQueryClient();
+    return useMutation<void, Error, DeleteItemInput>({
+      mutationFn: async (input: DeleteItemInput) => {
+        const { reportId, itemId } = input;
+        const res = await fetch(`/api/reports/${reportId}/items/${itemId}`, {
+          method: 'DELETE',
+        });
+        if (!res.ok) {
+          const err = await res.json() as { error: { code: string; message: string } };
+          throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
+        }
+        // 204 No Content
+      },
+      onSuccess: (_data, variables) => {
+        // ['reports', 'detail', reportId] のクエリキャッシュを無効化する
+        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.reportId] });
+      },
+    });
+  },
+}));
 
 // ===========================================================================
 // useCreateItem テスト（ITM-FE-048〜050）
 // ===========================================================================
 
-describe('useCreateItem（スタブ）', () => {
+describe('useCreateItem', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -157,7 +122,7 @@ describe('useCreateItem（スタブ）', () => {
       json: async () => ({ data: mockCreatedItem }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useCreateItemStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCreateItem(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -174,7 +139,9 @@ describe('useCreateItem（スタブ）', () => {
       '/api/reports/report-001/items',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(result.current.data).toEqual(mockCreatedItem);
+    await waitFor(() => {
+      expect(result.current.data).toEqual(mockCreatedItem);
+    });
   });
 
   // ITM-FE-049: ミューテーション成功後に ['reports', 'detail', reportId] のキャッシュが無効化される。
@@ -195,7 +162,7 @@ describe('useCreateItem（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useCreateItemStub(), { wrapper });
+    const { result } = renderHook(() => useCreateItem(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -227,7 +194,7 @@ describe('useCreateItem（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useCreateItemStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useCreateItem(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(
@@ -241,7 +208,9 @@ describe('useCreateItem（スタブ）', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 });
 
@@ -249,7 +218,7 @@ describe('useCreateItem（スタブ）', () => {
 // useUpdateItem テスト（ITM-FE-051〜053）
 // ===========================================================================
 
-describe('useUpdateItem（スタブ）', () => {
+describe('useUpdateItem', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -276,7 +245,7 @@ describe('useUpdateItem（スタブ）', () => {
       json: async () => ({ data: mockUpdatedItem }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useUpdateItemStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUpdateItem(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -295,7 +264,9 @@ describe('useUpdateItem（スタブ）', () => {
       '/api/reports/report-001/items/item-001',
       expect.objectContaining({ method: 'PUT' }),
     );
-    expect(result.current.data).toEqual(mockUpdatedItem);
+    await waitFor(() => {
+      expect(result.current.data).toEqual(mockUpdatedItem);
+    });
   });
 
   // ITM-FE-052: ミューテーション成功後に ['reports', 'detail', reportId] のキャッシュが無効化される。
@@ -316,7 +287,7 @@ describe('useUpdateItem（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useUpdateItemStub(), { wrapper });
+    const { result } = renderHook(() => useUpdateItem(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -350,7 +321,7 @@ describe('useUpdateItem（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useUpdateItemStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUpdateItem(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(
@@ -366,7 +337,9 @@ describe('useUpdateItem（スタブ）', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 });
 
@@ -374,7 +347,7 @@ describe('useUpdateItem（スタブ）', () => {
 // useDeleteItem テスト（ITM-FE-054〜056）
 // ===========================================================================
 
-describe('useDeleteItem（スタブ）', () => {
+describe('useDeleteItem', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -395,7 +368,7 @@ describe('useDeleteItem（スタブ）', () => {
       json: async () => undefined,
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteItemStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDeleteItem(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -409,7 +382,9 @@ describe('useDeleteItem（スタブ）', () => {
       '/api/reports/report-001/items/item-001',
       expect.objectContaining({ method: 'DELETE' }),
     );
-    expect(result.current.isSuccess).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
   });
 
   // ITM-FE-055: ミューテーション成功後に ['reports', 'detail', reportId] のキャッシュが無効化される。
@@ -430,7 +405,7 @@ describe('useDeleteItem（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useDeleteItemStub(), { wrapper });
+    const { result } = renderHook(() => useDeleteItem(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -459,7 +434,7 @@ describe('useDeleteItem（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteItemStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDeleteItem(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(
@@ -470,6 +445,8 @@ describe('useDeleteItem（スタブ）', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 });
