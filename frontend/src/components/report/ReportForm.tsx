@@ -59,6 +59,9 @@ export default function ReportForm({
     getValues,
   } = useForm<ReportFormValues>({
     defaultValues: defaultValues ?? DEFAULT_VALUES,
+    // V1/V3/V4: フォーカスアウト時にバリデーション、V2: 入力時（リアルタイム）
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
   });
 
   return (
@@ -71,7 +74,7 @@ export default function ReportForm({
         name="title"
         control={control}
         rules={{
-          required: 'タイトルは必須です',
+          required: 'タイトルを入力してください',
           maxLength: { value: 200, message: 'タイトルは200文字以内で入力してください' },
         }}
         render={({ field }) => (
@@ -94,10 +97,10 @@ export default function ReportForm({
         disabled={isPending}
         rules={{
           periodStart: {
-            required: '開始日は必須です',
+            required: '開始日を入力してください',
           },
           periodEnd: {
-            required: '終了日は必須です',
+            required: '終了日を入力してください',
             validate: (value: string) => {
               const start = getValues('periodStart');
               if (start && value && value < start) {
