@@ -106,5 +106,11 @@ describe('useCurrentUser', () => {
 
     // エラーが設定されること。
     expect(result.current.error).not.toBeNull();
+
+    // clearTokens が呼ばれること（トークン破棄）。
+    expect(authStore.clearTokens).toHaveBeenCalled();
+
+    // /login へリダイレクトされること。
+    expect(window.location.href).toContain('/login');
   });
 });

@@ -13,7 +13,7 @@ import { ApiClientError } from '../api/client';
  */
 export function useCurrentUser() {
   return useQuery<ApiResponse<AuthUser>, ApiClientError>({
-    queryKey: ['currentUser'],
+    queryKey: ['auth', 'me'],
     queryFn: () => api.get<ApiResponse<AuthUser>>('/api/auth/me'),
     staleTime: 5 * 60 * 1000,
   });
