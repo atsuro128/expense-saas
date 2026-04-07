@@ -54,8 +54,8 @@ func TestListMyReports_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 機能未実装のため 501 を期待（実装後は 200 になる）
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: 自分のレポート一覧が返る（RPT-001）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-002: status=draft フィルタで draft のみが返る。
@@ -66,7 +66,8 @@ func TestListMyReports_StatusFilter(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: draft 状態のレポートのみ返る（RPT-002）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-003: 自分のレポートが 0 件の場合は data:[] と pagination が返る。
@@ -85,7 +86,8 @@ func TestListMyReports_EmptyResult(t *testing.T) {
 		emptyUserID.String(), testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: data:[] と pagination が返る（RPT-003）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-004: 認証トークンなし → 401。
@@ -106,7 +108,8 @@ func TestListMyReports_RBAC_Approver(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Approver は申請系操作可能（RBC-010）（RPT-005）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-006: Accounting は自分のレポートを取得できる。
@@ -117,7 +120,8 @@ func TestListMyReports_RBAC_Accounting(t *testing.T) {
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Accounting は自分のレポートを取得できる（RPT-006）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-007: Admin は自分のレポートを取得できる。
@@ -128,7 +132,8 @@ func TestListMyReports_RBAC_Admin(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Admin は自分のレポートを取得できる（RPT-007）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // =============================================================================
@@ -148,7 +153,8 @@ func TestCreateReport_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: status=draft のレポートが返る（RPT-008）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // RPT-009: title="" → 422 VALIDATION_ERROR。
@@ -164,7 +170,8 @@ func TestCreateReport_ValidationError_EmptyTitle(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 VALIDATION_ERROR: title は必須（RPT-009）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-010: period_from > period_to → 422 VALIDATION_ERROR。
@@ -180,7 +187,8 @@ func TestCreateReport_ValidationError_PeriodRange(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 VALIDATION_ERROR: period_from > period_to（RPT-010）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-011: 認証トークンなし → 401。
@@ -212,7 +220,8 @@ func TestCreateReport_RBAC_Approver(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: Approver は申請系操作可能（RBC-010）（RPT-012）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // RPT-013: Admin も自分のレポート作成可能（RBC-014）。
@@ -228,7 +237,8 @@ func TestCreateReport_RBAC_Admin(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: Admin は自分のレポート作成可能（RBC-014）（RPT-013）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // =============================================================================
@@ -249,7 +259,8 @@ func TestCreateReport_Resubmit_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: 新規レポートが status=draft、reference_report_id 付きで返る（RPT-014）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // RPT-015: 再申請後に元レポートの状態は rejected のまま変わらない（ドメイン単体テスト補完）。
@@ -273,7 +284,8 @@ func TestCreateReport_Resubmit_OriginalStatusUnchanged(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	getRec := srv.Execute(getReq)
 
-	testutil.AssertStatus(t, getRec, http.StatusNotImplemented)
+	// 200 OK: 元レポートが rejected のまま返る（RPT-015）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, getRec, http.StatusOK)
 }
 
 // RPT-016: 再申請で作成した新規レポートに reference_report_id がセットされている。
@@ -291,7 +303,8 @@ func TestCreateReport_Resubmit_ReferenceIdSet(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: 新規レポートに reference_report_id がセットされている（RPT-016）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // RPT-017: 再申請で元レポートの添付ファイルはコピーされない（添付 0 件）。
@@ -309,7 +322,8 @@ func TestCreateReport_Resubmit_AttachmentsNotCopied(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: 新規レポートの明細に添付ファイルがコピーされない（RPT-017）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // RPT-018: 再申請で元レポートの明細がコピーされる。
@@ -326,7 +340,8 @@ func TestCreateReport_Resubmit_ItemsCopied(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 201 Created: 新規レポートに明細が 2 件コピーされている（RPT-018）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusCreated)
 }
 
 // RPT-019: 再申請元が rejected 以外（draft）の場合 → 422 VALIDATION_ERROR。
@@ -343,7 +358,8 @@ func TestCreateReport_Resubmit_NonRejectedSourceFails(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 VALIDATION_ERROR: 再申請元は rejected 状態のみ許可（RPT-019）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // =============================================================================
@@ -358,7 +374,8 @@ func TestListAllReports_Admin_Success(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: テナント全レポートが返る（RPT-020）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-021: Accounting もテナント全レポートを取得できる。
@@ -369,7 +386,8 @@ func TestListAllReports_Accounting_Success(t *testing.T) {
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Accounting もテナント全レポートを取得できる（RPT-021）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-022: Member は全レポート閲覧不可 → 403。
@@ -412,7 +430,8 @@ func TestListAllReports_StatusFilter(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: submitted 状態のレポートのみ返る（RPT-025）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-026: submitter_id=Test Member ID フィルタで Test Member のレポートのみ返る。
@@ -424,7 +443,8 @@ func TestListAllReports_SubmitterFilter(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Test Member が作成したレポートのみ返る（RPT-026）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // =============================================================================
@@ -440,7 +460,8 @@ func TestGetReport_Owner_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: レポート詳細（items + attachments ネスト）が返る（RPT-027）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-028: Member が他者の draft レポートにアクセス → 403（RBC-010）。
@@ -458,7 +479,8 @@ func TestGetReport_Member_OtherUserDraft_Forbidden(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: Member は他者の draft は閲覧不可（RBC-010）（RPT-028）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-029: Approver が他者の submitted レポートを閲覧できる（RBC-011）。
@@ -470,7 +492,8 @@ func TestGetReport_Approver_OtherUserSubmitted_Success(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Approver は submitted 状態の他者レポートを閲覧可能（RBC-011）（RPT-029）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-030: Approver が他者の draft レポートを閲覧 → 403。
@@ -482,7 +505,8 @@ func TestGetReport_Approver_OtherUserDraft_Forbidden(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: Approver は他者の draft は閲覧不可（RPT-030）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-031: Accounting は他者の draft レポートも閲覧できる。
@@ -494,7 +518,8 @@ func TestGetReport_Accounting_OtherUserDraft_Success(t *testing.T) {
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Accounting はテナント内全レポート閲覧可能（RPT-031）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-032: Admin は他者の draft レポートも閲覧できる（RBC-013）。
@@ -506,7 +531,8 @@ func TestGetReport_Admin_OtherUserDraft_Success(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: Admin はテナント内全レポート閲覧可能（RBC-013）（RPT-032）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-033: 存在しないレポート ID → 404。
@@ -518,7 +544,8 @@ func TestGetReport_NotFound(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 404 RESOURCE_NOT_FOUND: 存在しないレポート（RPT-033）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // RPT-034: 認証トークンなし → 401。
@@ -551,7 +578,8 @@ func TestUpdateReport_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: 更新後のレポートが返る（RPT-035）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-036: 非所有者（Approver）が draft を更新しようとする → 403（RBC-010）。
@@ -569,7 +597,8 @@ func TestUpdateReport_NotOwner_Forbidden(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: 所有者以外は更新不可（RBC-010）（RPT-036）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-037: submitted 状態のレポートを更新しようとする → 422（REPORT_NOT_EDITABLE）。
@@ -587,7 +616,8 @@ func TestUpdateReport_NotDraft_Unprocessable(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 REPORT_NOT_EDITABLE: draft 以外は編集不可（RPT-037）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-038: Admin であっても他者の draft は更新不可 → 403（RBC-014）。
@@ -605,7 +635,8 @@ func TestUpdateReport_Admin_NotOwner_Forbidden(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: Admin であっても他者の更新不可（RBC-014）（RPT-038）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-039: updated_at が古い値（楽観的ロック競合） → 409 CONFLICT。
@@ -624,7 +655,8 @@ func TestUpdateReport_Conflict_OptimisticLock(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 409 CONFLICT: 楽観的ロック競合（RPT-039）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusConflict)
 }
 
 // RPT-040: 存在しないレポート ID → 404。
@@ -642,7 +674,8 @@ func TestUpdateReport_NotFound(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 404 RESOURCE_NOT_FOUND: 存在しないレポート（RPT-040）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // RPT-041: 認証トークンなし → 401。
@@ -676,7 +709,8 @@ func TestDeleteReport_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 204 No Content: 論理削除される（RPT-042）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusNoContent)
 }
 
 // RPT-043: 非所有者（Approver）が削除しようとする → 403。
@@ -688,7 +722,8 @@ func TestDeleteReport_NotOwner_Forbidden(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: 非所有者は削除不可（RPT-043）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-044: Admin であっても他者の draft は削除不可 → 403（RBC-014）。
@@ -700,7 +735,8 @@ func TestDeleteReport_Admin_NotOwner_Forbidden(t *testing.T) {
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: Admin であっても他者の削除不可（RBC-014）（RPT-044）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-045: submitted 状態のレポートを削除しようとする → 422（REPORT_NOT_DELETABLE）。
@@ -712,7 +748,8 @@ func TestDeleteReport_Submitted_Unprocessable(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 REPORT_NOT_DELETABLE: submitted は削除不可（T5 違反）（RPT-045）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-046: 存在しないレポート ID → 404。
@@ -724,7 +761,8 @@ func TestDeleteReport_NotFound(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 404 RESOURCE_NOT_FOUND: 存在しないレポート（RPT-046）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // RPT-047: 認証トークンなし → 401。
@@ -754,7 +792,8 @@ func TestSubmitReport_Success(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 200 OK: status=submitted が返る（T1）（RPT-053）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
 // RPT-054: 非所有者（Approver）が提出しようとする → 403。
@@ -769,7 +808,8 @@ func TestSubmitReport_NotOwner_Forbidden(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 403 FORBIDDEN: 非所有者は提出不可（RBC-010）（RPT-054）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // RPT-055: submitted 状態のレポートを再提出 → 422 INVALID_STATE_TRANSITION（X4）。
@@ -784,7 +824,8 @@ func TestSubmitReport_NotDraft_Unprocessable(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 INVALID_STATE_TRANSITION: submitted → submitted は禁止（X4）（RPT-055）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-056: 明細 0 件のレポートを提出 → 422 EMPTY_REPORT_SUBMISSION（RPT-014）。
@@ -799,7 +840,8 @@ func TestSubmitReport_EmptyReport_Unprocessable(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 EMPTY_REPORT_SUBMISSION: 明細なしは提出不可（RPT-014）（RPT-056）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-057: テナント内に Approver が 0 人 → 422 NO_APPROVER_IN_TENANT（WFL-014）。
@@ -840,7 +882,8 @@ func TestSubmitReport_NoApproverInTenant_Unprocessable(t *testing.T) {
 		memberUserID.String(), noApproverTenantID.String(), "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 NO_APPROVER_IN_TENANT: テナントに Approver 不在（WFL-014）（RPT-057）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-058: updated_at が古い値（楽観的ロック競合） → 409 CONFLICT。
@@ -855,7 +898,8 @@ func TestSubmitReport_Conflict_OptimisticLock(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 409 CONFLICT: 楽観的ロック競合（RPT-058）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusConflict)
 }
 
 // RPT-059: 存在しないレポート ID → 404。
@@ -870,7 +914,8 @@ func TestSubmitReport_NotFound(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 404 RESOURCE_NOT_FOUND: 存在しないレポート（RPT-059）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
 
 // RPT-060: 認証トークンなし → 401。
@@ -904,7 +949,8 @@ func TestSubmitReport_X1_DirectApprove_Unprocessable(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 INVALID_STATE_TRANSITION: draft → approved は禁止（X1）（RPT-061）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-062: X2 — draft → rejected は禁止（直接 reject 操作）。
@@ -920,7 +966,8 @@ func TestSubmitReport_X2_DirectReject_Unprocessable(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 INVALID_STATE_TRANSITION: draft → rejected は禁止（X2）（RPT-062）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-063: X3 — draft → paid は禁止（直接 pay 操作）。
@@ -935,7 +982,8 @@ func TestSubmitReport_X3_DirectPay_Unprocessable(t *testing.T) {
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 INVALID_STATE_TRANSITION: draft → paid は禁止（X3）（RPT-063）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
 // RPT-064: X4 — submitted → draft に戻す操作は禁止。
@@ -951,5 +999,6 @@ func TestSubmitReport_X4_RevertToDraft_Unprocessable(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	testutil.AssertStatus(t, rec, http.StatusNotImplemented)
+	// 422 INVALID_STATE_TRANSITION: submitted → draft は禁止（X4）（RPT-064）。機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
