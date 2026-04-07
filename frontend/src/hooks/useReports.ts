@@ -1,7 +1,7 @@
 // 経費レポートに関する React Query Hook のスタブ実装。
 // 本実装は Step9 で行う。現時点では型定義のみを提供し、テスト時には vi.mock でモックする。
 
-import type { ApiListResponse, ApiResponse, ExpenseReportDetail, ExpenseReportSummary } from '../api/types';
+import type { ApiListResponse, ApiResponse, ExpenseReportDetail, ExpenseReportSummary, PendingReport, PayableReport } from '../api/types';
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 
 // useMyReports のパラメータ型。
@@ -67,4 +67,30 @@ export function useSubmitReport(): UseMutationResult<ExpenseReportDetail, Error,
 // useDeleteReport: DELETE /api/reports/:id — レポート削除 Hook のスタブ。
 export function useDeleteReport(): UseMutationResult<void, Error, string> {
   throw new Error('useDeleteReport is not implemented yet');
+}
+
+// usePendingReports のパラメータ型。
+export interface PendingReportListParams {
+  page?: number;
+  per_page?: number;
+  applicant_name?: string;
+}
+
+// usePendingReports: GET /api/workflow/pending — 承認待ちレポート一覧を取得する Hook のスタブ。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function usePendingReports(_params?: PendingReportListParams): UseQueryResult<ApiListResponse<PendingReport>> {
+  throw new Error('usePendingReports is not implemented yet');
+}
+
+// usePayableReports のパラメータ型。
+export interface PayableReportListParams {
+  page?: number;
+  per_page?: number;
+  applicant_name?: string;
+}
+
+// usePayableReports: GET /api/workflow/payable — 支払待ちレポート一覧を取得する Hook のスタブ。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function usePayableReports(_params?: PayableReportListParams): UseQueryResult<ApiListResponse<PayableReport>> {
+  throw new Error('usePayableReports is not implemented yet');
 }
