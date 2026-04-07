@@ -132,7 +132,27 @@ describe('ReportEditPage', () => {
 
     renderPage('test-report-id');
 
-    // フォームを送信する。
+    // タイトル入力欄に値を入力する（既存データがプリフィルされているが上書きする）。
+    // スタブ実装では ReportForm が存在しないため失敗する。
+    const titleInput = await screen.findByRole('textbox', { name: /タイトル/ });
+    await user.clear(titleInput);
+    await user.type(titleInput, '更新タイトル');
+
+    // 開始日入力欄に値を入力する（ReportPeriodField の periodStart）。
+    // AppDatePicker が name="periodStart" の input をレンダリングする。
+    // スタブ実装では ReportForm / ReportPeriodField が存在しないため失敗する。
+    const periodStartInput = document.querySelector('input[name="periodStart"]') as HTMLInputElement;
+    await user.clear(periodStartInput);
+    await user.type(periodStartInput, '2026-03-01');
+
+    // 終了日入力欄に値を入力する（ReportPeriodField の periodEnd）。
+    // AppDatePicker が name="periodEnd" の input をレンダリングする。
+    // スタブ実装では ReportForm / ReportPeriodField が存在しないため失敗する。
+    const periodEndInput = document.querySelector('input[name="periodEnd"]') as HTMLInputElement;
+    await user.clear(periodEndInput);
+    await user.type(periodEndInput, '2026-03-31');
+
+    // 保存ボタンをクリックする。
     // スタブ実装では ReportFormActions が存在しないため失敗する。
     const submitButton = screen.getByRole('button', { name: /保存する/ });
     await user.click(submitButton);

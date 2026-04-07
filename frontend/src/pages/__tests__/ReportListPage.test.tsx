@@ -138,6 +138,27 @@ describe('ReportListPage', () => {
     renderPage('/reports?status=draft&from=2026-03-01&to=2026-03-31');
 
     await waitFor(() => {
+      // ステータス combobox に URL の status 値（draft）が反映されていること。
+      // スタブ実装では ReportListFilter が未実装のため失敗する。
+      const statusSelect = screen.getByTestId('report-list-filter-status');
+      expect(statusSelect).toHaveValue('draft');
+    });
+
+    await waitFor(() => {
+      // 開始日 input に URL の from 値が反映されていること。
+      // スタブ実装では ReportListFilter が未実装のため失敗する。
+      const fromInput = screen.getByTestId('report-list-filter-from');
+      expect(fromInput).toHaveValue('2026-03-01');
+    });
+
+    await waitFor(() => {
+      // 終了日 input に URL の to 値が反映されていること。
+      // スタブ実装では ReportListFilter が未実装のため失敗する。
+      const toInput = screen.getByTestId('report-list-filter-to');
+      expect(toInput).toHaveValue('2026-03-31');
+    });
+
+    await waitFor(() => {
       // useMyReports が status=draft, from=2026-03-01, to=2026-03-31 のパラメータで呼び出されること。
       // スタブ実装では useMyReports が未実装のため失敗する。
       expect(mockUseMyReports).toHaveBeenCalledWith(
@@ -167,16 +188,28 @@ describe('ReportListPage', () => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
     } as any);
 
-    renderPage('/reports?page=2');
+    // 初期状態を page=2, status=draft でレンダリングする。
+    renderPage('/reports?page=2&status=draft');
 
-    // ステータスフィルタ（AppSelect）を操作してフィルタを変更する。
+    // ステータスフィルタ（AppSelect）を操作してフィルタを別の値（approved）に変更する。
     // スタブ実装では ReportListFilter が存在しないため失敗する。
     const statusSelect = screen.getByTestId('report-list-filter-status');
+    // ステータスセレクトを開いて「承認済み」を選択することでフィルタ値を変更する。
     await user.click(statusSelect);
+    // ドロップダウンの選択肢「承認済み」（value="approved"）をクリックする。
+    // スタブ実装では選択肢が存在しないため失敗する。
+    const approvedOption = await screen.findByRole('option', { name: /承認済み/ });
+    await user.click(approvedOption);
 
-    // フィルタ変更後に page=1 にリセットされること。
+    // フィルタ値が draft から approved に変更されたことで page=1 にリセットされること。
+    // フィルタ変更後に useMyReports が page=1, status=approved で呼び出されること。
     await waitFor(() => {
-      expect(screen.getByTestId('location').textContent).toContain('page=1');
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({
+          page: 1,
+          status: 'approved',
+        }),
+      );
     });
   });
 
