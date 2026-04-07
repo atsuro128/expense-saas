@@ -121,7 +121,19 @@ describe('useSubmitReport（スタブ）', () => {
     });
 
     await waitFor(() => {
-      expect(invalidateSpy).toHaveBeenCalled();
+      // 提出成功後に 4 つのキャッシュが無効化されること（state-management.md §useSubmitReport 準拠）
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['reports', 'detail', 'test-id'] }),
+      );
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['reports', 'mine'] }),
+      );
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['dashboard'] }),
+      );
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['workflow', 'pending'] }),
+      );
     });
   });
 

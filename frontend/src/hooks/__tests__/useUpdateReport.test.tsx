@@ -136,8 +136,16 @@ describe('useUpdateReport（スタブ）', () => {
     });
 
     await waitFor(() => {
-      // レポート詳細・一覧のキャッシュが無効化されること
-      expect(invalidateSpy).toHaveBeenCalled();
+      // 更新成功後にキャッシュが無効化されること（state-management.md §useUpdateReport 準拠）
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['reports', 'detail', 'test-id'] }),
+      );
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['reports', 'mine'] }),
+      );
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['dashboard'] }),
+      );
     });
   });
 
