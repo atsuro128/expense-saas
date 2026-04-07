@@ -1,18 +1,79 @@
 // ReportListPage のユニットテスト。
 // RPT-FE-001〜007 に対応する。
-// report-list.md の ReportListPage の責務を検証する仕様テスト。
+// report-list.md §ReportListPage の責務を検証する仕様テスト。
 // スタブ実装段階では失敗する（赤い仕様テスト）。
 
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import userEvent from '@testing-library/user-event';
+import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { vi } from 'vitest';
 import ReportListPage from '../ReportListPage';
 
+// useMyReports Hook をモックする。
+// スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
+vi.mock('../../hooks/useReports', () => ({
+  useMyReports: vi.fn(),
+}));
+
+// vi.mock 後に import することでモック済みの関数参照を取得する。
+import { useMyReports } from '../../hooks/useReports';
+
+const mockUseMyReports = vi.mocked(useMyReports);
+
+// テスト用レポートデータ（3件）。
+const mockReports = [
+  {
+    id: 'test-id-001',
+    title: 'レポート1',
+    period_start: '2026-03-01',
+    period_end: '2026-03-31',
+    status: 'draft' as const,
+    total_amount: 10000,
+    created_at: '2026-03-01T00:00:00Z',
+    updated_at: '2026-03-01T00:00:00Z',
+  },
+  {
+    id: 'test-id-002',
+    title: 'レポート2',
+    period_start: '2026-03-01',
+    period_end: '2026-03-31',
+    status: 'submitted' as const,
+    total_amount: 20000,
+    created_at: '2026-03-02T00:00:00Z',
+    updated_at: '2026-03-02T00:00:00Z',
+  },
+  {
+    id: 'test-id-003',
+    title: 'レポート3',
+    period_start: '2026-03-01',
+    period_end: '2026-03-31',
+    status: 'approved' as const,
+    total_amount: 30000,
+    created_at: '2026-03-03T00:00:00Z',
+    updated_at: '2026-03-03T00:00:00Z',
+  },
+];
+
+// ルーティングによる遷移先を検証するためのヘルパーコンポーネント。
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname + location.search}</div>;
+}
+
 function renderPage(initialEntry = '/reports') {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
   return render(
-    <QueryClientProvider client={new QueryClient()}>
+    <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
-        <ReportListPage />
+        <Routes>
+          <Route path="/reports" element={<ReportListPage />} />
+          <Route path="/reports/new" element={<div data-testid="create-page">create-page</div>} />
+          <Route path="/reports/:id" element={<div data-testid="detail-page">detail-page</div>} />
+        </Routes>
+        <LocationDisplay />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -23,71 +84,202 @@ describe('ReportListPage', () => {
     vi.restoreAllMocks();
   });
 
-  // RPT-FE-001: URL クエリパラメータ ?status=draft が設定されているとき、
-  // ReportListFilter にステータスフィルタ（AppSelect）が表示される
-  // （report-list.md §ReportListPage 責務: URL クエリパラメータからフィルタ条件を復元）。
-  it('RPT-FE-001: ステータスフィルタ UI（AppSelect）が表示される', () => {
-    renderPage('/reports?status=draft');
-    // スタブ実装では ReportListFilter が存在しない。
-    // 実装後は status フィルタの select が表示される。
-    expect(screen.queryByRole('combobox')).not.toBeNull();
-  });
+  // RPT-FE-001: useMyReports が 3 件のレポートデータを返す
+  // → ReportListHeader, ReportListFilter, ReportListTable, AppPagination が描画される
+  // （report-list.md §ReportListPage: URL クエリパラメータからフィルタ条件を復元し useMyReports でデータ取得）
+  it('RPT-FE-001: useMyReports が 3 件返ると ReportListHeader/Filter/Table/Pagination が描画される', async () => {
+    // useMyReports が成功レスポンスで 3 件のデータを返すようにモックする。
+    // スタブ実装では useMyReports が未実装のため、このモックは意味をなさず失敗する。
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
 
-  // RPT-FE-002: URL クエリパラメータ ?from・?to が設定されているとき、
-  // ReportListFilter に日付フィルタ（AppDatePicker）が表示される
-  // （report-list.md §ReportListPage 責務: URL クエリパラメータからフィルタ条件を復元）。
-  it('RPT-FE-002: 日付フィルタ UI（AppDatePicker）が 2 件表示される', () => {
-    renderPage('/reports?from=2026-03-01&to=2026-03-31');
-    // スタブ実装では ReportListFilter が存在しない。
-    // 実装後は開始日・終了日の 2 つのピッカーが表示される。
-    const dateInputs = screen.queryAllByRole('textbox');
-    expect(dateInputs.length).toBeGreaterThanOrEqual(2);
-  });
-
-  // RPT-FE-003: 「+ レポート作成」ボタンが表示される
-  // （report-list.md §ReportListHeader 責務: CreateReportButton を配置）。
-  it('RPT-FE-003: レポート作成ボタンが表示される', () => {
     renderPage('/reports');
-    // スタブ実装では ReportListHeader と CreateReportButton が存在しない。
-    // 実装後は作成ボタンが表示される。
-    expect(screen.queryByRole('button')).not.toBeNull();
+
+    // ReportListHeader が描画されること（「マイレポート」タイトルまたは作成ボタンを含む）。
+    // スタブ実装では ReportListHeader が存在しないため失敗する。
+    expect(screen.getByTestId('report-list-header')).toBeInTheDocument();
+
+    // ReportListFilter が描画されること。
+    // スタブ実装では ReportListFilter が存在しないため失敗する。
+    expect(screen.getByTestId('report-list-filter')).toBeInTheDocument();
+
+    // ReportListTable が描画されること。
+    // スタブ実装では ReportListTable が存在しないため失敗する。
+    expect(screen.getByTestId('report-list-table')).toBeInTheDocument();
+
+    // AppPagination が描画されること。
+    // スタブ実装では AppPagination が存在しないため失敗する。
+    expect(screen.getByTestId('app-pagination')).toBeInTheDocument();
   });
 
-  // RPT-FE-004: データが存在するとき ReportListTable（AppDataGrid）が表示される
-  // （report-list.md §ReportListTable 責務: AppDataGrid にレポート行を表示）。
-  it('RPT-FE-004: レポート一覧テーブル（AppDataGrid）が表示される', async () => {
-    renderPage('/reports');
-    // スタブ実装では ReportListTable が存在しない。
-    // 実装後は role="grid" の DataGrid が表示される。
+  // RPT-FE-002: URL クエリパラメータ ?status=draft&from=2026-03-01&to=2026-03-31 が設定されている
+  // → ReportListFilter にフィルタ値が反映される。useMyReports にフィルタパラメータが渡される
+  // （report-list.md §ReportListPage: URL クエリパラメータからフィルタ条件を復元）
+  it('RPT-FE-002: URL クエリパラメータのフィルタ値が ReportListFilter に反映され useMyReports に渡される', async () => {
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports?status=draft&from=2026-03-01&to=2026-03-31');
+
     await waitFor(() => {
-      expect(screen.queryByRole('grid')).not.toBeNull();
+      // useMyReports が status=draft, from=2026-03-01, to=2026-03-31 のパラメータで呼び出されること。
+      // スタブ実装では useMyReports が未実装のため失敗する。
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({
+          status: 'draft',
+          from: '2026-03-01',
+          to: '2026-03-31',
+        }),
+      );
     });
   });
 
-  // RPT-FE-005: フィルタ変更時に page クエリが 1 にリセットされる
-  // （report-list.md §ReportListPage 責務: フィルタ変更時に URL クエリパラメータを更新して page を 1 にリセット）。
-  it('RPT-FE-005: ページタイトル「マイレポート」が表示される', () => {
-    renderPage('/reports');
-    // スタブ実装では ReportListHeader が存在しないため、タイトルが表示されない。
-    // 実装後は「マイレポート」というページタイトルが表示される。
-    expect(screen.queryByText('マイレポート')).not.toBeNull();
+  // RPT-FE-003: ページ 2 を表示中にステータスフィルタを変更
+  // → URL クエリパラメータの page が 1 にリセットされる
+  // （report-list.md §ReportListPage: フィルタ変更時に URL クエリパラメータを更新して page を 1 にリセット）
+  it('RPT-FE-003: フィルタ変更時に URL の page が 1 にリセットされる', async () => {
+    const user = userEvent.setup();
+
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 2, per_page: 20, total_count: 3, total_pages: 2 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports?page=2');
+
+    // ステータスフィルタ（AppSelect）を操作してフィルタを変更する。
+    // スタブ実装では ReportListFilter が存在しないため失敗する。
+    const statusSelect = screen.getByTestId('report-list-filter-status');
+    await user.click(statusSelect);
+
+    // フィルタ変更後に page=1 にリセットされること。
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toContain('page=1');
+    });
   });
 
-  // RPT-FE-006: useMyReports の isLoading=true のとき PageSkeleton が表示される
-  // （report-list.md コンポーネントツリー: データ読み込み中は PageSkeleton 表示）。
-  // 初期レンダリング時はローディング状態になるため、PageSkeleton が表示される。
-  it('RPT-FE-006: データ読み込み中は PageSkeleton が表示される', () => {
+  // RPT-FE-004: テーブル行をクリック（reportId = "test-id-001"）
+  // → /reports/test-id-001 に遷移する
+  // （report-list.md §ReportListPage: onRowClick コールバックで navigate('/reports/:id')）
+  it('RPT-FE-004: テーブル行クリックで /reports/:id に遷移する', async () => {
+    const user = userEvent.setup();
+
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
     renderPage('/reports');
-    // スタブ実装では PageSkeleton が使用されない。
-    expect(screen.queryByTestId('page-skeleton')).not.toBeNull();
+
+    // テーブル行をクリックする。
+    // スタブ実装では ReportListTable が存在しないため失敗する。
+    const row = screen.getByTestId('report-row-test-id-001');
+    await user.click(row);
+
+    // /reports/test-id-001 に遷移すること。
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/reports/test-id-001');
+    });
   });
 
-  // RPT-FE-007: AppPagination が表示される
-  // （report-list.md コンポーネントツリー: AppPagination を配置）。
-  it('RPT-FE-007: AppPagination が表示される', () => {
+  // RPT-FE-005: レポート作成ボタンをクリック
+  // → /reports/new に遷移する
+  // （report-list.md §ReportListPage: onCreateReport コールバックで navigate('/reports/new')）
+  it('RPT-FE-005: レポート作成ボタン押下で /reports/new に遷移する', async () => {
+    const user = userEvent.setup();
+
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
     renderPage('/reports');
-    // スタブ実装では AppPagination が使用されない。
-    // 実装後は pagination コンポーネントが表示される。
-    expect(screen.queryByRole('navigation')).not.toBeNull();
+
+    // 「+ レポート作成」ボタンをクリックする。
+    // スタブ実装では ReportListHeader/CreateReportButton が存在しないため失敗する。
+    const createButton = screen.getByTestId('create-report-button');
+    await user.click(createButton);
+
+    // /reports/new に遷移すること。
+    await waitFor(() => {
+      expect(screen.getByTestId('location').textContent).toBe('/reports/new');
+    });
+  });
+
+  // RPT-FE-006: useMyReports の isLoading が true
+  // → PageSkeleton（variant: 'table'）が表示される
+  // （report-list.md コンポーネントツリー: データ読み込み中は PageSkeleton 表示）
+  it('RPT-FE-006: useMyReports isLoading=true のとき PageSkeleton（variant=table）が表示される', () => {
+    mockUseMyReports.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports');
+
+    // PageSkeleton が表示されること（variant='table'）。
+    // スタブ実装では PageSkeleton が存在しないため失敗する。
+    expect(screen.getByTestId('page-skeleton')).toBeInTheDocument();
+    // variant='table' が設定されていること。
+    expect(screen.getByTestId('page-skeleton')).toHaveAttribute('data-variant', 'table');
+  });
+
+  // RPT-FE-007: useMyReports がエラーを返す
+  // → AppToast（severity: 'error'）が表示される
+  // （report-list.md §ReportListPage: API エラー時は AppToast で error 表示）
+  it('RPT-FE-007: useMyReports がエラーを返すと AppToast（severity=error）が表示される', async () => {
+    mockUseMyReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new Error('API エラー'),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports');
+
+    // AppToast（severity='error'）が表示されること。
+    // スタブ実装では AppToast が存在しないため失敗する。
+    await waitFor(() => {
+      expect(screen.getByTestId('app-toast')).toBeInTheDocument();
+      expect(screen.getByTestId('app-toast')).toHaveAttribute('data-severity', 'error');
+    });
   });
 });
