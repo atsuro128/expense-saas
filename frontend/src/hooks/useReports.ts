@@ -1,6 +1,8 @@
 // 経費レポートに関する React Query Hook のスタブ実装。
 // 本実装は Step9 で行う。現時点では型定義のみを提供し、テスト時には vi.mock でモックする。
 
+import { useQuery } from '@tanstack/react-query';
+import { api } from '../api/client';
 import type { ApiListResponse, ApiResponse, ExpenseReportDetail, ExpenseReportSummary, PendingReport, PayableReport } from '../api/types';
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 
@@ -76,10 +78,27 @@ export interface PendingReportListParams {
   applicant_name?: string;
 }
 
-// usePendingReports: GET /api/workflow/pending — 承認待ちレポート一覧を取得する Hook のスタブ。
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function usePendingReports(_params?: PendingReportListParams): UseQueryResult<ApiListResponse<PendingReport>> {
-  throw new Error('usePendingReports is not implemented yet');
+/**
+ * usePendingReports は GET /api/workflow/pending を呼び出す。
+ * state-management.md §クエリキー設計: ['workflow', 'pending', params], staleTime 30秒。
+ */
+export function usePendingReports(params: PendingReportListParams = {}): UseQueryResult<ApiListResponse<PendingReport>> {
+  const { page, per_page, applicant_name } = params;
+
+  // クエリパラメータを構築する。
+  const searchParams = new URLSearchParams();
+  if (page !== undefined) searchParams.set('page', String(page));
+  if (per_page !== undefined) searchParams.set('per_page', String(per_page));
+  if (applicant_name !== undefined) searchParams.set('applicant_name', applicant_name);
+
+  const qs = searchParams.toString();
+  const url = qs ? `/api/workflow/pending?${qs}` : '/api/workflow/pending';
+
+  return useQuery<ApiListResponse<PendingReport>>({
+    queryKey: ['workflow', 'pending', params],
+    queryFn: () => api.get<ApiListResponse<PendingReport>>(url),
+    staleTime: 30 * 1000,
+  });
 }
 
 // usePayableReports のパラメータ型。
@@ -89,8 +108,25 @@ export interface PayableReportListParams {
   applicant_name?: string;
 }
 
-// usePayableReports: GET /api/workflow/payable — 支払待ちレポート一覧を取得する Hook のスタブ。
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function usePayableReports(_params?: PayableReportListParams): UseQueryResult<ApiListResponse<PayableReport>> {
-  throw new Error('usePayableReports is not implemented yet');
+/**
+ * usePayableReports は GET /api/workflow/payable を呼び出す。
+ * state-management.md §クエリキー設計: ['workflow', 'payable', params], staleTime 30秒。
+ */
+export function usePayableReports(params: PayableReportListParams = {}): UseQueryResult<ApiListResponse<PayableReport>> {
+  const { page, per_page, applicant_name } = params;
+
+  // クエリパラメータを構築する。
+  const searchParams = new URLSearchParams();
+  if (page !== undefined) searchParams.set('page', String(page));
+  if (per_page !== undefined) searchParams.set('per_page', String(per_page));
+  if (applicant_name !== undefined) searchParams.set('applicant_name', applicant_name);
+
+  const qs = searchParams.toString();
+  const url = qs ? `/api/workflow/payable?${qs}` : '/api/workflow/payable';
+
+  return useQuery<ApiListResponse<PayableReport>>({
+    queryKey: ['workflow', 'payable', params],
+    queryFn: () => api.get<ApiListResponse<PayableReport>>(url),
+    staleTime: 30 * 1000,
+  });
 }

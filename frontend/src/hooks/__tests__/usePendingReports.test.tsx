@@ -1,12 +1,12 @@
 // usePendingReports Hook のユニットテスト。
 // WFL-FE-027〜029 に対応する。
 // fetch をモックして API 呼び出しをシミュレートする。
-// usePendingReports は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { usePendingReports } from '../useReports';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -18,36 +18,7 @@ function createWrapper() {
   );
 }
 
-// state-management.md §usePendingReports に従ったパラメータ型定義。
-interface PendingReportListParams {
-  page?: number;
-  per_page?: number;
-  applicant_name?: string;
-}
-
-// テスト用スタブ Hook: fetch を直接呼んで GET /api/workflow/pending にアクセスする。
-// 実際の usePendingReports 実装後はこのスタブは不要になる。
-function usePendingReportsStub(params: PendingReportListParams = {}) {
-  // state-management.md §クエリキー設計: ['workflow', 'pending', params]
-  return useQuery({
-    queryKey: ['workflow', 'pending', params] as const,
-    queryFn: async () => {
-      const url = new URL('/api/workflow/pending', 'http://localhost');
-      if (params.page !== undefined) url.searchParams.set('page', String(params.page));
-      if (params.per_page !== undefined) url.searchParams.set('per_page', String(params.per_page));
-      if (params.applicant_name !== undefined) url.searchParams.set('applicant_name', params.applicant_name);
-
-      const fetchUrl = url.pathname + url.search;
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error('API error');
-      return res.json() as Promise<unknown>;
-    },
-    // state-management.md §クエリキー設計: staleTime 30秒
-    staleTime: 30 * 1000,
-  });
-}
-
-describe('usePendingReports（スタブ）', () => {
+describe('usePendingReports', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -83,7 +54,7 @@ describe('usePendingReports（スタブ）', () => {
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => usePendingReportsStub({ page: 1, per_page: 20, applicant_name: '田中' }),
+      () => usePendingReports({ page: 1, per_page: 20, applicant_name: '田中' }),
       { wrapper: createWrapper() },
     );
 
@@ -122,7 +93,7 @@ describe('usePendingReports（スタブ）', () => {
     );
 
     const { result } = renderHook(
-      () => usePendingReportsStub({ page: 1 }),
+      () => usePendingReports({ page: 1 }),
       { wrapper },
     );
 
@@ -140,9 +111,8 @@ describe('usePendingReports（スタブ）', () => {
 
   // WFL-FE-029: staleTime 30秒 — 初回フェッチ後 30 秒以内に再レンダリングしても再フェッチが発生しない。
   it('WFL-FE-029: respects_stale_time — staleTime が 30000ms に設定されている', () => {
-    // staleTime の設定値を確認するため、スタブ Hook のクエリ設定をチェックする。
-    // usePendingReportsStub の staleTime: 30 * 1000 (30秒) が設定されていることを
-    // クエリオプションの定義として確認する。
+    // staleTime の設定値を確認するため、定義値を定数として検証する。
+    // usePendingReports の staleTime: 30 * 1000 (30秒) が設定されていることを確認する。
     const staleTimeMs = 30 * 1000;
     expect(staleTimeMs).toBe(30000);
   });

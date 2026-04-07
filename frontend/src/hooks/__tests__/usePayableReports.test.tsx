@@ -1,12 +1,12 @@
 // usePayableReports Hook のユニットテスト。
 // WFL-FE-052〜054 に対応する。
 // fetch をモックして API 呼び出しをシミュレートする。
-// usePayableReports は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { usePayableReports } from '../useReports';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -18,36 +18,7 @@ function createWrapper() {
   );
 }
 
-// state-management.md §usePayableReports に従ったパラメータ型定義。
-interface PayableReportListParams {
-  page?: number;
-  per_page?: number;
-  applicant_name?: string;
-}
-
-// テスト用スタブ Hook: fetch を直接呼んで GET /api/workflow/payable にアクセスする。
-// 実際の usePayableReports 実装後はこのスタブは不要になる。
-function usePayableReportsStub(params: PayableReportListParams = {}) {
-  // state-management.md §クエリキー設計: ['workflow', 'payable', params]
-  return useQuery({
-    queryKey: ['workflow', 'payable', params] as const,
-    queryFn: async () => {
-      const url = new URL('/api/workflow/payable', 'http://localhost');
-      if (params.page !== undefined) url.searchParams.set('page', String(params.page));
-      if (params.per_page !== undefined) url.searchParams.set('per_page', String(params.per_page));
-      if (params.applicant_name !== undefined) url.searchParams.set('applicant_name', params.applicant_name);
-
-      const fetchUrl = url.pathname + url.search;
-      const res = await fetch(fetchUrl);
-      if (!res.ok) throw new Error('API error');
-      return res.json() as Promise<unknown>;
-    },
-    // state-management.md §クエリキー設計: staleTime 30秒
-    staleTime: 30 * 1000,
-  });
-}
-
-describe('usePayableReports（スタブ）', () => {
+describe('usePayableReports', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -83,7 +54,7 @@ describe('usePayableReports（スタブ）', () => {
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => usePayableReportsStub({ page: 1, per_page: 20, applicant_name: '田中' }),
+      () => usePayableReports({ page: 1, per_page: 20, applicant_name: '田中' }),
       { wrapper: createWrapper() },
     );
 
@@ -122,7 +93,7 @@ describe('usePayableReports（スタブ）', () => {
     );
 
     const { result } = renderHook(
-      () => usePayableReportsStub({ page: 1 }),
+      () => usePayableReports({ page: 1 }),
       { wrapper },
     );
 

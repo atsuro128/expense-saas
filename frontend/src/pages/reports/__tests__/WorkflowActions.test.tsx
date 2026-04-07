@@ -21,6 +21,8 @@ describe('WorkflowActions', () => {
         currentUserRole="approver"
         onApprove={vi.fn()}
         onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -38,7 +40,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="approved"
         currentUserRole="accounting"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
         onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -55,6 +60,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="submitted"
         currentUserRole="member"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -70,6 +79,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="approved"
         currentUserRole="approver"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -83,6 +96,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="draft"
         currentUserRole="approver"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -98,6 +115,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="approved"
         currentUserRole="approver"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -113,6 +134,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="submitted"
         currentUserRole="accounting"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -128,6 +153,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="paid"
         currentUserRole="accounting"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -148,6 +177,8 @@ describe('WorkflowActions', () => {
         currentUserRole="approver"
         onApprove={onApprove}
         onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -167,6 +198,8 @@ describe('WorkflowActions', () => {
         currentUserRole="approver"
         onApprove={vi.fn()}
         onReject={onReject}
+        onMarkAsPaid={vi.fn()}
+        pendingAction={null}
       />,
     );
 
@@ -184,7 +217,10 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="approved"
         currentUserRole="accounting"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
         onMarkAsPaid={onMarkAsPaid}
+        pendingAction={null}
       />,
     );
 
@@ -201,6 +237,7 @@ describe('WorkflowActions', () => {
         currentUserRole="approver"
         onApprove={vi.fn()}
         onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
         pendingAction="approve"
       />,
     );
@@ -221,6 +258,7 @@ describe('WorkflowActions', () => {
         currentUserRole="approver"
         onApprove={vi.fn()}
         onReject={vi.fn()}
+        onMarkAsPaid={vi.fn()}
         pendingAction="reject"
       />,
     );
@@ -239,6 +277,8 @@ describe('WorkflowActions', () => {
       <WorkflowActions
         status="approved"
         currentUserRole="accounting"
+        onApprove={vi.fn()}
+        onReject={vi.fn()}
         onMarkAsPaid={vi.fn()}
         pendingAction="pay"
       />,

@@ -1,12 +1,12 @@
 // useRejectReport Hook のユニットテスト。
 // WFL-FE-073〜075 に対応する。
 // fetch をモックして API 呼び出しをシミュレートする。
-// useRejectReport は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { useRejectReport } from '../useRejectReport';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -18,44 +18,7 @@ function createWrapper() {
   );
 }
 
-// state-management.md §useRejectReport に従った入力型定義。
-// RejectRequest = { reason: string; updated_at: string }
-interface RejectInput {
-  id: string;
-  reason: string;
-  updated_at: string;
-}
-
-// テスト用スタブ Hook: fetch を直接呼んで POST /api/workflow/:id/reject にアクセスする。
-// 実際の useRejectReport 実装後はこのスタブは不要になる。
-function useRejectReportStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: RejectInput) => {
-      const res = await fetch(`/api/workflow/${input.id}/reject`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ reason: input.reason, updated_at: input.updated_at }),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: unknown };
-      return data.data;
-    },
-    onSuccess: (_data, variables) => {
-      // state-management.md §ミューテーション後のキャッシュ無効化: useRejectReport
-      // invalidate: ['reports', 'detail', id], ['workflow', 'pending'], ['dashboard']
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
-      void queryClient.invalidateQueries({ queryKey: ['workflow', 'pending'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    },
-  });
-}
-
-describe('useRejectReport（スタブ）', () => {
+describe('useRejectReport', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -76,7 +39,7 @@ describe('useRejectReport（スタブ）', () => {
       json: async () => ({ data: { id: 'report-1', status: 'rejected' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useRejectReportStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRejectReport(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -118,7 +81,7 @@ describe('useRejectReport（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useRejectReportStub(), { wrapper });
+    const { result } = renderHook(() => useRejectReport(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -152,7 +115,7 @@ describe('useRejectReport（スタブ）', () => {
       json: async () => ({ error: { code: 'CONFLICT', message: '競合が発生しました' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useRejectReportStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useRejectReport(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(

@@ -1,12 +1,12 @@
 // useApproveReport Hook のユニットテスト。
 // WFL-FE-069〜072 に対応する。
 // fetch をモックして API 呼び出しをシミュレートする。
-// useApproveReport は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { useApproveReport } from '../useApproveReport';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -18,48 +18,7 @@ function createWrapper() {
   );
 }
 
-// state-management.md §useApproveReport に従った入力型定義。
-// ApproveRequest = { comment?: string; updated_at: string }
-interface ApproveInput {
-  id: string;
-  comment?: string;
-  updated_at: string;
-}
-
-// テスト用スタブ Hook: fetch を直接呼んで POST /api/workflow/:id/approve にアクセスする。
-// 実際の useApproveReport 実装後はこのスタブは不要になる。
-function useApproveReportStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: ApproveInput) => {
-      const body: Record<string, string> = { updated_at: input.updated_at };
-      if (input.comment !== undefined) body['comment'] = input.comment;
-
-      const res = await fetch(`/api/workflow/${input.id}/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: unknown };
-      return data.data;
-    },
-    onSuccess: (_data, variables) => {
-      // state-management.md §ミューテーション後のキャッシュ無効化: useApproveReport
-      // invalidate: ['reports', 'detail', id], ['workflow', 'pending'], ['workflow', 'payable'], ['dashboard']
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
-      void queryClient.invalidateQueries({ queryKey: ['workflow', 'pending'] });
-      void queryClient.invalidateQueries({ queryKey: ['workflow', 'payable'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-    },
-  });
-}
-
-describe('useApproveReport（スタブ）', () => {
+describe('useApproveReport', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -80,7 +39,7 @@ describe('useApproveReport（スタブ）', () => {
       json: async () => ({ data: { id: 'report-1', status: 'approved' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useApproveReportStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useApproveReport(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -111,7 +70,7 @@ describe('useApproveReport（スタブ）', () => {
       json: async () => ({ data: { id: 'report-1', status: 'approved' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useApproveReportStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useApproveReport(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -147,7 +106,7 @@ describe('useApproveReport（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useApproveReportStub(), { wrapper });
+    const { result } = renderHook(() => useApproveReport(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -183,7 +142,7 @@ describe('useApproveReport（スタブ）', () => {
       json: async () => ({ error: { code: 'CONFLICT', message: '競合が発生しました' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useApproveReportStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useApproveReport(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(

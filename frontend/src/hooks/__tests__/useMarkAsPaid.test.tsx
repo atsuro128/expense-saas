@@ -1,12 +1,12 @@
 // useMarkAsPaid Hook のユニットテスト。
 // WFL-FE-076〜078 に対応する。
 // fetch をモックして API 呼び出しをシミュレートする。
-// useMarkAsPaid は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
+import { useMarkAsPaid } from '../useMarkAsPaid';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -18,44 +18,7 @@ function createWrapper() {
   );
 }
 
-// state-management.md §useMarkAsPaid に従った入力型定義。
-// 入力: { id: string; updated_at: string }
-interface MarkAsPaidInput {
-  id: string;
-  updated_at: string;
-}
-
-// テスト用スタブ Hook: fetch を直接呼んで POST /api/workflow/:id/pay にアクセスする。
-// 実際の useMarkAsPaid 実装後はこのスタブは不要になる。
-function useMarkAsPaidStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (input: MarkAsPaidInput) => {
-      const res = await fetch(`/api/workflow/${input.id}/pay`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updated_at: input.updated_at }),
-      });
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: unknown };
-      return data.data;
-    },
-    onSuccess: (_data, variables) => {
-      // state-management.md §ミューテーション後のキャッシュ無効化: useMarkAsPaid
-      // invalidate: ['reports', 'detail', id], ['workflow', 'payable'], ['dashboard'], ['reports', 'all']
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
-      void queryClient.invalidateQueries({ queryKey: ['workflow', 'payable'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'all'] });
-    },
-  });
-}
-
-describe('useMarkAsPaid（スタブ）', () => {
+describe('useMarkAsPaid', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -76,7 +39,7 @@ describe('useMarkAsPaid（スタブ）', () => {
       json: async () => ({ data: { id: 'report-1', status: 'paid' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useMarkAsPaidStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMarkAsPaid(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -116,7 +79,7 @@ describe('useMarkAsPaid（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useMarkAsPaidStub(), { wrapper });
+    const { result } = renderHook(() => useMarkAsPaid(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -152,7 +115,7 @@ describe('useMarkAsPaid（スタブ）', () => {
       json: async () => ({ error: { code: 'CONFLICT', message: '競合が発生しました' } }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useMarkAsPaidStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useMarkAsPaid(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(

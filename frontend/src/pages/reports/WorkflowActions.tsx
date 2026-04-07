@@ -1,6 +1,7 @@
 // WorkflowActions コンポーネントのスタブ実装。
 // レポート詳細画面（SCR-RPT-004）に表示するワークフロー操作ボタン。
 // Approver には「承認」「却下」ボタン、Accounting には「支払完了」ボタンを表示する。
+// 配置: pages/reports/WorkflowActions.tsx（report-detail.md §WorkflowActions 準拠）
 // 本実装は Step10 で行う。現時点はスタブ（何も描画しない）。
 
 import type { ReportStatus, Role } from '../../api/types';
@@ -11,13 +12,13 @@ export interface WorkflowActionsProps {
   /** 現在のユーザーのロール */
   currentUserRole: Role;
   /** 承認ボタンのコールバック */
-  onApprove?: () => void;
+  onApprove: () => void;
   /** 却下ボタンのコールバック */
-  onReject?: () => void;
+  onReject: () => void;
   /** 支払完了ボタンのコールバック */
-  onMarkAsPaid?: () => void;
+  onMarkAsPaid: () => void;
   /** ローディング中のアクション名（"approve" | "reject" | "pay" | null） */
-  pendingAction?: 'approve' | 'reject' | 'pay' | null;
+  pendingAction: 'approve' | 'reject' | 'pay' | null;
 }
 
 /**
