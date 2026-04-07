@@ -1,7 +1,11 @@
 // 認証画面下部のナビゲーションリンクを表示するコンポーネント。
 // ログイン・サインアップ・パスワードリセット画面で共有される。
+// 認証画面専用のため pages/auth/ に配置する。
 
-import { Link } from 'react-router-dom';
+import Box from '@mui/material/Box';
+import MuiLink from '@mui/material/Link';
+import Typography from '@mui/material/Typography';
+import { Link as RouterLink } from 'react-router-dom';
 
 /** ナビゲーションリンクの定義。 */
 export interface AuthNavLink {
@@ -23,15 +27,20 @@ export interface AuthNavLinksProps {
  * 各リンクは prefix テキストとリンクテキストのペアで構成される。
  */
 export default function AuthNavLinks({ links }: AuthNavLinksProps) {
-  // 未実装スタブ。実装後に MUI Typography + Link を使用する。
   return (
-    <nav data-testid="auth-nav-links">
+    <Box
+      component="nav"
+      data-testid="auth-nav-links"
+      sx={{ mt: 2, textAlign: 'center' }}
+    >
       {links.map((link) => (
-        <div key={link.to}>
-          <span>{link.prefix}</span>
-          <Link to={link.to}>{link.label}</Link>
-        </div>
+        <Typography key={link.to} variant="body2" sx={{ mb: 1 }}>
+          {link.prefix}
+          <MuiLink component={RouterLink} to={link.to} underline="hover">
+            {link.label}
+          </MuiLink>
+        </Typography>
       ))}
-    </nav>
+    </Box>
   );
 }
