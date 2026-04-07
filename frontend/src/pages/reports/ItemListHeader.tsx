@@ -16,6 +16,7 @@ export interface ItemListHeaderProps {
  * ItemListHeader は明細セクションのヘッダー。
  * 「明細一覧（N件）」と「明細追加」ボタンを表示する。
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function ItemListHeader(_props: ItemListHeaderProps) {
   return <div data-testid="item-list-header">NOT IMPLEMENTED</div>;
 }

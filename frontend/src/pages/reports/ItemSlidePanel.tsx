@@ -32,6 +32,7 @@ export interface ItemSlidePanelProps {
  * ItemSlidePanel は明細追加・編集・閲覧のスライドパネルコンポーネント。
  * open=true のとき表示され、mode に応じてフォームの入力可否を制御する。
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function ItemSlidePanel(_props: ItemSlidePanelProps) {
   return <div data-testid="item-slide-panel">NOT IMPLEMENTED</div>;
 }

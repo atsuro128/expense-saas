@@ -26,6 +26,7 @@ export interface ItemListSectionProps {
  * ItemListSection は経費明細一覧セクションのコンテナコンポーネント。
  * 明細 0 件のとき EmptyState を表示する。
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function ItemListSection(_props: ItemListSectionProps) {
   return <div data-testid="item-list-section">NOT IMPLEMENTED</div>;
 }

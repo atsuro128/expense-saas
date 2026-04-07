@@ -40,6 +40,7 @@ export interface ItemFormProps {
  * mode='view' のとき全フィールドが readonly になる。
  * mode='add' のとき「保存して続けて追加」ボタンも表示する。
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function ItemForm(_props: ItemFormProps) {
   return <div data-testid="item-form">NOT IMPLEMENTED</div>;
 }

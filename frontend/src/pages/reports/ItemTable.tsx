@@ -22,6 +22,7 @@ export interface ItemTableProps {
  * ItemTable は明細データをテーブル形式で表示する。
  * 操作列（編集・削除ボタン）は canEditItems=true の場合のみ表示する。
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export default function ItemTable(_props: ItemTableProps) {
   return <div data-testid="item-table">NOT IMPLEMENTED</div>;
 }
