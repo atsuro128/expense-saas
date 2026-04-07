@@ -22,7 +22,7 @@ function createWrapper() {
 // 実際の useMyReports 実装後はこのスタブは不要になる。
 interface MyReportsParams {
   page?: number;
-  perPage?: number;
+  per_page?: number;
   status?: string;
   from?: string;
   to?: string;
@@ -34,7 +34,7 @@ function useMyReportsStub(params: MyReportsParams = {}) {
     queryFn: async () => {
       const url = new URL('/api/reports', 'http://localhost');
       if (params.page) url.searchParams.set('page', String(params.page));
-      if (params.perPage) url.searchParams.set('per_page', String(params.perPage));
+      if (params.per_page) url.searchParams.set('per_page', String(params.per_page));
       if (params.status) url.searchParams.set('status', params.status);
       if (params.from) url.searchParams.set('from', params.from);
       if (params.to) url.searchParams.set('to', params.to);
@@ -77,7 +77,7 @@ describe('useMyReports（スタブ）', () => {
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => useMyReportsStub({ page: 1, perPage: 20 }),
+      () => useMyReportsStub({ page: 1, per_page: 20 }),
       { wrapper: createWrapper() },
     );
 
@@ -132,7 +132,7 @@ describe('useMyReports（スタブ）', () => {
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => useMyReportsStub({ page: 1, perPage: 20 }),
+      () => useMyReportsStub({ page: 1, per_page: 20 }),
       { wrapper: createWrapper() },
     );
 

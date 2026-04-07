@@ -7,7 +7,7 @@ import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 // useMyReports のパラメータ型。
 export interface MyReportsParams {
   page?: number;
-  perPage?: number;
+  per_page?: number;
   status?: string;
   from?: string;
   to?: string;
@@ -29,9 +29,9 @@ export function useReport(_reportId?: string): UseQueryResult<ApiResponse<Expens
 // useCreateReport のミューテーション入力型。
 export interface CreateReportInput {
   title: string;
-  periodStart: string;
-  periodEnd: string;
-  referenceReportId?: string;
+  period_start: string;
+  period_end: string;
+  reference_report_id?: string;
 }
 
 // useCreateReport: POST /api/reports — レポート作成 Hook のスタブ。
@@ -43,9 +43,9 @@ export function useCreateReport(): UseMutationResult<{ id: string }, Error, Crea
 export interface UpdateReportInput {
   id: string;
   title: string;
-  periodStart: string;
-  periodEnd: string;
-  updatedAt: string;
+  period_start: string;
+  period_end: string;
+  updated_at: string;
 }
 
 // useUpdateReport: PUT /api/reports/:id — レポート更新 Hook のスタブ。
@@ -56,7 +56,7 @@ export function useUpdateReport(): UseMutationResult<ExpenseReportDetail, Error,
 // useSubmitReport のミューテーション入力型。
 export interface SubmitReportInput {
   id: string;
-  updatedAt: string;
+  updated_at: string;
 }
 
 // useSubmitReport: POST /api/reports/:id/submit — レポート提出 Hook のスタブ。

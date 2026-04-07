@@ -21,9 +21,9 @@ function createWrapper() {
 interface UpdateReportInput {
   id: string;
   title: string;
-  periodStart: string;
-  periodEnd: string;
-  updatedAt: string;
+  period_start: string;
+  period_end: string;
+  updated_at: string;
 }
 
 function useUpdateReportStub() {
@@ -33,9 +33,9 @@ function useUpdateReportStub() {
     mutationFn: async (input: UpdateReportInput) => {
       const body = {
         title: input.title,
-        period_start: input.periodStart,
-        period_end: input.periodEnd,
-        updated_at: input.updatedAt,
+        period_start: input.period_start,
+        period_end: input.period_end,
+        updated_at: input.updated_at,
       };
 
       const res = await fetch(`/api/reports/${input.id}`, {
@@ -85,9 +85,9 @@ describe('useUpdateReport（スタブ）', () => {
       await result.current.mutateAsync({
         id: 'test-id',
         title: '更新',
-        periodStart: '2026-03-01',
-        periodEnd: '2026-03-31',
-        updatedAt: '2026-03-01T00:00:00Z',
+        period_start: '2026-03-01',
+        period_end: '2026-03-31',
+        updated_at: '2026-03-01T00:00:00Z',
       });
     });
 
@@ -128,9 +128,9 @@ describe('useUpdateReport（スタブ）', () => {
       await result.current.mutateAsync({
         id: 'test-id',
         title: '更新',
-        periodStart: '2026-03-01',
-        periodEnd: '2026-03-31',
-        updatedAt: '2026-03-01T00:00:00Z',
+        period_start: '2026-03-01',
+        period_end: '2026-03-31',
+        updated_at: '2026-03-01T00:00:00Z',
       });
     });
 
@@ -159,9 +159,9 @@ describe('useUpdateReport（スタブ）', () => {
         result.current.mutateAsync({
           id: 'test-id',
           title: '更新',
-          periodStart: '2026-03-01',
-          periodEnd: '2026-03-31',
-          updatedAt: '2020-01-01T00:00:00Z', // 古い値
+          period_start: '2026-03-01',
+          period_end: '2026-03-31',
+          updated_at: '2020-01-01T00:00:00Z', // 古い値
         }),
       ).rejects.toThrow();
     });

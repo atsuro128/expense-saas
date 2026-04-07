@@ -21,9 +21,9 @@ function createWrapper() {
 // テスト用スタブ Hook: fetch を直接呼んで POST /api/reports にアクセスする。
 interface CreateReportInput {
   title: string;
-  periodStart: string;
-  periodEnd: string;
-  referenceReportId?: string;
+  period_start: string;
+  period_end: string;
+  reference_report_id?: string;
 }
 
 function useCreateReportStub() {
@@ -33,9 +33,9 @@ function useCreateReportStub() {
     mutationFn: async (input: CreateReportInput) => {
       const body = {
         title: input.title,
-        period_start: input.periodStart,
-        period_end: input.periodEnd,
-        ...(input.referenceReportId ? { reference_report_id: input.referenceReportId } : {}),
+        period_start: input.period_start,
+        period_end: input.period_end,
+        ...(input.reference_report_id ? { reference_report_id: input.reference_report_id } : {}),
       };
 
       const res = await fetch('/api/reports', {
@@ -89,8 +89,8 @@ describe('useCreateReport（スタブ）', () => {
     await act(async () => {
       await result.current.mutateAsync({
         title: 'テスト',
-        periodStart: '2026-03-01',
-        periodEnd: '2026-03-31',
+        period_start: '2026-03-01',
+        period_end: '2026-03-31',
       });
     });
 
@@ -116,9 +116,9 @@ describe('useCreateReport（スタブ）', () => {
     await act(async () => {
       await result.current.mutateAsync({
         title: '再申請',
-        periodStart: '2026-03-01',
-        periodEnd: '2026-03-31',
-        referenceReportId: 'rejected-report-001',
+        period_start: '2026-03-01',
+        period_end: '2026-03-31',
+        reference_report_id: 'rejected-report-001',
       });
     });
 
@@ -152,8 +152,8 @@ describe('useCreateReport（スタブ）', () => {
     await act(async () => {
       await result.current.mutateAsync({
         title: 'テスト',
-        periodStart: '2026-03-01',
-        periodEnd: '2026-03-31',
+        period_start: '2026-03-01',
+        period_end: '2026-03-31',
       });
     });
 
@@ -182,8 +182,8 @@ describe('useCreateReport（スタブ）', () => {
       await expect(
         result.current.mutateAsync({
           title: '',
-          periodStart: '2026-03-01',
-          periodEnd: '2026-03-31',
+          period_start: '2026-03-01',
+          period_end: '2026-03-31',
         }),
       ).rejects.toThrow();
     });

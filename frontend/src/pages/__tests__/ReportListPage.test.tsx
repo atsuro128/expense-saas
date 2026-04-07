@@ -211,6 +211,14 @@ describe('ReportListPage', () => {
         }),
       );
     });
+
+    // URL クエリパラメータに page=1 と status=approved が反映されていること。
+    // フィルタ変更時に URL を書き換えない実装では通らない。
+    await waitFor(() => {
+      const locationText = screen.getByTestId('location').textContent ?? '';
+      expect(locationText).toContain('page=1');
+      expect(locationText).toContain('status=approved');
+    });
   });
 
   // RPT-FE-004: テーブル行をクリック（reportId = "test-id-001"）

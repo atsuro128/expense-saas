@@ -72,12 +72,12 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname + location.search}</div>;
 }
 
-function renderPage(reportId = 'test-report-id') {
-  const queryClient = new QueryClient({
+function renderPage(reportId = 'test-report-id', queryClient?: QueryClient) {
+  const client = queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
-  return render(
-    <QueryClientProvider client={queryClient}>
+  const result = render(
+    <QueryClientProvider client={client}>
       <MemoryRouter initialEntries={[`/reports/${reportId}`]}>
         <Routes>
           <Route path="/reports/:id" element={<ReportDetailPage />} />
@@ -87,6 +87,7 @@ function renderPage(reportId = 'test-report-id') {
       </MemoryRouter>
     </QueryClientProvider>,
   );
+  return { ...result, queryClient: client };
 }
 
 describe('ReportDetailPage', () => {
@@ -187,7 +188,7 @@ describe('ReportDetailPage', () => {
   // RPT-FE-067: 提出ボタン押下後、確認ダイアログで「はい」を選択
   // → useSubmitReport が実行され、成功後にレポートデータが更新される
   // （report-detail.md §ReportDetailPage: 全ワークフロー操作の確認ダイアログ制御を管理）
-  it('RPT-FE-067: 提出ボタン押下後にダイアログで確認すると useSubmitReport が実行される', async () => {
+  it('RPT-FE-067: 提出ボタン押下後にダイアログで確認すると useSubmitReport が実行され成功後にデータが更新される', async () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -196,7 +197,8 @@ describe('ReportDetailPage', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
 
-    // useSubmitReport の mutate が呼ばれることを検証する。
+    // useSubmitReport の mutate が呼ばれた時に onSuccess コールバックを即座に発火するモック。
+    // これにより「成功後のデータ更新」という期待動作が実行される。
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const submitMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => { options?.onSuccess?.(); });
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -205,7 +207,14 @@ describe('ReportDetailPage', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
 
-    renderPage('test-report-id');
+    // queryClient の invalidateQueries が提出成功後に呼ばれることを検証するため、
+    // queryClient を外部から渡してスパイを仕掛ける。
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    renderPage('test-report-id', queryClient);
 
     // 提出ボタンをクリックする。
     // スタブ実装では OwnerActions が存在しないため失敗する。
@@ -227,6 +236,15 @@ describe('ReportDetailPage', () => {
       expect(submitMutate).toHaveBeenCalledWith(
         expect.objectContaining({ id: 'test-report-id' }),
         expect.any(Object),
+      );
+    });
+
+    // 提出成功後にレポートデータが更新されること。
+    // onSuccess コールバックが発火し、queryClient.invalidateQueries でキャッシュが更新される。
+    // スタブ実装ではこのキャッシュ無効化が行われないため失敗する。
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: expect.arrayContaining(['reports']) }),
       );
     });
   });
