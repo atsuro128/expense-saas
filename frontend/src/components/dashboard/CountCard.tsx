@@ -38,6 +38,7 @@ export default function CountCard({
 }: CountCardProps) {
   const cardContent = (
     <Card
+      data-accent-color={accentColor}
       sx={{
         cursor: href ? 'pointer' : 'default',
         borderTop: accentColor !== 'default' ? `3px solid` : undefined,

@@ -30,7 +30,7 @@ describe('TenantStatusCards', () => {
   });
 
   // DSH-FE-020: 各カードにステータスに対応するアクセントカラーが適用されること。
-  it('DSH-FE-020: 各カードにステータス対応のアクセントカラー（borderTop）が適用される', () => {
+  it('DSH-FE-020: 各カードにステータス対応のアクセントカラーが個別に適用される', () => {
     const { container } = renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -40,17 +40,15 @@ describe('TenantStatusCards', () => {
         paidCount={1}
       />,
     );
-    // 5 枚の Card コンポーネントが描画されること。
     const cards = container.querySelectorAll('.MuiCard-root');
     expect(cards.length).toBe(5);
 
-    // 下書き（default）以外の 4 枚は borderTop: 3px solid が適用されること。
-    // default は borderTop なし。info / success / error / secondary はそれぞれ色付き。
+    // 各カードの data-accent-color 属性でステータス別の色マッピングを検証する。
+    const expectedColors = ['default', 'info', 'success', 'error', 'secondary'];
     const cardsArray = Array.from(cards) as HTMLElement[];
-    // 2枚目〜5枚目（提出済み/承認済み/却下/支払済み）は borderTop が設定される。
-    for (let i = 1; i < 5; i++) {
-      expect(cardsArray[i]!.style.borderTop).toContain('3px solid');
-    }
+    cardsArray.forEach((card, i) => {
+      expect(card.getAttribute('data-accent-color')).toBe(expectedColors[i]);
+    });
   });
 
   // DSH-FE-021: 各カードのリンクが SCR-ADM-001（管理者レポート一覧）に遷移すること。

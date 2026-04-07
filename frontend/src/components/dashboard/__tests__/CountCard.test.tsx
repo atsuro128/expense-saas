@@ -57,14 +57,19 @@ describe('CountCard', () => {
     expect(badge).not.toBeInTheDocument();
   });
 
-  // DSH-FE-014: accentColor="success" が適用されること。
-  it('DSH-FE-014: accentColor="success" が指定されたとき borderTop スタイルが適用される', () => {
-    const { container } = renderWithRouter(<CountCard label="承認済み" count={2} accentColor="success" />);
+  // DSH-FE-014: accentColor ごとに正しい色マッピングが適用されること。
+  it.each([
+    { color: 'default' as const, label: '下書き' },
+    { color: 'info' as const, label: '提出済み' },
+    { color: 'success' as const, label: '承認済み' },
+    { color: 'error' as const, label: '却下' },
+    { color: 'secondary' as const, label: '支払済み' },
+  ])('DSH-FE-014: accentColor="$color" が data-accent-color 属性に反映される', ({ color, label }) => {
+    const { container } = renderWithRouter(<CountCard label={label} count={2} accentColor={color} />);
     const card = container.querySelector('.MuiCard-root') as HTMLElement;
     expect(card).toBeInTheDocument();
-    // accentColor が "default" 以外のとき、borderTop: 3px solid が適用されること。
-    const styles = card.style;
-    expect(styles.borderTop).toContain('3px solid');
+    // data-accent-color 属性で色マッピングを検証する。
+    expect(card.getAttribute('data-accent-color')).toBe(color);
   });
 
   // DSH-FE-015: unit="人" を指定したとき「人」で表示されること。
