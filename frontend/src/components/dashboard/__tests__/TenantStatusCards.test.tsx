@@ -60,6 +60,11 @@ describe('TenantStatusCards', () => {
     expect(links.length).toBe(5);
 
     const hrefs = links.map((l) => l.getAttribute('href') ?? '');
-    expect(hrefs.some((h) => h.includes('/reports/all'))).toBe(true);
+    // 各ステータスに対応する URL が個別に存在すること（SCR-ADM-001 準拠）。
+    expect(hrefs).toContain('/reports/all?status=draft');
+    expect(hrefs).toContain('/reports/all?status=submitted');
+    expect(hrefs).toContain('/reports/all?status=approved');
+    expect(hrefs).toContain('/reports/all?status=rejected');
+    expect(hrefs).toContain('/reports/all?status=paid');
   });
 });

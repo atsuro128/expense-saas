@@ -137,6 +137,10 @@ describe('DashboardPage', () => {
     // 承認待ちカードが表示されること。
     expect(screen.getByText('承認待ち')).toBeInTheDocument();
 
+    // 承認待ちカードのリンク先が /approvals（SCR-WFL-001）であること。
+    const approvalLink = screen.getByText('承認待ち').closest('a');
+    expect(approvalLink).toHaveAttribute('href', '/approvals');
+
     // MonthlySummaryTable が表示されること（テーブルヘッダーで確認）。
     expect(screen.getByText('年月')).toBeInTheDocument();
     expect(screen.getByText('合計金額')).toBeInTheDocument();
@@ -158,6 +162,10 @@ describe('DashboardPage', () => {
 
     // 支払待ちカードが表示されること。
     expect(screen.getByText('支払待ち')).toBeInTheDocument();
+
+    // 支払待ちカードのリンク先が /payments（SCR-WFL-002）であること。
+    const paymentLink = screen.getByText('支払待ち').closest('a');
+    expect(paymentLink).toHaveAttribute('href', '/payments');
 
     // MonthlySummaryTable が表示されること。
     expect(screen.getByText('年月')).toBeInTheDocument();
