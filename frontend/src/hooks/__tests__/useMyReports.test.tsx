@@ -86,7 +86,7 @@ describe('useMyReports（スタブ）', () => {
     });
 
     // fetch が /api/reports を含む URL で呼ばれていること
-    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain('/api/reports');
     expect(calledUrl).toContain('page=1');
     expect(calledUrl).toContain('per_page=20');
@@ -115,7 +115,7 @@ describe('useMyReports（スタブ）', () => {
       expect(globalThis.fetch).toHaveBeenCalled();
     });
 
-    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
     expect(calledUrl).toContain('status=draft');
     expect(calledUrl).toContain('from=2026-03-01');
     expect(calledUrl).toContain('to=2026-03-31');

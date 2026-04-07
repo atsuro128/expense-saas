@@ -6,17 +6,7 @@
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { vi } from 'vitest';
 import ReportListPage from '../ReportListPage';
-
-function createWrapper() {
-  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  return ({ children }: { children: React.ReactNode }) => (
-    <QueryClientProvider client={queryClient}>
-      <MemoryRouter>{children}</MemoryRouter>
-    </QueryClientProvider>
-  );
-}
 
 describe('ReportListPage', () => {
   afterEach(() => {

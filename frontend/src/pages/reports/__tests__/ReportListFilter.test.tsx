@@ -37,7 +37,8 @@ describe('ReportListFilter', () => {
     await userEvent.type(startInput, '2026-03-01');
 
     expect(onFilterChange).toHaveBeenCalled();
-    const lastCall = onFilterChange.mock.calls.at(-1)![0];
+    const calls = onFilterChange.mock.calls;
+    const lastCall = calls[calls.length - 1]![0];
     expect(lastCall.from).toBeTruthy();
   });
 

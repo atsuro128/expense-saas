@@ -64,7 +64,7 @@ describe('ReportListTable', () => {
 
     const rows = screen.getAllByRole('row');
     // ヘッダー行を除いた最初のデータ行をクリック
-    await userEvent.click(rows[1]);
+    await userEvent.click(rows[1]!);
 
     expect(onRowClick).toHaveBeenCalledWith('report-001');
   });

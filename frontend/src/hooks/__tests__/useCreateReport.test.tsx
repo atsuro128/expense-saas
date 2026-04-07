@@ -124,7 +124,7 @@ describe('useCreateReport（スタブ）', () => {
 
     // リクエストボディに reference_report_id が含まれること
     const calledBody = JSON.parse(
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]?.body as string,
     );
     expect(calledBody).toHaveProperty('reference_report_id', 'rejected-report-001');
   });

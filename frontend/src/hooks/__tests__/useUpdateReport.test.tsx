@@ -99,7 +99,7 @@ describe('useUpdateReport（スタブ）', () => {
 
     // リクエストボディに updated_at が含まれること
     const calledBody = JSON.parse(
-      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0][1].body as string,
+      (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]?.body as string,
     );
     expect(calledBody).toHaveProperty('updated_at', '2026-03-01T00:00:00Z');
   });
