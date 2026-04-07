@@ -79,4 +79,8 @@ var (
 	// ErrTokenRevoked は失効済みのリフレッシュトークンが使用された場合に返す。
 	// HTTP: 401 UNAUTHORIZED
 	ErrTokenRevoked = errors.New("token has been revoked")
+
+	// ErrDuplicateCategory は同一テナント内でカテゴリ名が重複した場合に返す。
+	// HTTP: 409 DUPLICATE_CATEGORY
+	ErrDuplicateCategory = errors.New("category name already exists in this tenant")
 )

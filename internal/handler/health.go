@@ -11,8 +11,9 @@ import (
 )
 
 type healthResponse struct {
-	Status string            `json:"status"`
-	Checks map[string]string `json:"checks"`
+	Status  string            `json:"status"`
+	Version string            `json:"version"`
+	Checks  map[string]string `json:"checks"`
 }
 
 // NewHealthHandler はアプリケーションのヘルスチェックを行う http.HandlerFunc を返します。
@@ -28,6 +29,7 @@ func NewHealthHandler(pool *pgxpool.Pool) http.HandlerFunc {
 		}
 
 		resp := healthResponse{
+			Version: "1.0.0",
 			Checks: map[string]string{
 				"database": dbStatus,
 			},
