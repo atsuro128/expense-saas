@@ -506,3 +506,9 @@ func WithAttachmentS3Key(key string) AttachmentOption {
 		m["s3_key"] = key
 	}
 }
+
+// MustParseUUID は文字列を UUID にパースして返す。パースに失敗した場合は panic する。
+// テスト用定数（TenantAID 等）を UUID 型に変換するためのヘルパー。
+func MustParseUUID(s string) uuid.UUID {
+	return uuid.MustParse(s)
+}
