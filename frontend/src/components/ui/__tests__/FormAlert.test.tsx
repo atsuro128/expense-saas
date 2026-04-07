@@ -1,5 +1,5 @@
 // FormAlert コンポーネントのユニットテスト。
-// AUTH-FE-001〜003 に対応する。
+// AUTH-FE-001〜003 および RPT-FE-037〜038 に対応する。
 
 import { render, screen } from '@testing-library/react';
 import FormAlert from '../FormAlert';
@@ -39,5 +39,18 @@ describe('FormAlert', () => {
     expect(alert).toBeInTheDocument();
     // severity が warning に設定されていること（data 属性で確認）。
     expect(alert).toHaveAttribute('data-severity', 'warning');
+  });
+
+  // RPT-FE-037: message="エラーが発生しました" のとき Alert にメッセージが表示される。
+  it('RPT-FE-037: message を指定すると Alert にメッセージが表示される', () => {
+    render(<FormAlert message="エラーが発生しました" />);
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(screen.getByText('エラーが発生しました')).toBeInTheDocument();
+  });
+
+  // RPT-FE-038: message=null のときコンポーネントが描画されない（非表示）。
+  it('RPT-FE-038: message=null のときコンポーネントが描画されない', () => {
+    render(<FormAlert message={null} />);
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
   });
 });

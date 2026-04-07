@@ -20,7 +20,8 @@ import PhaseNotice from './PhaseNotice';
  */
 export default function TenantPage() {
   const navigate = useNavigate();
-  const { data: currentUser } = useCurrentUser();
+  const { data: userData } = useCurrentUser();
+  const currentUser = userData?.data;
   const { data, isLoading, error } = useTenant();
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');

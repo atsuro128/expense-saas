@@ -24,7 +24,8 @@ export type { AllReportRow };
  */
 export default function AllReportsPage() {
   const navigate = useNavigate();
-  const { data: currentUser } = useCurrentUser();
+  const { data: userData } = useCurrentUser();
+  const currentUser = userData?.data;
 
   // フィルタ状態。
   const [filters, setFilters] = useState<AllReportsFilterValues>({
