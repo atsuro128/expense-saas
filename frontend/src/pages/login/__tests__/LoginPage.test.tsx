@@ -15,12 +15,6 @@ function createQueryClient() {
   return new QueryClient({ defaultOptions: { mutations: { retry: false } } });
 }
 
-// useLogin のモック型。
-interface MockUseLoginReturn {
-  mutateAsync: Mock;
-  isPending: boolean;
-}
-
 describe('LoginPage', () => {
   let mockMutateAsync: Mock;
 
