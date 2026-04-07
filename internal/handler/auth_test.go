@@ -3,6 +3,8 @@ package handler_test
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -16,6 +18,14 @@ import (
 	"expense-saas/internal/domain"
 	"expense-saas/internal/testutil"
 )
+
+// sha256Hex は文字列を SHA-256 でハッシュ化し、16進数文字列（64文字）を返す。
+// security.md 2.3 および db_schema.md 4.8/4.9 の設計に基づき、
+// DB には平文ではなく SHA-256 ハッシュを保存する。
+func sha256Hex(s string) string {
+	h := sha256.Sum256([]byte(s))
+	return hex.EncodeToString(h[:])
+}
 
 // =============================================================================
 // テスト共通セットアップ
@@ -89,11 +99,11 @@ func loginAndGetTokens(t *testing.T, srv *testutil.TestServer, email, password s
 }
 
 // insertPasswordResetToken はテスト用にパスワードリセットトークンを直接 DB に挿入する。
+// token_hash には tokenValue の SHA-256 ハッシュを保存する（security.md 2.3, db_schema.md 4.9）。
+// テストでは平文の tokenValue を URL に渡し、サーバー側がハッシュ化して照合する想定。
 func insertPasswordResetToken(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, tokenValue string, expiresAt time.Time) {
 	t.Helper()
 
-	// トークン値をハッシュ化せず SHA-256 など実装準拠のハッシュを使用するが、
-	// 未実装フェーズではプレーンテキストで挿入する（検証ロジック未実装のため）。
 	ctx := context.Background()
 	conn, err := pool.Acquire(ctx)
 	if err != nil {
@@ -103,17 +113,21 @@ func insertPasswordResetToken(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID
 
 	id := uuid.New()
 	now := time.Now().UTC()
+	// token_hash には平文ではなく SHA-256 ハッシュを保存する（db_schema.md 4.9）。
 	if _, err := conn.Exec(ctx,
 		`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, created_at)
 		 VALUES ($1, $2, $3, $4, $5)`,
-		id, userID, tokenValue, expiresAt, now,
+		id, userID, sha256Hex(tokenValue), expiresAt, now,
 	); err != nil {
 		t.Fatalf("パスワードリセットトークンの挿入に失敗しました: %v", err)
 	}
 }
 
 // insertRevokedRefreshToken はテスト用に無効化済みリフレッシュトークンを直接 DB に挿入する。
-func insertRevokedRefreshToken(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, jti, tokenHash string) {
+// jti には JWT の jti クレームに対応する UUID 文字列を渡す。
+// tokenJWT には実際に HTTP リクエストで送信するリフレッシュトークン JWT を渡す。
+// token_hash には tokenJWT の SHA-256 ハッシュを保存する（db_schema.md 4.8）。
+func insertRevokedRefreshToken(t *testing.T, pool *pgxpool.Pool, userID uuid.UUID, jti, tokenJWT string) {
 	t.Helper()
 
 	ctx := context.Background()
@@ -126,10 +140,11 @@ func insertRevokedRefreshToken(t *testing.T, pool *pgxpool.Pool, userID uuid.UUI
 	jtiUUID := uuid.MustParse(jti)
 	now := time.Now().UTC()
 	expiresAt := now.Add(7 * 24 * time.Hour)
+	// token_hash には JWT 文字列の SHA-256 ハッシュを保存する（db_schema.md 4.8）。
 	if _, err := conn.Exec(ctx,
 		`INSERT INTO refresh_tokens (jti, user_id, token_hash, is_revoked, expires_at, created_at)
 		 VALUES ($1, $2, $3, true, $4, $5)`,
-		jtiUUID, userID, tokenHash, expiresAt, now,
+		jtiUUID, userID, sha256Hex(tokenJWT), expiresAt, now,
 	); err != nil {
 		t.Fatalf("無効化済みリフレッシュトークンの挿入に失敗しました: %v", err)
 	}
@@ -602,26 +617,25 @@ func TestRefreshToken_RevokedToken(t *testing.T) {
 	// AUTH-044
 	srv, pool := setupAuthTest(t)
 
-	// 失効済みリフレッシュトークンを直接 DB に挿入する。
+	// DB に挿入する is_revoked=true レコードの jti を固定し、対応する JWT を生成する。
 	jti := "ffffffff-0001-0001-0001-000000000001"
 	userID := uuid.MustParse(testutil.UserAdminID)
-	insertRevokedRefreshToken(t, pool, userID, jti, "revoked-token-hash-value")
 
-	// 実際のリフレッシュトークン JWT を用意するために一度ログインする。
-	_, refreshToken := loginAndGetTokens(t, srv, "test-admin@example.com", "TestPass1!")
+	// jti に対応するリフレッシュトークン JWT を生成する（有効期限は将来）。
+	revokedJWT := testutil.GenerateTestRefreshToken(t, jti, testutil.UserAdminID, time.Now().Add(7*24*time.Hour))
 
-	// まずリフレッシュして旧トークンを失効させる。
-	body := jsonBody(t, map[string]string{"refresh_token": refreshToken})
+	// 生成した JWT の SHA-256 ハッシュを token_hash として DB に挿入し、is_revoked=true にする。
+	insertRevokedRefreshToken(t, pool, userID, jti, revokedJWT)
+
+	// DB に挿入した revoked token に対応する JWT を /api/auth/refresh に送信する。
+	body := jsonBody(t, map[string]string{"refresh_token": revokedJWT})
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/api/auth/refresh", body)
 	req.Header.Set("Content-Type", "application/json")
-	srv.Execute(req)
+	rec := srv.Execute(req)
 
-	// 失効後に再使用すると 401 が返ること。
-	body2 := jsonBody(t, map[string]string{"refresh_token": refreshToken})
-	req2, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/api/auth/refresh", body2)
-	req2.Header.Set("Content-Type", "application/json")
-	rec2 := srv.Execute(req2)
-	testutil.AssertStatus(t, rec2, http.StatusUnauthorized)
+	// is_revoked=true のトークンは 401 INVALID_TOKEN が返ること。
+	testutil.AssertStatus(t, rec, http.StatusUnauthorized)
+	testutil.AssertErrorCode(t, rec, "INVALID_TOKEN")
 }
 
 // TestRefreshToken_ExpiredToken: 異常系 - 有効期限切れのリフレッシュトークンで 401 TOKEN_EXPIRED が返ること。
@@ -629,17 +643,23 @@ func TestRefreshToken_ExpiredToken(t *testing.T) {
 	// AUTH-045
 	srv, _ := setupAuthTest(t)
 
-	// テスト用の有効期限切れトークンを生成する（実装後に動作）。
-	// 現時点では invalid な文字列で代替。
+	// exp を過去日時に設定した JWT リフレッシュトークンを生成する。
+	// testutil.GenerateTestRefreshToken に過去の expiry を渡すことで、
+	// JWT ライブラリレベルで期限切れとなるトークンを生成する。
+	jti := uuid.New().String()
+	expiredJWT := testutil.GenerateTestRefreshToken(t, jti, testutil.UserAdminID, time.Now().Add(-24*time.Hour))
+
 	body := jsonBody(t, map[string]string{
-		"refresh_token": "expired.refresh.token",
+		"refresh_token": expiredJWT,
 	})
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "/api/auth/refresh", body)
 	req.Header.Set("Content-Type", "application/json")
 
 	rec := srv.Execute(req)
 
+	// 期限切れ JWT は TOKEN_EXPIRED エラーコードで 401 を返すこと。
 	testutil.AssertStatus(t, rec, http.StatusUnauthorized)
+	testutil.AssertErrorCode(t, rec, "TOKEN_EXPIRED")
 }
 
 // TestRefreshToken_AccessTokenAsRefresh: 異常系 - アクセストークンをリフレッシュトークンとして使用すると 401 が返ること。
@@ -1201,7 +1221,8 @@ func TestExecutePasswordReset_Success(t *testing.T) {
 	memberID := uuid.MustParse(testutil.UserMemberID)
 	insertPasswordResetToken(t, pool, memberID, tokenValue, expiresAt)
 
-	body := jsonBody(t, map[string]string{"new_password": "NewPass1!"})
+	newPassword := "NewPass1!"
+	body := jsonBody(t, map[string]string{"new_password": newPassword})
 	url := fmt.Sprintf("/api/auth/password-reset/%s", tokenValue)
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPut, url, body)
 	req.Header.Set("Content-Type", "application/json")
@@ -1220,6 +1241,43 @@ func TestExecutePasswordReset_Success(t *testing.T) {
 	}
 	if resp.Data.Message == "" {
 		t.Error("data.message が空です")
+	}
+
+	// 副作用 1: 新パスワードでログインできること（security.md 2.3）。
+	_, newRefreshToken := loginAndGetTokens(t, srv, "test-member@example.com", newPassword)
+	if newRefreshToken == "" {
+		t.Error("新パスワードでのログインに失敗しました: refresh_token が空です")
+	}
+
+	// 副作用 2: password_reset_tokens.used_at が設定されていること（security.md 2.3）。
+	ctx := context.Background()
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("DB 接続の取得に失敗しました: %v", err)
+	}
+	defer conn.Release()
+
+	var usedAt *time.Time
+	if err := conn.QueryRow(ctx,
+		`SELECT used_at FROM password_reset_tokens WHERE user_id = $1 AND token_hash = $2`,
+		memberID, sha256Hex(tokenValue),
+	).Scan(&usedAt); err != nil {
+		t.Fatalf("password_reset_tokens の used_at 取得に失敗しました: %v", err)
+	}
+	if usedAt == nil {
+		t.Error("password_reset_tokens.used_at が設定されていません（トークンが使用済みマークされていない）")
+	}
+
+	// 副作用 3: 対象ユーザーの全 refresh_token が無効化されていること（security.md 2.3）。
+	var activeCount int
+	if err := conn.QueryRow(ctx,
+		`SELECT COUNT(*) FROM refresh_tokens WHERE user_id = $1 AND is_revoked = false`,
+		memberID,
+	).Scan(&activeCount); err != nil {
+		t.Fatalf("refresh_tokens の有効件数取得に失敗しました: %v", err)
+	}
+	if activeCount > 0 {
+		t.Errorf("パスワードリセット後も有効な refresh_token が %d 件残存しています", activeCount)
 	}
 }
 
@@ -1280,10 +1338,11 @@ func TestExecutePasswordReset_AlreadyUsedToken(t *testing.T) {
 	id := uuid.New()
 	now := time.Now().UTC()
 	usedAt := now.Add(-1 * time.Minute) // 1分前に使用済み
+	// token_hash には SHA-256 ハッシュを保存する（db_schema.md 4.9）。
 	if _, err := conn.Exec(ctx,
 		`INSERT INTO password_reset_tokens (id, user_id, token_hash, expires_at, used_at, created_at)
 		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		id, memberID, tokenValue, expiresAt, usedAt, now,
+		id, memberID, sha256Hex(tokenValue), expiresAt, usedAt, now,
 	); err != nil {
 		t.Fatalf("使用済みトークンの挿入に失敗しました: %v", err)
 	}
