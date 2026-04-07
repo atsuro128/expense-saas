@@ -20,7 +20,7 @@ function createWrapper() {
 // テスト用スタブ Hook: fetch を直接呼んで POST /api/reports/:id/submit にアクセスする。
 interface SubmitReportInput {
   id: string;
-  updatedAt: string;
+  updated_at: string;
 }
 
 function useSubmitReportStub() {
@@ -31,7 +31,7 @@ function useSubmitReportStub() {
       const res = await fetch(`/api/reports/${input.id}/submit`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ updated_at: input.updatedAt }),
+        body: JSON.stringify({ updated_at: input.updated_at }),
       });
       if (!res.ok) {
         const err = await res.json() as { error: { code: string; message: string } };
@@ -41,9 +41,11 @@ function useSubmitReportStub() {
       return data.data;
     },
     onSuccess: (_data, variables) => {
-      // レポート詳細・一覧のクエリキャッシュを無効化する
-      void queryClient.invalidateQueries({ queryKey: ['reports', variables.id] });
-      void queryClient.invalidateQueries({ queryKey: ['reports'] });
+      // レポート詳細・一覧・ダッシュボード・承認待ちのクエリキャッシュを無効化する
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow', 'pending'] });
     },
   });
 }
@@ -74,7 +76,7 @@ describe('useSubmitReport（スタブ）', () => {
     await act(async () => {
       await result.current.mutateAsync({
         id: 'test-id',
-        updatedAt: '2026-03-01T00:00:00Z',
+        updated_at: '2026-03-01T00:00:00Z',
       });
     });
 
@@ -114,7 +116,7 @@ describe('useSubmitReport（スタブ）', () => {
     await act(async () => {
       await result.current.mutateAsync({
         id: 'test-id',
-        updatedAt: '2026-03-01T00:00:00Z',
+        updated_at: '2026-03-01T00:00:00Z',
       });
     });
 
@@ -139,11 +141,13 @@ describe('useSubmitReport（スタブ）', () => {
 
     await act(async () => {
       await expect(
-        result.current.mutateAsync({ id: 'empty-report-id', updatedAt: '2026-03-01T00:00:00Z' }),
+        result.current.mutateAsync({ id: 'empty-report-id', updated_at: '2026-03-01T00:00:00Z' }),
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
     expect((result.current.error as { code?: string })?.code).toBe('EMPTY_REPORT_SUBMISSION');
   });
 });

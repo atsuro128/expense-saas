@@ -244,7 +244,7 @@ describe('ReportDetailPage', () => {
     // スタブ実装ではこのキャッシュ無効化が行われないため失敗する。
     await waitFor(() => {
       expect(invalidateSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: expect.arrayContaining(['reports']) }),
+        expect.objectContaining({ queryKey: ['reports', 'detail', 'test-report-id'] }),
       );
     });
   });

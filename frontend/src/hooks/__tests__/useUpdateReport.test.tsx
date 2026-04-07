@@ -51,9 +51,10 @@ function useUpdateReportStub() {
       return data.data;
     },
     onSuccess: (_data, variables) => {
-      // レポート詳細・一覧のクエリキャッシュを無効化する
-      void queryClient.invalidateQueries({ queryKey: ['reports', variables.id] });
-      void queryClient.invalidateQueries({ queryKey: ['reports'] });
+      // レポート詳細・一覧・ダッシュボードのクエリキャッシュを無効化する
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

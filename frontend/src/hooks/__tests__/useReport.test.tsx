@@ -20,7 +20,7 @@ function createWrapper() {
 // テスト用スタブ Hook: fetch を直接呼んで GET /api/reports/:id にアクセスする。
 function useReportStub(reportId: string) {
   return useQuery({
-    queryKey: ['reports', reportId],
+    queryKey: ['reports', 'detail', reportId],
     queryFn: async () => {
       const res = await fetch(`/api/reports/${reportId}`);
       if (!res.ok) {

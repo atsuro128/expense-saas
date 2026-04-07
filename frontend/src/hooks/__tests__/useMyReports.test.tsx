@@ -30,7 +30,7 @@ interface MyReportsParams {
 
 function useMyReportsStub(params: MyReportsParams = {}) {
   return useQuery({
-    queryKey: ['reports', 'my', params],
+    queryKey: ['reports', 'mine', params],
     queryFn: async () => {
       const url = new URL('/api/reports', 'http://localhost');
       if (params.page) url.searchParams.set('page', String(params.page));

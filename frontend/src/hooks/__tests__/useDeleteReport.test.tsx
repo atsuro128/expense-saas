@@ -34,8 +34,9 @@ function useDeleteReportStub() {
       return undefined;
     },
     onSuccess: () => {
-      // レポート一覧のクエリキャッシュを無効化する
-      void queryClient.invalidateQueries({ queryKey: ['reports'] });
+      // レポート一覧・ダッシュボードのクエリキャッシュを無効化する
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }
@@ -99,8 +100,13 @@ describe('useDeleteReport（スタブ）', () => {
     });
 
     await waitFor(() => {
+      // レポート一覧のキャッシュ無効化を検証する
       expect(invalidateSpy).toHaveBeenCalledWith(
-        expect.objectContaining({ queryKey: ['reports'] }),
+        expect.objectContaining({ queryKey: ['reports', 'mine'] }),
+      );
+      // ダッシュボードのキャッシュ無効化を検証する
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: ['dashboard'] }),
       );
     });
   });
