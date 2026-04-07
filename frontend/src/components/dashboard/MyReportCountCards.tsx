@@ -23,7 +23,7 @@ export default function MyReportCountCards({
   rejectedCount,
 }: MyReportCountCardsProps) {
   return (
-    <Grid container spacing={2}>
+    <Grid container spacing={2} data-testid="my-report-count-cards">
       <Grid size={{ xs: 12, sm: 4 }}>
         <CountCard label="下書き" count={draftCount} href="/reports?status=draft" />
       </Grid>

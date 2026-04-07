@@ -2,7 +2,7 @@
 // DSH-FE-001〜DSH-FE-007 に対応する。
 
 import { type ReactNode } from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
@@ -103,9 +103,11 @@ describe('DashboardPage', () => {
     renderDashboard('member', mockDashboardMember);
 
     // MyReportCountCards の各カードが表示されること。
-    expect(screen.getByText('下書き')).toBeInTheDocument();
-    expect(screen.getByText('提出中')).toBeInTheDocument();
-    expect(screen.getByText('却下')).toBeInTheDocument();
+    // RecentReportList のステータスチップと区別するため、MyReportCountCards 領域に絞ってクエリする。
+    const countCardsSection = screen.getByTestId('my-report-count-cards');
+    expect(within(countCardsSection).getByText('下書き')).toBeInTheDocument();
+    expect(within(countCardsSection).getByText('提出中')).toBeInTheDocument();
+    expect(within(countCardsSection).getByText('却下')).toBeInTheDocument();
 
     // TenantStatusCards（テナント全体集計）が表示されないこと。
     expect(screen.queryByText('提出済み')).not.toBeInTheDocument();
@@ -132,7 +134,9 @@ describe('DashboardPage', () => {
     renderDashboard('approver', mockDashboardApprover);
 
     // MyReportCountCards が表示されること。
-    expect(screen.getByText('下書き')).toBeInTheDocument();
+    // RecentReportList のステータスチップと区別するため、MyReportCountCards 領域に絞ってクエリする。
+    const countCardsSection = screen.getByTestId('my-report-count-cards');
+    expect(within(countCardsSection).getByText('下書き')).toBeInTheDocument();
 
     // 承認待ちカードが表示されること。
     expect(screen.getByText('承認待ち')).toBeInTheDocument();
@@ -158,7 +162,9 @@ describe('DashboardPage', () => {
     renderDashboard('accounting', mockDashboardAccounting);
 
     // MyReportCountCards が表示されること。
-    expect(screen.getByText('下書き')).toBeInTheDocument();
+    // RecentReportList のステータスチップと区別するため、MyReportCountCards 領域に絞ってクエリする。
+    const countCardsSection = screen.getByTestId('my-report-count-cards');
+    expect(within(countCardsSection).getByText('下書き')).toBeInTheDocument();
 
     // 支払待ちカードが表示されること。
     expect(screen.getByText('支払待ち')).toBeInTheDocument();
