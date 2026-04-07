@@ -9,6 +9,7 @@ import { useTenantMembers } from '../../hooks/useTenantMembers';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { ApiClientError } from '../../api/client';
 import type { AllReportRow } from '../../api/adminTypes';
+import AppLayout from '../../components/layout/AppLayout';
 import PageTitle from '../../components/ui/PageTitle';
 import AppToast from '../../components/ui/AppToast';
 import AppPagination from '../../components/ui/AppPagination';
@@ -92,7 +93,7 @@ export default function AllReportsPage() {
     !!filters.status || !!filters.from || !!filters.to || !!filters.submitterId;
 
   return (
-    <div>
+    <AppLayout>
       <PageTitle title="全レポート" />
       <AllReportsFilterBar
         filters={filters}
@@ -117,6 +118,6 @@ export default function AllReportsPage() {
         message={toastMessage}
         onClose={() => setToastOpen(false)}
       />
-    </div>
+    </AppLayout>
   );
 }

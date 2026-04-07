@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useTenant } from '../../hooks/useTenant';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { ApiClientError } from '../../api/client';
+import AppLayout from '../../components/layout/AppLayout';
 import PageTitle from '../../components/ui/PageTitle';
 import AppToast from '../../components/ui/AppToast';
 import TenantInfoCard from './TenantInfoCard';
@@ -50,7 +51,7 @@ export default function TenantPage() {
   const apiError = error instanceof ApiClientError ? error : null;
 
   return (
-    <div>
+    <AppLayout>
       <PageTitle title="テナント情報" />
       <TenantInfoCard
         tenant={tenantData}
@@ -64,6 +65,6 @@ export default function TenantPage() {
         message={toastMessage}
         onClose={() => setToastOpen(false)}
       />
-    </div>
+    </AppLayout>
   );
 }

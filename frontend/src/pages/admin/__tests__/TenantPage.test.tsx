@@ -10,6 +10,11 @@ import * as useTenantModule from '../../../hooks/useTenant';
 import * as useCurrentUserModule from '../../../hooks/useCurrentUser';
 import { ApiClientError } from '../../../api/client';
 
+// AppLayout をモックし、children をそのまま描画する（auth store 依存を排除）。
+vi.mock('../../../components/layout/AppLayout', () => ({
+  default: ({ children }: { children: React.ReactNode }) => <div data-testid="app-layout">{children}</div>,
+}));
+
 function createQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 }
