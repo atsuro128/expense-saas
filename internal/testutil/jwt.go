@@ -74,6 +74,34 @@ func GenerateTestToken(t *testing.T, userID, tenantID, role string) string {
 	return signed
 }
 
+// GenerateTestRefreshToken は指定した jti・userID・expiry で RS256 署名済み JWT リフレッシュトークンを生成する。
+// テスト鍵ペアで署名し、token_type="refresh" を設定する。
+// expiry に過去時刻を渡すと期限切れトークンを生成できる。
+func GenerateTestRefreshToken(t *testing.T, jti, userID string, expiry time.Time) string {
+	t.Helper()
+
+	kp := GenerateTestKeyPair(t)
+
+	now := time.Now()
+	claims := appjwt.Claims{
+		UserID:    userID,
+		TokenType: "refresh",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			ID:        jti,
+			IssuedAt:  gojwt.NewNumericDate(now),
+			ExpiresAt: gojwt.NewNumericDate(expiry),
+		},
+	}
+
+	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	signed, err := token.SignedString(kp.PrivateKey)
+	if err != nil {
+		t.Fatalf("testutil: failed to sign refresh JWT: %v", err)
+	}
+	return signed
+}
+
 // TestVerifier は共有テスト公開鍵をバックエンドとする jwt.Verifier を生成して返す。
 func TestVerifier(t *testing.T) *appjwt.Verifier {
 	t.Helper()
