@@ -15,11 +15,13 @@ export interface MyReportsParams {
 
 // useMyReports: GET /api/reports — 自分のレポート一覧を取得する Hook のスタブ。
 // スタブ実装では常に空データを返す。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useMyReports(_params?: MyReportsParams): UseQueryResult<ApiListResponse<ExpenseReportSummary>> {
   throw new Error('useMyReports is not implemented yet');
 }
 
 // useReport: GET /api/reports/:id — レポート詳細を取得する Hook のスタブ。
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function useReport(_reportId?: string): UseQueryResult<ApiResponse<ExpenseReportDetail>> {
   throw new Error('useReport is not implemented yet');
 }
