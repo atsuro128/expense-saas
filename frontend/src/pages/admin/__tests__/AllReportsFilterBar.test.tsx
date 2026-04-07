@@ -2,7 +2,7 @@
 // TNT-FE-024〜029 に対応する。
 // AppSelect / AppDatePicker 共通コンポーネントを使用した実装に対応する。
 
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, beforeEach, afterEach } from 'vitest';
 
@@ -15,10 +15,9 @@ vi.mock('../../../components/ui/AppSelect', () => ({
   ),
 }));
 vi.mock('../../../components/ui/AppDatePicker', () => ({
-  default: (props: { label: string; value: string | null; onChange: (v: string | null) => void; error?: string }) => (
+  default: (props: { label: string; value: string | null; onChange: (v: string | null) => void; errorMessage?: string }) => (
     <div>
       <input type="date" aria-label={props.label} value={props.value ?? ''} onChange={(e) => props.onChange(e.target.value || null)} />
-      {props.error && <p role="alert">{props.error}</p>}
     </div>
   ),
 }));
@@ -61,21 +60,21 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    // ステータスセレクト（AppSelect は MUI Select で role="combobox"）。
+    // ステータスセレクト（AppSelect モック = ネイティブ select で role="combobox"）。
     expect(screen.getByRole('combobox', { name: 'ステータス' })).toBeInTheDocument();
 
-    // 期間（開始日）の入力（AppDatePicker は textfield に name/id を設定）。
+    // 期間（開始日）の入力（AppDatePicker モック = input[type="date"]）。
     expect(screen.getByLabelText('期間（開始日）')).toBeInTheDocument();
 
     // 期間（終了日）の入力。
     expect(screen.getByLabelText('期間（終了日）')).toBeInTheDocument();
 
-    // 申請者セレクト。
+    // 申請者セレクト（AppSelect モック = ネイティブ select で role="combobox"）。
     expect(screen.getByRole('combobox', { name: '申請者' })).toBeInTheDocument();
   });
 
   // TNT-FE-025: ステータス変更時に onFilterChange が呼ばれること。
-  // AppSelect（MUI Select）は click + option 選択で操作する。
+  // AppSelect モック（ネイティブ select）は userEvent.selectOptions で操作する。
   it('TNT-FE-025: ステータスセレクトで「提出済み」を選択すると onFilterChange が呼ばれる', async () => {
     const user = userEvent.setup();
 
@@ -88,12 +87,8 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    // MUI Select を開く。
-    await user.click(screen.getByRole('combobox', { name: 'ステータス' }));
-
-    // ドロップダウンリストから「提出済み」を選択する。
-    const listbox = screen.getByRole('listbox');
-    await user.click(within(listbox).getByText('提出済み'));
+    // ネイティブ select で「提出済み」を選択する。
+    await user.selectOptions(screen.getByRole('combobox', { name: 'ステータス' }), 'submitted');
 
     expect(mockOnFilterChange).toHaveBeenCalledWith(
       expect.objectContaining({ status: 'submitted' })
@@ -113,12 +108,8 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    // MUI Select（申請者）を開く。
-    await user.click(screen.getByRole('combobox', { name: '申請者' }));
-
-    // ドロップダウンリストから「User1」を選択する。
-    const listbox = screen.getByRole('listbox');
-    await user.click(within(listbox).getByText('User1'));
+    // ネイティブ select（申請者）で「User1」（value="u1"）を選択する。
+    await user.selectOptions(screen.getByRole('combobox', { name: '申請者' }), 'u1');
 
     expect(mockOnFilterChange).toHaveBeenCalledWith(
       expect.objectContaining({ submitterId: 'u1' })
@@ -126,10 +117,8 @@ describe('AllReportsFilterBar', () => {
   });
 
   // TNT-FE-027: 開始日変更時に onFilterChange が from を含む値で呼ばれること。
-  // AppDatePicker の onChange は YYYY-MM-DD 形式の文字列を渡す。
-  it('TNT-FE-027: 開始日 DatePicker で「2025-01-01」を入力すると from: "2025-01-01" を含む値で onFilterChange が呼ばれる', async () => {
-    const user = userEvent.setup();
-
+  // AppDatePicker モック（input[type="date"]）は fireEvent.change で値を設定する。
+  it('TNT-FE-027: 開始日 DatePicker で「2025-01-01」を入力すると from: "2025-01-01" を含む値で onFilterChange が呼ばれる', () => {
     render(
       <AllReportsFilterBar
         filters={defaultFilters}
@@ -139,9 +128,9 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
+    // input[type="date"] に fireEvent.change で値を設定する（YYYY-MM-DD 形式）。
     const fromInput = screen.getByLabelText('期間（開始日）');
-    await user.type(fromInput, '2025/01/01');
-    await user.tab(); // フォーカスを外す。
+    fireEvent.change(fromInput, { target: { value: '2025-01-01' } });
 
     expect(mockOnFilterChange).toHaveBeenCalledWith(
       expect.objectContaining({ from: '2025-01-01' })
@@ -178,7 +167,7 @@ describe('AllReportsFilterBar', () => {
       />
     );
 
-    // 申請者セレクト（AppSelect）が disabled になること。
-    expect(screen.getByRole('combobox', { name: '申請者' })).toHaveAttribute('aria-disabled', 'true');
+    // ネイティブ select は HTML disabled 属性が付くため toBeDisabled() で検証する。
+    expect(screen.getByRole('combobox', { name: '申請者' })).toBeDisabled();
   });
 });

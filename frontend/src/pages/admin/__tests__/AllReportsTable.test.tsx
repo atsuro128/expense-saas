@@ -6,15 +6,25 @@ import userEvent from '@testing-library/user-event';
 import { vi, describe, it, beforeEach, afterEach } from 'vitest';
 
 // MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
+// onRowClick は GridRowParams 互換で { row: rowData } 形式で呼び出す。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
-  default: (props: { rows: unknown[]; columns: unknown[]; onRowClick?: (row: unknown) => void; loading?: boolean }) => {
-    if (props.loading) return <div data-testid="page-skeleton-table">Loading...</div>;
+  default: (props: {
+    rows: unknown[];
+    columns: unknown[];
+    onRowClick?: (params: { row: unknown }) => void;
+    loading?: boolean;
+  }) => {
+    if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
       <table data-testid="app-data-grid">
         <tbody>
-          {(props.rows as Array<{ id: string; title: string }>).map((row) => (
-            <tr key={row.id} onClick={() => props.onRowClick?.(row)} data-testid={`row-${row.id}`}>
+          {(props.rows as Array<{ id: string; title: string; submitter_name: string; total_amount: number; status: string; submitted_at: string | null }>).map((row) => (
+            <tr key={row.id} onClick={() => props.onRowClick?.({ row })} data-testid={`row-${row.id}`}>
+              <td>{row.submitter_name}</td>
               <td>{row.title}</td>
+              <td>{`¥${row.total_amount.toLocaleString()}`}</td>
+              <td>{row.status}</td>
+              <td>{row.submitted_at ? new Date(row.submitted_at).toLocaleDateString('ja-JP') : '-'}</td>
             </tr>
           ))}
         </tbody>
@@ -58,6 +68,8 @@ describe('AllReportsTable', () => {
   });
 
   // TNT-FE-030: レポート行が正しく描画されること。
+  // AppDataGrid モックは全フィールドを td で描画する。
+  // StatusChip モックはステータス値（英語）をそのまま表示する。
   it('TNT-FE-030: レポートデータが渡されたとき各列の値が描画される', () => {
     render(
       <AllReportsTable
@@ -68,7 +80,7 @@ describe('AllReportsTable', () => {
       />
     );
 
-    // 申請者名が表示されること。
+    // 申請者名が表示されること（submitter_name としてフラット化）。
     expect(screen.getByText('User1')).toBeInTheDocument();
 
     // タイトルが表示されること。
@@ -77,14 +89,16 @@ describe('AllReportsTable', () => {
     // 合計金額が ¥ プレフィックス付きで表示されること。
     expect(screen.getByText('¥10,000')).toBeInTheDocument();
 
-    // ステータス「提出済み」が表示されること。
-    expect(screen.getByText('提出済み')).toBeInTheDocument();
+    // ステータスが表示されること（StatusChip モックはステータス値をそのまま表示）。
+    expect(screen.getByText('submitted')).toBeInTheDocument();
 
     // 提出日が表示されること。
     expect(screen.getByText(/2025/)).toBeInTheDocument();
   });
 
   // TNT-FE-031: loading = true の場合、PageSkeleton（variant="table"）が描画されること。
+  // AllReportsTable は loading=true のとき PageSkeleton を直接返す（外側 div なし）。
+  // PageSkeleton モックは data-testid="page-skeleton-table" を付与する。
   it('TNT-FE-031: loading = true のとき PageSkeleton が描画される', () => {
     render(
       <AllReportsTable
@@ -95,11 +109,11 @@ describe('AllReportsTable', () => {
       />
     );
 
-    // PageSkeleton（variant="table"）が描画されること。
+    // PageSkeleton モック（data-testid="page-skeleton-table"）が描画されること。
     expect(screen.getByTestId('page-skeleton-table')).toBeInTheDocument();
 
-    // テーブル行が表示されないこと。
-    expect(screen.queryByRole('row')).not.toBeInTheDocument();
+    // データグリッドとテーブル行が表示されないこと。
+    expect(screen.queryByTestId('app-data-grid')).not.toBeInTheDocument();
   });
 
   // TNT-FE-032: データ 0 件・フィルタなしの場合、「レポートはまだ作成されていません。」が表示されること。

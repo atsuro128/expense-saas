@@ -71,11 +71,7 @@ export default function AllReportsTable({
 }: AllReportsTableProps) {
   // ローディング中は PageSkeleton（variant="table"）を表示する。
   if (loading) {
-    return (
-      <div data-testid="page-skeleton-table">
-        <PageSkeleton variant="table" />
-      </div>
-    );
+    return <PageSkeleton variant="table" />;
   }
 
   // データが 0 件の場合は EmptyState を表示する。フィルタ有無でメッセージを切り替える。
@@ -83,11 +79,7 @@ export default function AllReportsTable({
     const message = hasActiveFilters
       ? '条件に一致するレポートはありません。フィルタを変更してお試しください。'
       : 'レポートはまだ作成されていません。';
-    return (
-      <div data-testid="empty-state">
-        <EmptyState message={message} />
-      </div>
-    );
+    return <EmptyState message={message} />;
   }
 
   // AppDataGrid の rows に変換する。申請者名は submitter.name をフラットにする。

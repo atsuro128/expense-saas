@@ -1,7 +1,7 @@
 // AllReportsPage のユニットテスト。
 // TNT-FE-016〜023 に対応する。
 
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -30,14 +30,20 @@ vi.mock('../../../components/ui/AppDatePicker', () => ({
     <input type="date" aria-label={props.label} value={props.value ?? ''} onChange={(e) => props.onChange(e.target.value || null)} />
   ),
 }));
+// AppDataGrid モック: GridRowParams 互換で { row: rowData } 形式で onRowClick を呼ぶ。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
-  default: (props: { rows: unknown[]; columns: unknown[]; onRowClick?: (row: unknown) => void; loading?: boolean }) => {
-    if (props.loading) return <div data-testid="page-skeleton-table">Loading...</div>;
+  default: (props: {
+    rows: unknown[];
+    columns: unknown[];
+    onRowClick?: (params: { row: unknown }) => void;
+    loading?: boolean;
+  }) => {
+    if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
       <table data-testid="app-data-grid">
         <tbody>
           {(props.rows as Array<{ id: string; title: string }>).map((row) => (
-            <tr key={row.id} onClick={() => props.onRowClick?.(row)} data-testid={`row-${row.id}`}>
+            <tr key={row.id} onClick={() => props.onRowClick?.({ row })} data-testid={`row-${row.id}`}>
               <td>{row.title}</td>
             </tr>
           ))}
@@ -344,10 +350,8 @@ describe('AllReportsPage', () => {
       expect(screen.getByTestId('all-reports-filter-bar')).toBeInTheDocument();
     });
 
-    // ステータスセレクト（AppSelect = MUI Select）を開いて「提出済み」を選択する。
-    await user.click(screen.getByRole('combobox', { name: 'ステータス' }));
-    const listbox = screen.getByRole('listbox');
-    await user.click(within(listbox).getByText('提出済み'));
+    // ステータスセレクト（AppSelect モック = ネイティブ select）で「提出済み」を選択する。
+    await user.selectOptions(screen.getByRole('combobox', { name: 'ステータス' }), 'submitted');
 
     // useAllReports が page=1 で呼び出されること（ページがリセットされること）。
     expect(mockUseAllReports).toHaveBeenCalledWith(
