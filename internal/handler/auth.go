@@ -211,20 +211,8 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// テスト期待値に合わせて user_id, tenant_id フィールドを含むレスポンスを返す。
-	middleware.RespondJSON(w, http.StatusOK, map[string]any{
-		"data": map[string]any{
-			"user_id":   profile.ID.String(),
-			"name":      profile.Name,
-			"email":     profile.Email,
-			"role":      string(profile.Role),
-			"tenant_id": profile.Tenant.ID.String(),
-			"tenant": map[string]any{
-				"id":   profile.Tenant.ID.String(),
-				"name": profile.Tenant.Name,
-			},
-		},
-	})
+	// openapi.yaml UserProfile スキーマに準拠したレスポンスを返す。
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{"data": profile})
 }
 
 // passwordResetRequest は POST /api/auth/password-reset のリクエストボディ。
