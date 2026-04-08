@@ -10,6 +10,9 @@ import (
 )
 
 // buildAuthService はテスト用 DB を使用する AuthService を生成して返すヘルパー。
+// Step 10 で統合テストが本実装に切り替わる際に使用する。
+//
+//lint:ignore U1000 Step 10 で使用予定
 func buildAuthService(t *testing.T, pool *pgxpool.Pool) service.AuthService {
 	t.Helper()
 
@@ -20,4 +23,12 @@ func buildAuthService(t *testing.T, pool *pgxpool.Pool) service.AuthService {
 	passwordResetRepo := postgres.NewPasswordResetRepo(pool)
 
 	return service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
+}
+
+// buildAuthServiceWithoutDB は DB 接続なしで AuthService を生成して返すヘルパー。
+// 全メソッドが ErrNotImplemented を返すスタブ実装の検証に使用する。
+// リポジトリは一切呼び出されないため nil を渡しても安全。
+func buildAuthServiceWithoutDB(t *testing.T) service.AuthService {
+	t.Helper()
+	return service.NewAuthService(nil, nil, nil, nil, nil)
 }
