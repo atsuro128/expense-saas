@@ -1290,9 +1290,11 @@ func TestTenantIsolation_UploadAttachment_OtherTenant_404(t *testing.T) {
 	// テナントA の userMember がテナントB の明細に添付をアップロードする。
 	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments"
 	content := makeJPEGFile(1024)
-	req := buildMultipartRequest(t, url, "file", "test.jpg", "image/jpeg", content)
-	req = srv.AuthRequest(t, http.MethodPost, url, req.Body, testutil.UserMemberID, testutil.TenantAID, "member")
-	req.Header.Set("Content-Type", req.Header.Get("Content-Type"))
+	multipartReq := buildMultipartRequest(t, url, "file", "test.jpg", "image/jpeg", content)
+	multipartContentType := multipartReq.Header.Get("Content-Type")
+	// AuthRequest で認証ヘッダーを設定した後、Content-Type を multipart に戻す。
+	req := srv.AuthRequest(t, http.MethodPost, url, multipartReq.Body, testutil.UserMemberID, testutil.TenantAID, "member")
+	req.Header.Set("Content-Type", multipartContentType)
 	rec := srv.Execute(req)
 
 	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-008）。
