@@ -2,13 +2,17 @@
 // React Hook Form + Zod (passwordResetRequestSchema) でバリデーションを行い、
 // 送信時に onSubmit コールバックを呼び出す。
 
+import TextField from '@mui/material/TextField';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
+import {
+  passwordResetRequestSchema,
+  type PasswordResetRequestInput,
+} from './passwordResetRequestSchema';
 
-/** パスワードリセット要求フォームの入力値。 */
-export interface PasswordResetRequestInput {
-  email: string;
-}
+export type { PasswordResetRequestInput };
 
 export interface PasswordResetRequestFormProps {
   /** フォーム送信時のコールバック。バリデーション通過後に呼ばれる。 */
@@ -22,28 +26,40 @@ export interface PasswordResetRequestFormProps {
 /**
  * PasswordResetRequestForm はパスワードリセット要求フォームを描画する。
  * メールアドレス入力フィールドと送信ボタンを含む。
- * 未実装スタブ: 実装後に react-hook-form + zod を使用する。
+ * React Hook Form + Zod でクライアントサイドバリデーションを実装する。
  */
 export default function PasswordResetRequestForm({
   onSubmit,
   apiError,
   isPending,
 }: PasswordResetRequestFormProps) {
-  // 未実装スタブ。
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const email = (form.elements.namedItem('email') as HTMLInputElement)?.value ?? '';
-    onSubmit({ email });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PasswordResetRequestInput>({
+    resolver: zodResolver(passwordResetRequestSchema),
+  });
+
+  /** バリデーション通過後に data のみを onSubmit に渡すラッパー。 */
+  const handleValidSubmit = (data: PasswordResetRequestInput) => {
+    onSubmit(data);
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <div>
-        <label htmlFor="email">メールアドレス</label>
-        <input id="email" name="email" type="email" disabled={isPending} />
-      </div>
+      <TextField
+        {...register('email')}
+        id="email"
+        label="メールアドレス"
+        type="email"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.email}
+        helperText={errors.email?.message}
+        sx={{ mb: 2 }}
+      />
       <SubmitButton label="送信" loading={isPending} />
     </form>
   );

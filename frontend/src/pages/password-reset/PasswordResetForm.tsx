@@ -3,17 +3,21 @@
 // 送信時に onSubmit コールバックを呼び出す。
 // confirm_password は API に送信せず、フロントエンドのみのバリデーション用。
 
+import TextField from '@mui/material/TextField';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
+import { passwordResetSchema, type PasswordResetSchemaInput } from './passwordResetSchema';
 
-/** パスワードリセット実行フォームの入力値。 */
+/** パスワードリセット実行フォームの入力値（API 送信用: confirm_password を除く）。 */
 export interface PasswordResetInput {
   /** 新しいパスワード（API に送信する）。 */
   new_password: string;
 }
 
 export interface PasswordResetFormProps {
-  /** フォーム送信時のコールバック。バリデーション通過後に呼ばれる。 */
+  /** フォーム送信時のコールバック。バリデーション通過後に呼ばれる（new_password のみ）。 */
   onSubmit: (data: PasswordResetInput) => void;
   /** API エラーメッセージ（フォーム上部に Alert 表示）。null の場合は非表示。 */
   apiError: string | null;
@@ -24,29 +28,49 @@ export interface PasswordResetFormProps {
 /**
  * PasswordResetForm はパスワードリセット実行フォームを描画する。
  * 新しいパスワードと確認用パスワードの入力フィールドを含む。
- * 未実装スタブ: 実装後に react-hook-form + zod を使用する。
+ * confirm_password はフロントエンドのみのバリデーション用で、API には送信しない。
+ * React Hook Form + Zod でクライアントサイドバリデーションを実装する。
  */
 export default function PasswordResetForm({ onSubmit, apiError, isPending }: PasswordResetFormProps) {
-  // 未実装スタブ。
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const new_password = (form.elements.namedItem('new_password') as HTMLInputElement)?.value ?? '';
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<PasswordResetSchemaInput>({
+    resolver: zodResolver(passwordResetSchema),
+  });
+
+  /** バリデーション通過後に new_password のみを onSubmit に渡すラッパー。 */
+  const handleValidSubmit = (data: PasswordResetSchemaInput) => {
     // confirm_password は API に送信しない。
-    onSubmit({ new_password });
+    onSubmit({ new_password: data.new_password });
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <div>
-        <label htmlFor="new_password">新しいパスワード</label>
-        <input id="new_password" name="new_password" type="password" disabled={isPending} />
-      </div>
-      <div>
-        <label htmlFor="confirm_password">パスワード（確認）</label>
-        <input id="confirm_password" name="confirm_password" type="password" disabled={isPending} />
-      </div>
+      <TextField
+        {...register('new_password')}
+        id="new_password"
+        label="新しいパスワード"
+        type="password"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.new_password}
+        helperText={errors.new_password?.message}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        {...register('confirm_password')}
+        id="confirm_password"
+        label="パスワード（確認）"
+        type="password"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.confirm_password}
+        helperText={errors.confirm_password?.message}
+        sx={{ mb: 2 }}
+      />
       <SubmitButton label="パスワードを変更する" loading={isPending} />
     </form>
   );

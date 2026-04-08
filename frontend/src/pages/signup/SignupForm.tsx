@@ -2,16 +2,14 @@
 // React Hook Form + Zod (signupSchema) でクライアントサイドバリデーションを行い、
 // 送信時に onSubmit コールバックを呼び出す。
 
+import TextField from '@mui/material/TextField';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
+import { signupSchema, type SignupInput } from './signupSchema';
 
-/** サインアップフォームの入力値。 */
-export interface SignupInput {
-  company_name: string;
-  user_name: string;
-  email: string;
-  password: string;
-}
+export type { SignupInput };
 
 export interface SignupFormProps {
   /** フォーム送信時のコールバック。バリデーション通過後に呼ばれる。 */
@@ -25,39 +23,69 @@ export interface SignupFormProps {
 /**
  * SignupForm はサインアップフォームを描画する。
  * 会社名、ユーザー名、メールアドレス、パスワードの入力フィールドを含む。
- * 未実装スタブ: 実装後に react-hook-form + zod を使用する。
+ * React Hook Form + Zod でクライアントサイドバリデーションを実装する。
  */
 export default function SignupForm({ onSubmit, apiError, isPending }: SignupFormProps) {
-  // 未実装スタブ。
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const company_name = (form.elements.namedItem('company_name') as HTMLInputElement)?.value ?? '';
-    const user_name = (form.elements.namedItem('user_name') as HTMLInputElement)?.value ?? '';
-    const email = (form.elements.namedItem('email') as HTMLInputElement)?.value ?? '';
-    const password = (form.elements.namedItem('password') as HTMLInputElement)?.value ?? '';
-    onSubmit({ company_name, user_name, email, password });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<SignupInput>({
+    resolver: zodResolver(signupSchema),
+  });
+
+  /** バリデーション通過後に data のみを onSubmit に渡すラッパー。 */
+  const handleValidSubmit = (data: SignupInput) => {
+    onSubmit(data);
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <div>
-        <label htmlFor="company_name">会社名</label>
-        <input id="company_name" name="company_name" type="text" disabled={isPending} />
-      </div>
-      <div>
-        <label htmlFor="user_name">ユーザー名</label>
-        <input id="user_name" name="user_name" type="text" disabled={isPending} />
-      </div>
-      <div>
-        <label htmlFor="email">メールアドレス</label>
-        <input id="email" name="email" type="email" disabled={isPending} />
-      </div>
-      <div>
-        <label htmlFor="password">パスワード</label>
-        <input id="password" name="password" type="password" disabled={isPending} />
-      </div>
+      <TextField
+        {...register('company_name')}
+        id="company_name"
+        label="会社名"
+        type="text"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.company_name}
+        helperText={errors.company_name?.message}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        {...register('user_name')}
+        id="user_name"
+        label="ユーザー名"
+        type="text"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.user_name}
+        helperText={errors.user_name?.message}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        {...register('email')}
+        id="email"
+        label="メールアドレス"
+        type="email"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.email}
+        helperText={errors.email?.message}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        {...register('password')}
+        id="password"
+        label="パスワード"
+        type="password"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.password}
+        helperText={errors.password?.message}
+        sx={{ mb: 2 }}
+      />
       <SubmitButton label="新規登録" loading={isPending} />
     </form>
   );
