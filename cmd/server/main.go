@@ -106,7 +106,7 @@ func main() {
 	hasher := domain.NewArgon2idHasher()
 
 	// サービス。
-	authSvc := service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
+	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
 	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
