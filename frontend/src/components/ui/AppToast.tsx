@@ -68,6 +68,8 @@ export default function AppToast({
         severity={severity as AlertColor}
         variant="filled"
         sx={{ width: '100%' }}
+        data-testid="app-toast"
+        data-severity={severity}
       >
         {message}
       </Alert>

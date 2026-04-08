@@ -2,6 +2,7 @@
 // React Hook Form + Zod でクライアントサイドバリデーションを行い、送信時に onSubmit コールバックを呼び出す。
 // SCR-RPT-002（レポート作成）、SCR-RPT-003（レポート編集）で共有する。
 
+import { useEffect } from 'react';
 import Box from '@mui/material/Box';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod/v4';
@@ -23,9 +24,9 @@ export const reportFormSchema = z
       .min(1, 'タイトルを入力してください')
       // V2: 200文字以内
       .max(200, 'タイトルは200文字以内で入力してください'),
-    // V3: 開始日必須
+    // V3: 開始日（サーバー側バリデーションを信頼境界とし、フロント側は補助）
     periodStart: z.string().min(1, '開始日を入力してください'),
-    // V4: 終了日必須
+    // V4: 終了日（サーバー側バリデーションを信頼境界とし、フロント側は補助）
     periodEnd: z.string().min(1, '終了日を入力してください'),
   })
   // V5: 開始日 <= 終了日
@@ -73,6 +74,7 @@ export default function ReportForm({
   const {
     control,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -81,6 +83,16 @@ export default function ReportForm({
     mode: 'onBlur',
     reValidateMode: 'onChange',
   });
+
+  /**
+   * defaultValues が変更されたとき（?ref でプリフィルされるとき等）フォームをリセットする。
+   * useForm の defaultValues はマウント時のみ反映されるため、非同期で取得された値を反映させるには reset が必要。
+   */
+  useEffect(() => {
+    if (defaultValues) {
+      reset(defaultValues);
+    }
+  }, [defaultValues, reset]);
 
   return (
     <Box component="form" onSubmit={handleSubmit(onSubmit)} noValidate>

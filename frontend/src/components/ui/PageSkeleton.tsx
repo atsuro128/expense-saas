@@ -69,13 +69,26 @@ function FormSkeleton() {
 /**
  * PageSkeleton は API 通信中のローディング表示を提供する。
  * variant で一覧・詳細・フォームのパターンを切り替える。
+ * テスト識別のため data-testid と data-variant を付与する。
  */
 export default function PageSkeleton({ variant, rows = 5 }: PageSkeletonProps) {
   if (variant === 'table') {
-    return <TableSkeleton rows={rows} />;
+    return (
+      <Box data-testid="page-skeleton" data-variant="table">
+        <TableSkeleton rows={rows} />
+      </Box>
+    );
   }
   if (variant === 'card') {
-    return <CardSkeleton />;
+    return (
+      <Box data-testid="page-skeleton" data-variant="card">
+        <CardSkeleton />
+      </Box>
+    );
   }
-  return <FormSkeleton />;
+  return (
+    <Box data-testid="page-skeleton" data-variant="form">
+      <FormSkeleton />
+    </Box>
+  );
 }
