@@ -10,6 +10,9 @@ import (
 )
 
 // buildAuthService はテスト用 DB を使用する AuthService を生成して返すヘルパー。
+// Step 10 で統合テストが本実装に切り替わる際に使用する。
+//
+//lint:ignore U1000 Step 10 で使用予定
 func buildAuthService(t *testing.T, pool *pgxpool.Pool) service.AuthService {
 	t.Helper()
 
