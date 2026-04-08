@@ -1,13 +1,13 @@
 // useUploadAttachment Hook のユニットテスト。
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
-// MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
-// useUploadAttachment は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-036〜040 に対応する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { useUploadAttachment } from '../useUploadAttachment';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -19,43 +19,7 @@ function createWrapper() {
   );
 }
 
-// useUploadAttachment のスタブ Hook: multipart/form-data で POST /api/reports/{id}/items/{itemId}/attachments を呼ぶ。
-interface UploadParams {
-  reportId: string;
-  itemId: string;
-  file: File;
-}
-
-function useUploadAttachmentStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ reportId, itemId, file }: UploadParams) => {
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const res = await fetch(
-        `/api/reports/${reportId}/items/${itemId}/attachments`,
-        {
-          method: 'POST',
-          body: formData,
-        },
-      );
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: { id: string; file_name: string; mime_type: string; file_size: number } };
-      return data.data;
-    },
-    onSuccess: (_data, { reportId }) => {
-      // レポート詳細のキャッシュを無効化して添付一覧を再取得する。
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
-    },
-  });
-}
-
-describe('useUploadAttachment（スタブ）', () => {
+describe('useUploadAttachment', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -87,7 +51,7 @@ describe('useUploadAttachment（スタブ）', () => {
       json: async () => mockCreatedAttachment,
     } as unknown as Response);
 
-    const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUploadAttachment(), { wrapper: createWrapper() });
 
     const testFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
 
@@ -100,15 +64,14 @@ describe('useUploadAttachment（スタブ）', () => {
     });
 
     // 正しい URL と method で fetch が呼ばれること
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/reports/report-001/items/item-001/attachments',
-      expect.objectContaining({ method: 'POST' }),
-    );
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain('/api/reports/report-001/items/item-001/attachments');
+    const calledOptions = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
+    expect(calledOptions?.method).toBe('POST');
     // リクエストボディが FormData であること
-    const calledBody = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]?.body;
-    expect(calledBody).toBeInstanceOf(FormData);
-    // 返却値が 'att-new' であること
-    expect(result.current.data?.id).toBe('att-new');
+    expect(calledOptions?.body).toBeInstanceOf(FormData);
+    // 返却値に添付情報が含まれること（ApiResponse<Attachment> 形式）
+    expect(result.current.data?.data.id).toBe('att-new');
   });
 
   // ATT-FE-037: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
@@ -118,7 +81,7 @@ describe('useUploadAttachment（スタブ）', () => {
       status: 201,
       headers: { get: () => null },
       json: async () => ({
-        data: { id: 'att-001', file_name: 'receipt.jpg', mime_type: 'image/jpeg', file_size: 1024 },
+        data: { id: 'att-001', file_name: 'receipt.jpg', mime_type: 'image/jpeg', file_size: 1024, item_id: 'item-001', created_at: '2026-03-01T00:00:00Z' },
       }),
     } as unknown as Response);
 
@@ -131,7 +94,7 @@ describe('useUploadAttachment（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper });
+    const { result } = renderHook(() => useUploadAttachment(), { wrapper });
 
     const testFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
 
@@ -162,7 +125,7 @@ describe('useUploadAttachment（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUploadAttachment(), { wrapper: createWrapper() });
 
     const gifFile = new File([new ArrayBuffer(1024)], 'receipt.gif', { type: 'image/gif' });
 
@@ -173,8 +136,8 @@ describe('useUploadAttachment（スタブ）', () => {
     });
 
     expect(result.current.isError).toBe(true);
-    const error = result.current.error as { code?: string };
-    expect(error.code).toBe('INVALID_FILE_TYPE');
+    // ApiClientError は code プロパティを持つ
+    expect((result.current.error as { code?: string })?.code).toBe('INVALID_FILE_TYPE');
   });
 
   // ATT-FE-039: API が 413 FILE_TOO_LARGE を返すと isError=true になる（サイズ超過）。
@@ -188,7 +151,7 @@ describe('useUploadAttachment（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUploadAttachment(), { wrapper: createWrapper() });
 
     // 5MB を超えるファイル（5,242,881 B）
     const largeFile = new File([new ArrayBuffer(5242881)], 'large.jpg', { type: 'image/jpeg' });
@@ -200,8 +163,7 @@ describe('useUploadAttachment（スタブ）', () => {
     });
 
     expect(result.current.isError).toBe(true);
-    const error = result.current.error as { code?: string };
-    expect(error.code).toBe('FILE_TOO_LARGE');
+    expect((result.current.error as { code?: string })?.code).toBe('FILE_TOO_LARGE');
   });
 
   // ATT-FE-040: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる（非 draft 状態）。
@@ -215,7 +177,7 @@ describe('useUploadAttachment（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useUploadAttachment(), { wrapper: createWrapper() });
 
     const testFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
 
@@ -226,7 +188,6 @@ describe('useUploadAttachment（スタブ）', () => {
     });
 
     expect(result.current.isError).toBe(true);
-    const error = result.current.error as { code?: string };
-    expect(error.code).toBe('REPORT_NOT_EDITABLE');
+    expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_EDITABLE');
   });
 });

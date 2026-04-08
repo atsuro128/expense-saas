@@ -1,13 +1,13 @@
 // useAttachments Hook のユニットテスト。
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
-// MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
-// useAttachments は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-029〜032 に対応する。
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { useAttachments } from '../useAttachments';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -19,24 +19,7 @@ function createWrapper() {
   );
 }
 
-// useAttachments のスタブ Hook: GET /api/reports/{id}/items/{itemId}/attachments を呼ぶ。
-interface UseAttachmentsParams {
-  reportId: string;
-  itemId: string;
-}
-
-function useAttachmentsStub({ reportId, itemId }: UseAttachmentsParams) {
-  return useQuery({
-    queryKey: ['attachments', reportId, itemId],
-    queryFn: async () => {
-      const res = await fetch(`/api/reports/${reportId}/items/${itemId}/attachments`);
-      if (!res.ok) throw new Error('API error');
-      return res.json() as Promise<unknown>;
-    },
-  });
-}
-
-describe('useAttachments（スタブ）', () => {
+describe('useAttachments', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -61,6 +44,12 @@ describe('useAttachments（スタブ）', () => {
           created_at: '2026-03-01T00:00:00Z',
         },
       ],
+      pagination: {
+        current_page: 1,
+        per_page: 20,
+        total_count: 1,
+        total_pages: 1,
+      },
     };
 
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -71,7 +60,7 @@ describe('useAttachments（スタブ）', () => {
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => useAttachmentsStub({ reportId: 'report-001', itemId: 'item-001' }),
+      () => useAttachments({ reportId: 'report-001', itemId: 'item-001' }),
       { wrapper: createWrapper() },
     );
 
@@ -80,10 +69,11 @@ describe('useAttachments（スタブ）', () => {
     });
 
     // 正しい URL で fetch が呼ばれること
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/reports/report-001/items/item-001/attachments',
-    );
-    expect(result.current.data).toEqual(mockAttachments);
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain('/api/reports/report-001/items/item-001/attachments');
+    // レスポンスデータに添付ファイル一覧が含まれること
+    expect(result.current.data?.data).toBeInstanceOf(Array);
+    expect(result.current.data?.data[0]?.id).toBe('att-001');
   });
 
   // ATT-FE-030: API モックが空配列を返す場合、data.data が空配列になる。
@@ -92,11 +82,14 @@ describe('useAttachments（スタブ）', () => {
       ok: true,
       status: 200,
       headers: { get: () => null },
-      json: async () => ({ data: [] }),
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => useAttachmentsStub({ reportId: 'report-001', itemId: 'item-001' }),
+      () => useAttachments({ reportId: 'report-001', itemId: 'item-001' }),
       { wrapper: createWrapper() },
     );
 
@@ -104,8 +97,7 @@ describe('useAttachments（スタブ）', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    const data = result.current.data as { data: unknown[] };
-    expect(data.data).toEqual([]);
+    expect(result.current.data?.data).toEqual([]);
   });
 
   // ATT-FE-031: queryKey が ['attachments', reportId, itemId] であること。
@@ -114,7 +106,10 @@ describe('useAttachments（スタブ）', () => {
       ok: true,
       status: 200,
       headers: { get: () => null },
-      json: async () => ({ data: [] }),
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
     } as unknown as Response);
 
     const queryClient = new QueryClient({
@@ -125,7 +120,7 @@ describe('useAttachments（スタブ）', () => {
     );
 
     const { result } = renderHook(
-      () => useAttachmentsStub({ reportId: 'report-001', itemId: 'item-001' }),
+      () => useAttachments({ reportId: 'report-001', itemId: 'item-001' }),
       { wrapper },
     );
 
@@ -133,7 +128,7 @@ describe('useAttachments（スタブ）', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // queryKey が正しく設定されている（キャッシュキーの検証）
+    // queryKey ['attachments', reportId, itemId] でキャッシュが存在すること
     const cachedData = queryClient.getQueryData(['attachments', 'report-001', 'item-001']);
     expect(cachedData).toBeDefined();
   });
@@ -148,7 +143,7 @@ describe('useAttachments（スタブ）', () => {
     } as unknown as Response);
 
     const { result } = renderHook(
-      () => useAttachmentsStub({ reportId: 'report-001', itemId: 'item-001' }),
+      () => useAttachments({ reportId: 'report-001', itemId: 'item-001' }),
       { wrapper: createWrapper() },
     );
 

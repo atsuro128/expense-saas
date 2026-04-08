@@ -1,13 +1,13 @@
 // useDeleteAttachment Hook のユニットテスト。
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
-// MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
-// useDeleteAttachment は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-041〜044 に対応する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { useDeleteAttachment } from '../useDeleteAttachment';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -19,37 +19,7 @@ function createWrapper() {
   );
 }
 
-// useDeleteAttachment のスタブ Hook: DELETE /api/reports/{id}/items/{itemId}/attachments/{attId} を呼ぶ。
-interface DeleteAttachmentParams {
-  reportId: string;
-  itemId: string;
-  attId: string;
-}
-
-function useDeleteAttachmentStub() {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({ reportId, itemId, attId }: DeleteAttachmentParams) => {
-      const res = await fetch(
-        `/api/reports/${reportId}/items/${itemId}/attachments/${attId}`,
-        { method: 'DELETE' },
-      );
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      // 204 No Content
-      return undefined;
-    },
-    onSuccess: (_data, { reportId }) => {
-      // レポート詳細のキャッシュを無効化して添付一覧を再取得する。
-      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
-    },
-  });
-}
-
-describe('useDeleteAttachment（スタブ）', () => {
+describe('useDeleteAttachment', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -70,7 +40,7 @@ describe('useDeleteAttachment（スタブ）', () => {
       json: async () => undefined,
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDeleteAttachment(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -81,10 +51,10 @@ describe('useDeleteAttachment（スタブ）', () => {
     });
 
     // 正しい URL と method で fetch が呼ばれること
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/reports/report-001/items/item-001/attachments/att-001',
-      expect.objectContaining({ method: 'DELETE' }),
-    );
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain('/api/reports/report-001/items/item-001/attachments/att-001');
+    const calledOptions = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
+    expect(calledOptions?.method).toBe('DELETE');
     expect(result.current.isSuccess).toBe(true);
   });
 
@@ -106,7 +76,7 @@ describe('useDeleteAttachment（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useDeleteAttachmentStub(), { wrapper });
+    const { result } = renderHook(() => useDeleteAttachment(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -135,7 +105,7 @@ describe('useDeleteAttachment（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDeleteAttachment(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(
@@ -144,8 +114,8 @@ describe('useDeleteAttachment（スタブ）', () => {
     });
 
     expect(result.current.isError).toBe(true);
-    const error = result.current.error as { status?: number };
-    expect(error.status).toBe(404);
+    // ApiClientError は status プロパティを持つ
+    expect((result.current.error as { status?: number })?.status).toBe(404);
   });
 
   // ATT-FE-044: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる（非 draft 状態）。
@@ -159,7 +129,7 @@ describe('useDeleteAttachment（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteAttachmentStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useDeleteAttachment(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(
@@ -168,7 +138,6 @@ describe('useDeleteAttachment（スタブ）', () => {
     });
 
     expect(result.current.isError).toBe(true);
-    const error = result.current.error as { code?: string };
-    expect(error.code).toBe('REPORT_NOT_EDITABLE');
+    expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_EDITABLE');
   });
 });

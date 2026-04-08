@@ -1,13 +1,13 @@
 // useAttachmentDownload Hook のユニットテスト。
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
-// MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
-// useAttachmentDownload は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-033〜035 に対応する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
-import { QueryClient, QueryClientProvider, useMutation } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { useAttachmentDownload } from '../useAttachmentDownload';
 
 // テスト用プロバイダーラッパー。
 function createWrapper() {
@@ -19,30 +19,7 @@ function createWrapper() {
   );
 }
 
-// useAttachmentDownload のスタブ Hook: GET /api/reports/{id}/items/{itemId}/attachments/{attId} を呼ぶ。
-interface DownloadParams {
-  reportId: string;
-  itemId: string;
-  attId: string;
-}
-
-function useAttachmentDownloadStub() {
-  return useMutation({
-    mutationFn: async ({ reportId, itemId, attId }: DownloadParams) => {
-      const res = await fetch(
-        `/api/reports/${reportId}/items/${itemId}/attachments/${attId}`,
-      );
-      if (!res.ok) {
-        const err = await res.json() as { error: { code: string; message: string } };
-        throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-      }
-      const data = await res.json() as { data: { download_url: string; file_name: string; mime_type: string; file_size: number; expires_at: string } };
-      return data.data;
-    },
-  });
-}
-
-describe('useAttachmentDownload（スタブ）', () => {
+describe('useAttachmentDownload', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -73,7 +50,7 @@ describe('useAttachmentDownload（スタブ）', () => {
       json: async () => mockDownload,
     } as unknown as Response);
 
-    const { result } = renderHook(() => useAttachmentDownloadStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAttachmentDownload(), { wrapper: createWrapper() });
 
     await act(async () => {
       await result.current.mutateAsync({
@@ -84,12 +61,10 @@ describe('useAttachmentDownload（スタブ）', () => {
     });
 
     // 正しい URL で fetch が呼ばれること
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      '/api/reports/report-001/items/item-001/attachments/att-001',
-    );
-    // レスポンスに download_url が含まれること
-    expect(result.current.data).toEqual(mockDownload.data);
-    expect(result.current.data?.download_url).toBe('https://s3.example.com/signed-url?...');
+    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
+    expect(calledUrl).toContain('/api/reports/report-001/items/item-001/attachments/att-001');
+    // レスポンスに download_url が含まれること（ApiResponse<AttachmentDownload> 形式）
+    expect(result.current.data?.data.download_url).toBe('https://s3.example.com/signed-url?...');
   });
 
   // ATT-FE-034: staleTime=0 検証（署名付き URL は毎回取得）。
@@ -122,7 +97,7 @@ describe('useAttachmentDownload（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => useAttachmentDownloadStub(), { wrapper });
+    const { result } = renderHook(() => useAttachmentDownload(), { wrapper });
 
     await act(async () => {
       await result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-001' });
@@ -132,8 +107,8 @@ describe('useAttachmentDownload（スタブ）', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // レスポンスの expires_at が含まれること
-    expect(result.current.data?.expires_at).toBe(expiresAt);
+    // レスポンスの expires_at が含まれること（ApiResponse<AttachmentDownload> 形式）
+    expect(result.current.data?.data.expires_at).toBe(expiresAt);
     // ダウンロード URL 取得はキャッシュ無効化不要（読み取り専用操作）
     expect(invalidateSpy).not.toHaveBeenCalled();
   });
@@ -149,7 +124,7 @@ describe('useAttachmentDownload（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useAttachmentDownloadStub(), { wrapper: createWrapper() });
+    const { result } = renderHook(() => useAttachmentDownload(), { wrapper: createWrapper() });
 
     await act(async () => {
       await expect(
@@ -158,13 +133,13 @@ describe('useAttachmentDownload（スタブ）', () => {
     });
 
     expect(result.current.isError).toBe(true);
-    const error = result.current.error as { status?: number };
-    expect(error.status).toBe(404);
+    // ApiClientError は status プロパティを持つ
+    expect((result.current.error as { status?: number })?.status).toBe(404);
   });
 });
 
-// 403 FORBIDDEN のテスト（定義では ATT-FE-035 に含まれるが、追加検証として実施）。
-describe('useAttachmentDownload — 権限エラー（スタブ）', () => {
+// 403 FORBIDDEN のテスト（ATT-FE-035 の追加検証）。
+describe('useAttachmentDownload — 権限エラー', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -193,19 +168,7 @@ describe('useAttachmentDownload — 権限エラー（スタブ）', () => {
       <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
     );
 
-    const { result } = renderHook(() => {
-      return useMutation({
-        mutationFn: async ({ reportId, itemId, attId }: { reportId: string; itemId: string; attId: string }) => {
-          const res = await fetch(`/api/reports/${reportId}/items/${itemId}/attachments/${attId}`);
-          if (!res.ok) {
-            const err = await res.json() as { error: { code: string; message: string } };
-            throw Object.assign(new Error(err.error.message), { status: res.status, code: err.error.code });
-          }
-          const data = await res.json() as { data: { download_url: string } };
-          return data.data;
-        },
-      });
-    }, { wrapper });
+    const { result } = renderHook(() => useAttachmentDownload(), { wrapper });
 
     await act(async () => {
       await expect(

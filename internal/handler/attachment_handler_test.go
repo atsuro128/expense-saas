@@ -15,10 +15,12 @@ package handler_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"mime/multipart"
 	"net/http"
+	"net/textproto"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -99,12 +101,17 @@ func buildMultipartRequest(t *testing.T, url, fieldName, fileName, contentType s
 	var err error
 	if contentType != "" {
 		// Content-Type を明示的に指定してパートを作成する。
-		h := make(map[string][]string)
-		h["Content-Disposition"] = []string{fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileName)}
-		h["Content-Type"] = []string{contentType}
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileName))
+		h.Set("Content-Type", contentType)
 		part, err = writer.CreatePart(h)
 	} else {
-		part, err = writer.CreateFormFile(fieldName, fileName)
+		// Content-Type ヘッダーを省略したパートを生成する（ATT-010 の検証用）。
+		// CreateFormFile は application/octet-stream を既定で付与するため、
+		// textproto.MIMEHeader に Content-Disposition のみを設定して CreatePart を使う。
+		h := make(textproto.MIMEHeader)
+		h.Set("Content-Disposition", fmt.Sprintf(`form-data; name="%s"; filename="%s"`, fieldName, fileName))
+		part, err = writer.CreatePart(h)
 	}
 	if err != nil {
 		t.Fatalf("buildMultipartRequest: CreateFormFile: %v", err)
@@ -893,8 +900,18 @@ func TestGetAttachmentDownload_Forbidden_Member_NotOwner(t *testing.T) {
 }
 
 // ATT-038: 認可拒否時に S3 署名付き URL 生成処理が呼び出されないことを確認。
-// 注: 実際の S3 モック検証はハンドラ層では困難なため、
-// HTTP レベルで 403 FORBIDDEN が返ることを検証する（ATT-036 と同等）。
+//
+// 検証の限界:
+//   ハンドラ統合テストレベルでは S3 クライアントをモックとして注入する手段がなく、
+//   S3 の PresignGetObject が「実際に呼ばれたかどうか」を直接検証することはできない。
+//   代わりに、403 FORBIDDEN レスポンスが返ることと、レスポンスボディに
+//   download_url フィールドが含まれないことで「URL 発行処理が到達していない」ことを
+//   ハンドラ HTTP レベルで検証する。
+//
+// Step 10 での検証方針:
+//   AttachmentService に S3StorageClient インターフェースを注入し、
+//   テストではモック実装を使って PresignGetObject の呼び出し回数を
+//   アサートする（サービス層のユニットテストで対応予定）。
 func TestGetAttachmentDownload_AuthzCheckedBeforeUrlIssue(t *testing.T) {
 	srv, pool := setupAttachmentTest(t)
 
@@ -911,8 +928,22 @@ func TestGetAttachmentDownload_AuthzCheckedBeforeUrlIssue(t *testing.T) {
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 403 FORBIDDEN が返り、S3 署名付き URL 生成処理が呼ばれないこと（ATT-038）。機能未実装のため現在は失敗する。
+	// 403 FORBIDDEN が返ること（ATT-038）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusForbidden)
+
+	// レスポンスボディに download_url フィールドが含まれないこと。
+	// 403 の場合はエラーレスポンスが返るため、download_url は存在しないはず。
+	var body struct {
+		Data *struct {
+			DownloadURL *string `json:"download_url"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err == nil {
+		// パースが成功した場合、data.download_url が nil であること
+		if body.Data != nil && body.Data.DownloadURL != nil {
+			t.Errorf("ATT-038: download_url が含まれていてはならないが、%q が返された（S3 URL 生成が実行されている）", *body.Data.DownloadURL)
+		}
+	}
 }
 
 // --- 3-3. RBAC 異常系 ---
