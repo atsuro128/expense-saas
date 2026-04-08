@@ -10,10 +10,14 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgxpool"
+
 	"expense-saas/internal/domain"
+	"expense-saas/internal/middleware"
 )
 
 type authService struct {
+	pool             *pgxpool.Pool
 	userRepo         domain.UserRepository
 	tenantRepo       domain.TenantRepository
 	membershipRepo   domain.MembershipRepository
@@ -24,8 +28,17 @@ type authService struct {
 	tokenVerifier    domain.TokenVerifier
 }
 
+// dummyHash はタイミングサイドチャネル攻撃防止用のダミーハッシュ。
+// ユーザー不存在時もパスワード検証と同等の計算コストを発生させる（SEC-011）。
+var dummyHash = func() string {
+	h := domain.NewArgon2idHasher()
+	hash, _ := h.HashPassword("dummy-password-for-timing")
+	return hash
+}()
+
 // NewAuthService は AuthService を生成して返す。
 func NewAuthService(
+	pool *pgxpool.Pool,
 	userRepo domain.UserRepository,
 	tenantRepo domain.TenantRepository,
 	membershipRepo domain.MembershipRepository,
@@ -36,6 +49,7 @@ func NewAuthService(
 	tokenVerifier domain.TokenVerifier,
 ) AuthService {
 	return &authService{
+		pool:             pool,
 		userRepo:         userRepo,
 		tenantRepo:       tenantRepo,
 		membershipRepo:   membershipRepo,
@@ -48,12 +62,12 @@ func NewAuthService(
 }
 
 // Signup は新規テナントと管理者ユーザーを作成し、認証トークンを返す。
-// (a) メール重複チェック, (b) パスワードハッシュ化, (c) テナント作成,
-// (d) ユーザー作成, (e) メンバーシップ作成(role=admin),
-// (f) アクセストークン生成, (g) リフレッシュトークン生成,
-// (h) リフレッシュトークンハッシュ保存, (i) AuthResult 返却。
+// (a) メール重複チェック（トランザクション外）, (b) パスワードハッシュ化（トランザクション外）,
+// (c) トランザクション開始, (d) テナント作成, (e) ユーザー作成,
+// (f) メンバーシップ作成(role=admin), (g) リフレッシュトークン保存,
+// (h) コミット, (i) アクセストークン生成, (j) AuthResult 返却。
 func (s *authService) Signup(ctx context.Context, params SignupParams) (*domain.AuthResult, error) {
-	// (a) メール重複チェック。
+	// (a) メール重複チェック（性能のためトランザクション外で実行）。
 	existing, err := s.userRepo.GetByEmail(ctx, params.Email)
 	if err != nil && !errors.Is(err, domain.ErrResourceNotFound) {
 		return nil, fmt.Errorf("authService.Signup: check email: %w", err)
@@ -62,55 +76,68 @@ func (s *authService) Signup(ctx context.Context, params SignupParams) (*domain.
 		return nil, domain.ErrEmailAlreadyExists
 	}
 
-	// (b) パスワードハッシュ化。
+	// (b) パスワードハッシュ化（性能のためトランザクション外で実行）。
 	passwordHash, err := s.hasher.HashPassword(params.Password)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: hash password: %w", err)
 	}
 
-	// (c) テナント作成。
-	tenant, err := s.tenantRepo.Create(ctx, params.CompanyName)
+	// (c) トランザクション開始（db_schema.md §3.5 集約境界準拠）。
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authService.Signup: begin transaction: %w", err)
+	}
+	// defer でロールバックを保証する。Commit 後は no-op になる。
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// トランザクションをコンテキストに注入してリポジトリ層に伝播する。
+	txCtx := middleware.SetTx(ctx, tx)
+
+	// (d) テナント作成。
+	tenant, err := s.tenantRepo.Create(txCtx, params.CompanyName)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: create tenant: %w", err)
 	}
 
-	// (d) ユーザー作成。
-	user, err := s.userRepo.Create(ctx, params.Email, params.Name, passwordHash)
+	// (e) ユーザー作成。
+	user, err := s.userRepo.Create(txCtx, params.Email, params.Name, passwordHash)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: create user: %w", err)
 	}
 
-	// (e) メンバーシップ作成（role=admin）。
-	membership, err := s.membershipRepo.Create(ctx, tenant.TenantID, user.UserID, domain.RoleAdmin)
+	// (f) メンバーシップ作成（role=admin）。
+	membership, err := s.membershipRepo.Create(txCtx, tenant.TenantID, user.UserID, domain.RoleAdmin)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: create membership: %w", err)
 	}
 
-	// (f) アクセストークン生成。
-	accessToken, err := s.tokenGen.GenerateAccessToken(user.UserID, tenant.TenantID, membership.Role)
-	if err != nil {
-		return nil, fmt.Errorf("authService.Signup: generate access token: %w", err)
-	}
-
-	// (g) リフレッシュトークン生成。
+	// (g) リフレッシュトークン生成・保存（トランザクション内）。
 	refreshToken, err := s.tokenGen.GenerateRefreshToken(user.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: generate refresh token: %w", err)
 	}
-
-	// (h) リフレッシュトークンの JTI を取得してハッシュ保存。
-	// リフレッシュトークンを検証して JTI を取得する。
 	rtClaims, err := s.tokenVerifier.VerifyRefreshToken(refreshToken)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: verify refresh token: %w", err)
 	}
 	tokenHash := sha256Hex(refreshToken)
 	expiresAt := time.Now().Add(7 * 24 * time.Hour)
-	if _, err := s.refreshTokenRepo.Create(ctx, rtClaims.JTI, user.UserID, tokenHash, expiresAt); err != nil {
+	if _, err := s.refreshTokenRepo.Create(txCtx, rtClaims.JTI, user.UserID, tokenHash, expiresAt); err != nil {
 		return nil, fmt.Errorf("authService.Signup: save refresh token: %w", err)
 	}
 
-	// (i) AuthResult 返却。
+	// (h) コミット。
+	if err := tx.Commit(ctx); err != nil {
+		return nil, fmt.Errorf("authService.Signup: commit transaction: %w", err)
+	}
+
+	// (i) アクセストークン生成（コミット後に実施）。
+	accessToken, err := s.tokenGen.GenerateAccessToken(user.UserID, tenant.TenantID, membership.Role)
+	if err != nil {
+		return nil, fmt.Errorf("authService.Signup: generate access token: %w", err)
+	}
+
+	// (j) AuthResult 返却。
 	result := buildAuthResult(user, tenant, membership.Role, accessToken, refreshToken)
 	return result, nil
 }
@@ -123,6 +150,8 @@ func (s *authService) Login(ctx context.Context, email, password string) (*domai
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, domain.ErrResourceNotFound) {
+			// ユーザー不存在でも Argon2id 検証と同等の計算時間を消費する（SEC-011）。
+			_, _ = s.hasher.VerifyPassword(password, dummyHash)
 			return nil, domain.ErrInvalidCredentials
 		}
 		return nil, fmt.Errorf("authService.Login: get user by email: %w", err)
