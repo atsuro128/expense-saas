@@ -55,8 +55,9 @@ describe('useUploadAttachment', () => {
 
     const testFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
 
+    let response: unknown;
     await act(async () => {
-      await result.current.mutateAsync({
+      response = await result.current.mutateAsync({
         reportId: 'report-001',
         itemId: 'item-001',
         file: testFile,
@@ -71,9 +72,8 @@ describe('useUploadAttachment', () => {
     // リクエストボディが FormData であること
     expect(calledOptions?.body).toBeInstanceOf(FormData);
     // 返却値に添付情報が含まれること（ApiResponse<Attachment> 形式）
-    await waitFor(() => {
-      expect(result.current.data?.data.id).toBe('att-new');
-    });
+    // mutateAsync の返り値を直接検証する（result.current.data は再レンダー待ちが必要なため）
+    expect((response as { data: { id: string } })?.data?.id).toBe('att-new');
   });
 
   // ATT-FE-037: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
@@ -131,12 +131,17 @@ describe('useUploadAttachment', () => {
 
     const gifFile = new File([new ArrayBuffer(1024)], 'receipt.gif', { type: 'image/gif' });
 
+    let thrownError: unknown;
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', file: gifFile }),
-      ).rejects.toThrow();
+      try {
+        await result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', file: gifFile });
+      } catch (e) {
+        thrownError = e;
+      }
     });
 
+    // mutateAsync が reject されること
+    expect(thrownError).toBeDefined();
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
@@ -160,12 +165,16 @@ describe('useUploadAttachment', () => {
     // 5MB を超えるファイル（5,242,881 B）
     const largeFile = new File([new ArrayBuffer(5242881)], 'large.jpg', { type: 'image/jpeg' });
 
+    let thrownError: unknown;
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', file: largeFile }),
-      ).rejects.toThrow();
+      try {
+        await result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', file: largeFile });
+      } catch (e) {
+        thrownError = e;
+      }
     });
 
+    expect(thrownError).toBeDefined();
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
@@ -187,12 +196,16 @@ describe('useUploadAttachment', () => {
 
     const testFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
 
+    let thrownError: unknown;
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'submitted-report-001', itemId: 'item-001', file: testFile }),
-      ).rejects.toThrow();
+      try {
+        await result.current.mutateAsync({ reportId: 'submitted-report-001', itemId: 'item-001', file: testFile });
+      } catch (e) {
+        thrownError = e;
+      }
     });
 
+    expect(thrownError).toBeDefined();
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });

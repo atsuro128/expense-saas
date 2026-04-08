@@ -55,9 +55,8 @@ describe('useDeleteAttachment', () => {
     expect(calledUrl).toContain('/api/reports/report-001/items/item-001/attachments/att-001');
     const calledOptions = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1] as RequestInit;
     expect(calledOptions?.method).toBe('DELETE');
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
+    // mutateAsync 完了後に isSuccess が反映されるまで待機する
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
   });
 
   // ATT-FE-042: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
@@ -109,15 +108,17 @@ describe('useDeleteAttachment', () => {
 
     const { result } = renderHook(() => useDeleteAttachment(), { wrapper: createWrapper() });
 
+    let thrownError: unknown;
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-999' }),
-      ).rejects.toThrow();
+      try {
+        await result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-999' });
+      } catch (e) {
+        thrownError = e;
+      }
     });
 
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
+    expect(thrownError).toBeDefined();
+    await waitFor(() => expect(result.current.isError).toBe(true));
     // ApiClientError は status プロパティを持つ
     expect((result.current.error as { status?: number })?.status).toBe(404);
   });
@@ -135,15 +136,17 @@ describe('useDeleteAttachment', () => {
 
     const { result } = renderHook(() => useDeleteAttachment(), { wrapper: createWrapper() });
 
+    let thrownError: unknown;
     await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'submitted-report-001', itemId: 'item-001', attId: 'att-001' }),
-      ).rejects.toThrow();
+      try {
+        await result.current.mutateAsync({ reportId: 'submitted-report-001', itemId: 'item-001', attId: 'att-001' });
+      } catch (e) {
+        thrownError = e;
+      }
     });
 
-    await waitFor(() => {
-      expect(result.current.isError).toBe(true);
-    });
+    expect(thrownError).toBeDefined();
+    await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_EDITABLE');
   });
 });
