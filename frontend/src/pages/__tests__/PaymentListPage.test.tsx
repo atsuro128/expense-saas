@@ -1,6 +1,33 @@
 // PayableReportsPage（PaymentListPage）のユニットテスト。
 // WFL-FE-030〜054 に対応する。
 // SCR-WFL-002（支払待ち一覧）の画面コンポーネントをスタブ実装で検証する。
+//
+// Traceability: test_cases/workflow.md（WFL-FE-030〜WFL-FE-054）
+// WFL-FE-030 → 'WFL-FE-030: renders_payable_reports_page_with_data'
+// WFL-FE-031 → 'WFL-FE-031: manages_filter_state'
+// WFL-FE-032 → 'WFL-FE-032: manages_pagination_state'
+// WFL-FE-033 → 'WFL-FE-033: resets_page_on_filter_change'
+// WFL-FE-034 → 'WFL-FE-034: redirects_non_accounting_on_403'
+// WFL-FE-035 → 'WFL-FE-035: shows_skeleton_when_loading'
+// WFL-FE-036 → 'WFL-FE-036: shows_empty_state_no_filter'
+// WFL-FE-037 → 'WFL-FE-037: shows_empty_state_with_filter'
+// WFL-FE-038 → 'WFL-FE-038: shows_table_with_data'
+// WFL-FE-039 → 'WFL-FE-039: shows_toast_on_server_error'
+// WFL-FE-040 → ページ統合テストで代替（PayableFilterBar デバウンス: WFL-FE-031 に包含）
+// WFL-FE-041 → ページ統合テストで代替（PayableFilterBar リセット: WFL-FE-031/033 に包含）
+// WFL-FE-042 → 'WFL-FE-042: displays_report_count'
+// WFL-FE-043 → ページ統合テストで代替（PayableReportCount 非表示: WFL-FE-036 に包含）
+// WFL-FE-044 → ページ統合テストで代替（PayableReportCount 条件なし: WFL-FE-037 に包含）
+// WFL-FE-045 → 'WFL-FE-045: renders_table_columns'
+// WFL-FE-046 → 'WFL-FE-046: shows_self_label_for_own_report'
+// WFL-FE-047 → 'WFL-FE-047: hides_self_label_for_other_report'
+// WFL-FE-048 → 'WFL-FE-048: navigates_to_detail_on_row_click'
+// WFL-FE-049 → ページ統合テストで代替（PayableReportTable スケルトン: WFL-FE-035 に包含）
+// WFL-FE-050 → ページ統合テストで代替（PayableReportTable 空状態: WFL-FE-036 に包含）
+// WFL-FE-051 → 'WFL-FE-051: renders_approved_date_column'
+// WFL-FE-052 → usePayableReports.test.tsx: 'WFL-FE-052: fetches_payable_reports_with_params'
+// WFL-FE-053 → usePayableReports.test.tsx: 'WFL-FE-053: uses_correct_query_key'
+// WFL-FE-054 → usePayableReports.test.tsx: 'WFL-FE-054: respects_stale_time'
 
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
