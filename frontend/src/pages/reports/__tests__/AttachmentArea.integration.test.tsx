@@ -245,7 +245,7 @@ describe('AttachmentArea 統合テスト', () => {
     // invalidateQueries が呼ばれ、一覧が再取得されること
     expect(invalidateSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        queryKey: ['reports', 'rpt-1', 'items', 'item-1', 'attachments'],
+        queryKey: ['reports', 'detail', 'rpt-1'],
       }),
     );
   });

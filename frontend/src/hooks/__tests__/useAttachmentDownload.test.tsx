@@ -3,7 +3,7 @@
 // MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-033〜035 に対応する。
 
-import { renderHook, act, waitFor } from '@testing-library/react';
+import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
@@ -12,11 +12,11 @@ import { useAttachmentDownload } from '../useAttachmentDownload';
 // テスト用プロバイダーラッパー。
 function createWrapper() {
   const queryClient = new QueryClient({
-    defaultOptions: { mutations: { retry: false } },
+    defaultOptions: { queries: { retry: false } },
   });
-  return ({ children }: { children: ReactNode }) => (
+  return { queryClient, Wrapper: ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-  );
+  ) };
 }
 
 describe('useAttachmentDownload', () => {
@@ -50,14 +50,14 @@ describe('useAttachmentDownload', () => {
       json: async () => mockDownload,
     } as unknown as Response);
 
-    const { result } = renderHook(() => useAttachmentDownload(), { wrapper: createWrapper() });
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useAttachmentDownload({ reportId: 'report-001', itemId: 'item-001', attId: 'att-001' }),
+      { wrapper: Wrapper },
+    );
 
-    await act(async () => {
-      await result.current.mutateAsync({
-        reportId: 'report-001',
-        itemId: 'item-001',
-        attId: 'att-001',
-      });
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
     });
 
     // 正しい URL で fetch が呼ばれること
@@ -67,50 +67,48 @@ describe('useAttachmentDownload', () => {
     expect(result.current.data?.data.download_url).toBe('https://s3.example.com/signed-url?...');
   });
 
-  // ATT-FE-034: staleTime=0 検証（署名付き URL は毎回取得）。
-  // ミューテーション型のため staleTime は適用されないが、キャッシュ無効化が不要であることを検証する。
-  it('ATT-FE-034: download_url の取得後に attachments キャッシュを変更しない（読み取り専用）', async () => {
-    const expiresAt = '2026-03-01T00:15:00Z';
-    const mockDownload = {
-      data: {
-        download_url: 'https://s3.example.com/signed-url',
-        file_name: 'receipt.jpg',
-        mime_type: 'image/jpeg',
-        file_size: 1024,
-        expires_at: expiresAt,
-      },
-    };
-
-    globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: { get: () => null },
-      json: async () => mockDownload,
-    } as unknown as Response);
-
-    const queryClient = new QueryClient({
-      defaultOptions: { mutations: { retry: false } },
+  // ATT-FE-034: staleTime=0 であること（署名付き URL は毎回取得）。
+  it('ATT-FE-034: staleTime=0 で、同一パラメータでも毎回サーバーから取得する', async () => {
+    let callCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation(async () => {
+      callCount++;
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          data: {
+            download_url: `https://s3.example.com/signed-url-${callCount}`,
+            file_name: 'receipt.jpg',
+            mime_type: 'image/jpeg',
+            file_size: 1024,
+            expires_at: '2026-03-01T00:15:00Z',
+          },
+        }),
+      } as unknown as Response;
     });
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    const { queryClient, Wrapper } = createWrapper();
+    const params = { reportId: 'report-001', itemId: 'item-001', attId: 'att-001' };
+
+    const { result } = renderHook(
+      () => useAttachmentDownload(params),
+      { wrapper: Wrapper },
     );
-
-    const { result } = renderHook(() => useAttachmentDownload(), { wrapper });
-
-    await act(async () => {
-      await result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-001' });
-    });
 
     await waitFor(() => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // レスポンスの expires_at が含まれること（ApiResponse<AttachmentDownload> 形式）
-    expect(result.current.data?.data.expires_at).toBe(expiresAt);
-    // ダウンロード URL 取得はキャッシュ無効化不要（読み取り専用操作）
-    expect(invalidateSpy).not.toHaveBeenCalled();
+    // staleTime=0 のため、invalidate すると即座に refetch される
+    await queryClient.invalidateQueries({
+      queryKey: ['reports', 'report-001', 'items', 'item-001', 'attachments', 'att-001'],
+    });
+
+    await waitFor(() => {
+      // 2回以上 fetch が呼ばれること（staleTime=0 なら即座に refetch）
+      expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThanOrEqual(2);
+    });
   });
 
   // ATT-FE-035: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる（添付不存在）。
@@ -124,15 +122,16 @@ describe('useAttachmentDownload', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useAttachmentDownload(), { wrapper: createWrapper() });
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useAttachmentDownload({ reportId: 'report-001', itemId: 'item-001', attId: 'att-999' }),
+      { wrapper: Wrapper },
+    );
 
-    await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-999' }),
-      ).rejects.toThrow();
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
     });
 
-    expect(result.current.isError).toBe(true);
     // ApiClientError は status プロパティを持つ
     expect((result.current.error as { status?: number })?.status).toBe(404);
   });
@@ -161,21 +160,14 @@ describe('useAttachmentDownload — 権限エラー', () => {
       }),
     } as unknown as Response);
 
-    const queryClient = new QueryClient({
-      defaultOptions: { mutations: { retry: false } },
-    });
-    const wrapper = ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(
+      () => useAttachmentDownload({ reportId: 'report-001', itemId: 'item-001', attId: 'att-001' }),
+      { wrapper: Wrapper },
     );
 
-    const { result } = renderHook(() => useAttachmentDownload(), { wrapper });
-
-    await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-001' }),
-      ).rejects.toThrow();
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
     });
-
-    expect(result.current.isError).toBe(true);
   });
 });

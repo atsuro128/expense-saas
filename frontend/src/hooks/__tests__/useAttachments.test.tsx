@@ -44,12 +44,6 @@ describe('useAttachments', () => {
           created_at: '2026-03-01T00:00:00Z',
         },
       ],
-      pagination: {
-        current_page: 1,
-        per_page: 20,
-        total_count: 1,
-        total_pages: 1,
-      },
     };
 
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -84,7 +78,6 @@ describe('useAttachments', () => {
       headers: { get: () => null },
       json: async () => ({
         data: [],
-        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
       }),
     } as unknown as Response);
 
@@ -108,7 +101,6 @@ describe('useAttachments', () => {
       headers: { get: () => null },
       json: async () => ({
         data: [],
-        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
       }),
     } as unknown as Response);
 

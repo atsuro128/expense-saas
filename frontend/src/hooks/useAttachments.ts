@@ -3,7 +3,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { ApiListResponse, Attachment } from '../api/types';
+import type { ApiResponse, Attachment } from '../api/types';
 
 /** useAttachments のパラメータ。 */
 export interface UseAttachmentsParams {
@@ -21,7 +21,7 @@ export function useAttachments({ reportId, itemId }: UseAttachmentsParams) {
   return useQuery({
     queryKey: ['reports', reportId, 'items', itemId, 'attachments'],
     queryFn: async () => {
-      return api.get<ApiListResponse<Attachment>>(
+      return api.get<ApiResponse<Attachment[]>>(
         `/api/reports/${reportId}/items/${itemId}/attachments`,
       );
     },

@@ -1,14 +1,14 @@
 // useAttachmentDownload Hook: GET /api/reports/{reportId}/items/{itemId}/attachments/{attId} を呼び出して
 // 添付ファイルの署名付きダウンロード URL を取得する。
-// 署名付き URL はリクエストのたびに新たに生成されるため、ミューテーション型で実装する。
+// 署名付き URL は有効期限15分のため staleTime=0 で毎回取得する。
 // 対応テストケース: ATT-FE-033〜035
 
-import { useMutation } from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { ApiResponse, AttachmentDownload } from '../api/types';
 
-/** useAttachmentDownload のミューテーション入力型。 */
-export interface AttachmentDownloadParams {
+/** useAttachmentDownload のパラメータ。 */
+export interface UseAttachmentDownloadParams {
   /** レポート ID。 */
   reportId: string;
   /** 明細 ID。 */
@@ -18,17 +18,18 @@ export interface AttachmentDownloadParams {
 }
 
 /**
- * useAttachmentDownload は GET /api/reports/{reportId}/items/{itemId}/attachments/{attId} を呼び出すミューテーション Hook。
+ * useAttachmentDownload は GET /api/reports/{reportId}/items/{itemId}/attachments/{attId} を呼び出すクエリ Hook。
  * S3 署名付きダウンロード URL を含むレスポンスを返す。
- * 署名付き URL は呼び出しのたびに生成されるため、キャッシュは使用しない。
+ * 署名付き URL は有効期限15分のため、staleTime=0 で毎回サーバーから取得する。
  */
-export function useAttachmentDownload() {
-  return useMutation({
-    mutationFn: async ({ reportId, itemId, attId }: AttachmentDownloadParams) => {
+export function useAttachmentDownload({ reportId, itemId, attId }: UseAttachmentDownloadParams) {
+  return useQuery({
+    queryKey: ['reports', reportId, 'items', itemId, 'attachments', attId],
+    queryFn: async () => {
       return api.get<ApiResponse<AttachmentDownload>>(
         `/api/reports/${reportId}/items/${itemId}/attachments/${attId}`,
       );
     },
-    // ダウンロード URL 取得は読み取り専用操作のためキャッシュ無効化不要。
+    staleTime: 0,
   });
 }
