@@ -96,7 +96,7 @@ describe('ReportForm', () => {
     await userEvent.click(screen.getByRole('button', { name: '作成する' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/開始日/)).toBeInTheDocument();
+      expect(screen.getByText('開始日を入力してください')).toBeInTheDocument();
     });
   });
 
@@ -111,7 +111,7 @@ describe('ReportForm', () => {
     await userEvent.click(screen.getByRole('button', { name: '作成する' }));
 
     await waitFor(() => {
-      expect(screen.getByText(/終了日/)).toBeInTheDocument();
+      expect(screen.getByText('終了日を入力してください')).toBeInTheDocument();
     });
   });
 

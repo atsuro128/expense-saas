@@ -25,9 +25,9 @@ export const reportFormSchema = z
       // V2: 200文字以内
       .max(200, 'タイトルは200文字以内で入力してください'),
     // V3: 開始日（サーバー側バリデーションを信頼境界とし、フロント側は補助）
-    periodStart: z.string(),
+    periodStart: z.string().min(1, '開始日を入力してください'),
     // V4: 終了日（サーバー側バリデーションを信頼境界とし、フロント側は補助）
-    periodEnd: z.string(),
+    periodEnd: z.string().min(1, '終了日を入力してください'),
   })
   // V5: 開始日 <= 終了日
   .refine((data) => !data.periodStart || !data.periodEnd || data.periodStart <= data.periodEnd, {

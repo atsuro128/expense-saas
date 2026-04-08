@@ -150,6 +150,15 @@ describe('ReportCreatePage', () => {
     const titleInput = screen.getByRole('textbox', { name: /タイトル/ });
     await user.clear(titleInput);
     await user.type(titleInput, '出張費 3月');
+
+    // 開始日・終了日を入力する（periodStart/periodEnd の min(1) バリデーション通過に必要）。
+    const periodStartInput = document.querySelector('input[name="periodStart"]') as HTMLInputElement;
+    await user.clear(periodStartInput);
+    await user.type(periodStartInput, '2026-03-01');
+    const periodEndInput = document.querySelector('input[name="periodEnd"]') as HTMLInputElement;
+    await user.clear(periodEndInput);
+    await user.type(periodEndInput, '2026-03-31');
+
     const submitButton = screen.getByRole('button', { name: /作成する/ });
     await user.click(submitButton);
 
