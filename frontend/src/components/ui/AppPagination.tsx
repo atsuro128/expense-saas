@@ -31,12 +31,8 @@ export default function AppPagination({
     onPageChange(page);
   };
 
-  if (totalPages <= 1) {
-    return null;
-  }
-
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }} data-testid="app-pagination">
       <Pagination
         count={totalPages}
         page={currentPage}

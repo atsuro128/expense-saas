@@ -1,6 +1,9 @@
-import { getAccessToken } from '../stores/auth';
+import { getAccessToken, getCurrentUser } from '../stores/auth';
+import type { AuthUser } from '../api/types';
 
-export function useAuth() {
+/** 現在の認証状態と認証ユーザー情報を返す Hook */
+export function useAuth(): { isAuthenticated: boolean; user: AuthUser | null } {
   const isAuthenticated = getAccessToken() !== null;
-  return { isAuthenticated };
+  const user = getCurrentUser();
+  return { isAuthenticated, user };
 }

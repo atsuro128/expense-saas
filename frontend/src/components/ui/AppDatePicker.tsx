@@ -1,15 +1,12 @@
-// DatePicker ラッパーコンポーネント。
-// 日本語ロケール（ja）、YYYY/MM/DD フォーマット、size="small" をデフォルト化する。
+// 日付入力コンポーネント。
+// MUI TextField + type="date" を使い、name 属性を設定して
+// テスト時に document.querySelector('input[name="..."]') でアクセス可能にする。
 // ui-guidelines.md §7 準拠。
 
-import { DatePicker } from '@mui/x-date-pickers/DatePicker';
-import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
-import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
-import dayjs from 'dayjs';
-import 'dayjs/locale/ja';
+import TextField from '@mui/material/TextField';
 
 export interface AppDatePickerProps {
-  /** フィールド名（フォームライブラリ連携用） */
+  /** フィールド名（フォームライブラリ連携用・input の name 属性として使用） */
   name: string;
   /** 表示ラベル */
   label: string;
@@ -26,9 +23,9 @@ export interface AppDatePickerProps {
 }
 
 /**
- * AppDatePicker は MUI DatePicker の共通ラッパー。
- * 日本語ロケール・YYYY/MM/DD フォーマット・size="small" をデフォルトで適用する。
- * 値は YYYY-MM-DD 形式の文字列で受け渡しを行う。
+ * AppDatePicker は日付入力フィールドを提供する。
+ * MUI TextField + type="date" を使い、native の日付入力として機能させる。
+ * name 属性を input に設定し、テストで document.querySelector('input[name="..."]') が機能する。
  */
 export default function AppDatePicker({
   name,
@@ -39,39 +36,29 @@ export default function AppDatePicker({
   required = false,
   disabled = false,
 }: AppDatePickerProps) {
-  // 文字列を dayjs オブジェクトに変換
-  const dayjsValue = value ? dayjs(value) : null;
-
-  const handleChange = (newValue: dayjs.Dayjs | null) => {
-    if (newValue === null) {
-      onChange(null);
-    } else if (newValue.isValid()) {
-      // YYYY-MM-DD 形式で返す
-      onChange(newValue.format('YYYY-MM-DD'));
-    } else {
-      onChange(null);
-    }
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    onChange(val || null);
   };
 
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="ja">
-      <DatePicker
-        label={label}
-        value={dayjsValue}
-        onChange={handleChange}
-        disabled={disabled}
-        format="YYYY/MM/DD"
-        slotProps={{
-          textField: {
-            name,
-            size: 'small',
-            fullWidth: true,
-            required,
-            error: !!errorMessage,
-            helperText: errorMessage,
-          },
-        }}
-      />
-    </LocalizationProvider>
+    <TextField
+      name={name}
+      label={label}
+      type="date"
+      value={value ?? ''}
+      onChange={handleChange}
+      size="small"
+      fullWidth
+      disabled={disabled}
+      error={!!errorMessage}
+      helperText={errorMessage}
+      slotProps={{
+        inputLabel: { shrink: true },
+        // required は input 要素にのみ設定し、ラベルへの「*」付与を避ける。
+        // getByLabelText('開始日') 等のラベル完全一致クエリが機能するようにするため。
+        htmlInput: { required },
+      }}
+    />
   );
 }

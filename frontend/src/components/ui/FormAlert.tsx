@@ -23,7 +23,7 @@ export default function FormAlert({ message, severity = 'error' }: FormAlertProp
     return null;
   }
   return (
-    <Alert severity={severity} data-severity={severity} sx={{ mb: 2 }}>
+    <Alert severity={severity} data-severity={severity} data-testid="form-alert" sx={{ mb: 2 }}>
       {message}
     </Alert>
   );
