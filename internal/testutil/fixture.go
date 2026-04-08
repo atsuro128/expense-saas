@@ -512,3 +512,36 @@ func WithAttachmentS3Key(key string) AttachmentOption {
 func MustParseUUID(s string) uuid.UUID {
 	return uuid.MustParse(s)
 }
+
+// GetTransportCategoryID はマイグレーションシードから交通費カテゴリ ID を取得して返す。
+// テストで経費項目を作成する際に使用する。
+func GetTransportCategoryID(t *testing.T, pool *pgxpool.Pool) uuid.UUID {
+	t.Helper()
+
+	var categoryID uuid.UUID
+	if err := pool.QueryRow(context.Background(),
+		`SELECT category_id FROM categories WHERE code = 'transportation' AND tenant_id IS NULL`,
+	).Scan(&categoryID); err != nil {
+		t.Fatalf("testutil: GetTransportCategoryID: %v", err)
+	}
+	return categoryID
+}
+
+// SoftDeleteAttachment は指定した添付ファイルを論理削除する（deleted_at に現在時刻を設定）。
+// ATT-054（削除済み添付への再削除）のテスト前提条件として使用する。
+func SoftDeleteAttachment(t *testing.T, pool *pgxpool.Pool, attachmentID uuid.UUID) {
+	t.Helper()
+
+	conn, err := pool.Acquire(context.Background())
+	if err != nil {
+		t.Fatalf("testutil: SoftDeleteAttachment: acquire connection: %v", err)
+	}
+	defer conn.Release()
+
+	if _, err := conn.Exec(context.Background(),
+		`UPDATE attachments SET deleted_at = NOW() WHERE attachment_id = $1`,
+		attachmentID,
+	); err != nil {
+		t.Fatalf("testutil: SoftDeleteAttachment: %v", err)
+	}
+}
