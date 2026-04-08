@@ -11,6 +11,62 @@ package handler_test
 //   go test ./internal/handler/... -v -tags=integration -run TestListAttachments
 //   go test ./internal/handler/... -v -tags=integration -run TestGetAttachmentDownload
 //   go test ./internal/handler/... -v -tags=integration -run TestDeleteAttachment
+//
+// Traceability: test_cases/attachments.md（ATT-001〜ATT-054）
+// ATT-001 → TestUploadAttachment_Success_JPEG
+// ATT-002 → TestUploadAttachment_Success_PNG
+// ATT-003 → TestUploadAttachment_Success_PDF
+// ATT-004 → TestUploadAttachment_Success_ExactlyMaxSize
+// ATT-005 → TestUploadAttachment_Success_Approver
+// ATT-006 → TestUploadAttachment_FileTooLarge
+// ATT-007 → TestUploadAttachment_InvalidMimeType_GIF
+// ATT-008 → TestUploadAttachment_SpoofedMimeType
+// ATT-009 → TestUploadAttachment_MissingFilePart
+// ATT-010 → TestUploadAttachment_NoContentType
+// ATT-011 → TestUploadAttachment_Unauthorized
+// ATT-012 → TestUploadAttachment_Forbidden_NotOwner
+// ATT-013 → TestUploadAttachment_ReportNotEditable_Submitted
+// ATT-014 → TestUploadAttachment_ReportNotEditable_Approved
+// ATT-015 → TestUploadAttachment_ReportNotEditable_Rejected
+// ATT-016 → TestUploadAttachment_ReportNotEditable_Paid
+// ATT-017 → TestUploadAttachment_ReportNotFound
+// ATT-018 → TestUploadAttachment_ItemNotFound
+// ATT-019 → TestUploadAttachment_ItemBelongsToDifferentReport
+// ATT-020 → TestListAttachments_Success_Owner
+// ATT-021 → TestListAttachments_Success_NoAttachments
+// ATT-022 → TestListAttachments_Success_Admin
+// ATT-023 → TestListAttachments_Success_Accounting
+// ATT-024 → TestListAttachments_Success_Approver_SubmittedReport
+// ATT-025 → TestListAttachments_NoDownloadUrl
+// ATT-026 → TestListAttachments_Unauthorized
+// ATT-027 → TestListAttachments_Forbidden_Member_OtherOwner
+// ATT-028 → TestListAttachments_ReportNotFound
+// ATT-029 → TestListAttachments_ItemNotFound
+// ATT-030 → TestGetAttachmentDownload_Success_Owner
+// ATT-031 → TestGetAttachmentDownload_Success_Admin
+// ATT-032 → TestGetAttachmentDownload_Success_Accounting
+// ATT-033 → TestGetAttachmentDownload_Success_Approver_SubmittedReport
+// ATT-034 → TestGetAttachmentDownload_ExpiresAt_15min
+// ATT-035 → TestGetAttachmentDownload_Unauthorized_NoToken
+// ATT-036 → TestGetAttachmentDownload_Forbidden_Member_OtherOwner
+// ATT-037 → TestGetAttachmentDownload_Forbidden_Member_NotOwner
+// ATT-038 → TestGetAttachmentDownload_AuthzCheckedBeforeUrlIssue
+// ATT-039 → TestGetAttachmentDownload_Approver_DraftReport_Forbidden
+// ATT-040 → TestGetAttachmentDownload_AttachmentNotFound
+// ATT-041 → TestGetAttachmentDownload_ReportNotFound
+// ATT-042 → TestDeleteAttachment_Success
+// ATT-043 → TestDeleteAttachment_Success_SoftDelete_S3NotDeleted
+// ATT-044 → TestDeleteAttachment_Unauthorized
+// ATT-045 → TestDeleteAttachment_Forbidden_NotOwner_Approver
+// ATT-046 → TestDeleteAttachment_Forbidden_NotOwner_Admin
+// ATT-047 → TestDeleteAttachment_Forbidden_NotOwner_Accounting
+// ATT-048 → TestDeleteAttachment_ReportNotEditable_Submitted
+// ATT-049 → TestDeleteAttachment_ReportNotEditable_Approved
+// ATT-050 → TestDeleteAttachment_ReportNotEditable_Paid
+// ATT-051 → TestDeleteAttachment_ReportNotEditable_Rejected
+// ATT-052 → TestDeleteAttachment_NotFound
+// ATT-053 → TestDeleteAttachment_ReportNotFound
+// ATT-054 → TestDeleteAttachment_AlreadyDeleted
 
 import (
 	"bytes"
