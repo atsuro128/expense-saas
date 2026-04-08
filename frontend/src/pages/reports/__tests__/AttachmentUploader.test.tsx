@@ -1,9 +1,12 @@
 // AttachmentUploader コンポーネントのユニットテスト。
 // report-detail.md §AttachmentUploader の Props 仕様に基づくテスト。
 // ATT-FE-016〜028 に対応する。
+//
+// 注意: ATT-FE-018〜027 はスタブコンポーネントのため失敗する。
+// 機能実装後に通過することを意図している（Step 9 の正しい姿）。
 
-import { render, screen, fireEvent } from '@testing-library/react';
-import { vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { vi, beforeEach, afterEach } from 'vitest';
 import AttachmentUploader from '../AttachmentUploader';
 
 // テスト用ファイルオブジェクト生成ヘルパー。
@@ -13,6 +16,17 @@ function createMockFile(name: string, size: number, type: string): File {
 }
 
 describe('AttachmentUploader', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
   // ATT-FE-016: isUploading=false のとき「+ ファイルを追加」ボタンが表示される。
   it('ATT-FE-016: isUploading=false のとき「+ ファイルを追加」テキストが表示される', () => {
     const onUploadSuccess = vi.fn();
@@ -45,9 +59,126 @@ describe('AttachmentUploader', () => {
     expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
   });
 
-  // ATT-FE-018: JPEG ファイルを選択するとクライアントサイドバリデーションを通過する。
-  // スタブコンポーネントのため、ファイル入力の accept 属性で JPEG が受け付けられることを検証する。
-  it('ATT-FE-018: ファイル入力の accept 属性に image/jpeg が含まれる（JPEG 受理）', () => {
+  // ATT-FE-018: JPEG ファイルを選択するとクライアントサイドバリデーションを通過し、mutate が呼ばれる。
+  // スタブコンポーネントでは mutate 呼出が未実装のため失敗する。
+  it('ATT-FE-018: JPEG ファイルを選択すると useUploadAttachment の mutate が呼ばれる', async () => {
+    const onUploadSuccess = vi.fn();
+    // アップロード API モック
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'receipt.jpg',
+          file_size: 1024,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
+
+    render(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+        isUploading={false}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+
+    // ファイル選択イベントを発火する
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // JPEG は許可形式のため mutate が呼ばれ、最終的に fetch（アップロードAPI）が呼ばれること
+    // スタブでは fetch が呼ばれないため失敗する（Step 9 の正しい姿）
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
+  // ATT-FE-019: PNG ファイルを選択するとクライアントサイドバリデーションを通過し、mutate が呼ばれる。
+  // スタブコンポーネントでは mutate 呼出が未実装のため失敗する。
+  it('ATT-FE-019: PNG ファイルを選択すると useUploadAttachment の mutate が呼ばれる', async () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'receipt.png',
+          file_size: 1024,
+          mime_type: 'image/png',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
+
+    render(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+        isUploading={false}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const pngFile = createMockFile('receipt.png', 1024, 'image/png');
+
+    fireEvent.change(fileInput, { target: { files: [pngFile] } });
+
+    // PNG は許可形式のため mutate が呼ばれること（スタブでは失敗する）
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
+  // ATT-FE-020: PDF ファイルを選択するとクライアントサイドバリデーションを通過し、mutate が呼ばれる。
+  // スタブコンポーネントでは mutate 呼出が未実装のため失敗する。
+  it('ATT-FE-020: PDF ファイルを選択すると useUploadAttachment の mutate が呼ばれる', async () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'invoice.pdf',
+          file_size: 1024,
+          mime_type: 'application/pdf',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
+
+    render(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+        isUploading={false}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const pdfFile = createMockFile('invoice.pdf', 1024, 'application/pdf');
+
+    fireEvent.change(fileInput, { target: { files: [pdfFile] } });
+
+    // PDF は許可形式のため mutate が呼ばれること（スタブでは失敗する）
+    expect(globalThis.fetch).toHaveBeenCalled();
+  });
+
+  // ATT-FE-021: GIF ファイルを選択するとバリデーションエラーメッセージが表示される。
+  // スタブコンポーネントではバリデーションエラー表示が未実装のため失敗する。
+  it('ATT-FE-021: GIF ファイルを選択するとバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
     render(
@@ -60,12 +191,18 @@ describe('AttachmentUploader', () => {
     );
 
     const fileInput = screen.getByTestId('attachment-file-input');
-    const accept = fileInput.getAttribute('accept') ?? '';
-    expect(accept).toContain('image/jpeg');
+    const gifFile = createMockFile('animation.gif', 1024, 'image/gif');
+
+    fireEvent.change(fileInput, { target: { files: [gifFile] } });
+
+    // GIF は許可リスト外のためバリデーションエラーメッセージが表示されること
+    // スタブではエラー表示が未実装のため失敗する（Step 9 の正しい姿）
+    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
-  // ATT-FE-019: PNG ファイルを選択するとクライアントサイドバリデーションを通過する。
-  it('ATT-FE-019: ファイル入力の accept 属性に image/png が含まれる（PNG 受理）', () => {
+  // ATT-FE-022: テキストファイルを選択するとバリデーションエラーメッセージが表示される。
+  // スタブコンポーネントではバリデーションエラー表示が未実装のため失敗する。
+  it('ATT-FE-022: TXT ファイルを選択するとバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
     render(
@@ -78,12 +215,18 @@ describe('AttachmentUploader', () => {
     );
 
     const fileInput = screen.getByTestId('attachment-file-input');
-    const accept = fileInput.getAttribute('accept') ?? '';
-    expect(accept).toContain('image/png');
+    const txtFile = createMockFile('notes.txt', 1024, 'text/plain');
+
+    fireEvent.change(fileInput, { target: { files: [txtFile] } });
+
+    // テキストファイルは許可リスト外のためバリデーションエラーメッセージが表示されること
+    // スタブではエラー表示が未実装のため失敗する（Step 9 の正しい姿）
+    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
-  // ATT-FE-020: PDF ファイルを選択するとクライアントサイドバリデーションを通過する。
-  it('ATT-FE-020: ファイル入力の accept 属性に application/pdf が含まれる（PDF 受理）', () => {
+  // ATT-FE-023: 5MB + 1B のファイルを選択するとバリデーションエラーが表示される。
+  // スタブコンポーネントではバリデーションエラー表示が未実装のため失敗する。
+  it('ATT-FE-023: 5MB 超過ファイルを選択するとバリデーションエラーが表示される（境界値）', () => {
     const onUploadSuccess = vi.fn();
 
     render(
@@ -96,76 +239,37 @@ describe('AttachmentUploader', () => {
     );
 
     const fileInput = screen.getByTestId('attachment-file-input');
-    const accept = fileInput.getAttribute('accept') ?? '';
-    expect(accept).toContain('application/pdf');
-  });
-
-  // ATT-FE-021: GIF ファイルは accept 属性に含まれない（GIF 拒否）。
-  it('ATT-FE-021: ファイル入力の accept 属性に image/gif が含まれない（GIF 拒否）', () => {
-    const onUploadSuccess = vi.fn();
-
-    render(
-      <AttachmentUploader
-        reportId="report-001"
-        itemId="item-001"
-        onUploadSuccess={onUploadSuccess}
-        isUploading={false}
-      />,
-    );
-
-    const fileInput = screen.getByTestId('attachment-file-input');
-    const accept = fileInput.getAttribute('accept') ?? '';
-    // GIF は許可リスト外であること
-    expect(accept).not.toContain('image/gif');
-  });
-
-  // ATT-FE-022: テキストファイルは accept 属性に含まれない（TXT 拒否）。
-  it('ATT-FE-022: ファイル入力の accept 属性に text/plain が含まれない（TXT 拒否）', () => {
-    const onUploadSuccess = vi.fn();
-
-    render(
-      <AttachmentUploader
-        reportId="report-001"
-        itemId="item-001"
-        onUploadSuccess={onUploadSuccess}
-        isUploading={false}
-      />,
-    );
-
-    const fileInput = screen.getByTestId('attachment-file-input');
-    const accept = fileInput.getAttribute('accept') ?? '';
-    // テキストファイルは許可リスト外であること
-    expect(accept).not.toContain('text/plain');
-  });
-
-  // ATT-FE-023: 5MB + 1B のファイルを選択するとバリデーションエラー。
-  // スタブコンポーネントのため accept 属性でサイズ制限の説明が表示されることを検証する。
-  it('ATT-FE-023: ファイルサイズ制限 5MB の説明が表示される（5MB 超過拒否）', () => {
-    const onUploadSuccess = vi.fn();
-
-    render(
-      <AttachmentUploader
-        reportId="report-001"
-        itemId="item-001"
-        onUploadSuccess={onUploadSuccess}
-        isUploading={false}
-      />,
-    );
-
-    // 5MB サイズ制限の説明が含まれること（ファイル選択時のバリデーション根拠）
-    const fileTypes = screen.getByTestId('attachment-file-types');
-    expect(fileTypes.textContent).toContain('5');
-    // ファイル入力要素が存在すること
-    expect(screen.getByTestId('attachment-file-input')).toBeInTheDocument();
-    // 5MB超過ファイルの生成（バリデーション仕様の確認）
+    // 5MB + 1B のファイル（境界値超過）
     const tooLargeFile = createMockFile('large.jpg', 5242881, 'image/jpeg');
     expect(tooLargeFile.size).toBe(5242881);
     expect(tooLargeFile.size).toBeGreaterThan(5 * 1024 * 1024);
+
+    fireEvent.change(fileInput, { target: { files: [tooLargeFile] } });
+
+    // サイズ超過のためバリデーションエラーメッセージが表示されること
+    // スタブではエラー表示が未実装のため失敗する（Step 9 の正しい姿）
+    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
   // ATT-FE-024: 5MB ちょうどのファイルは許可される（境界値）。
-  it('ATT-FE-024: 5MB ちょうどのファイルはバリデーション通過（境界値）', () => {
+  // スタブコンポーネントでは mutate 呼出が未実装のため、fetch 呼出チェックは失敗する。
+  it('ATT-FE-024: 5MB ちょうどのファイルはバリデーション通過し mutate が呼ばれる（境界値）', async () => {
     const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'exactly5mb.jpg',
+          file_size: 5242880,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
 
     render(
       <AttachmentUploader
@@ -176,21 +280,40 @@ describe('AttachmentUploader', () => {
       />,
     );
 
-    // ちょうど 5MB のファイルを生成（境界値）
+    const fileInput = screen.getByTestId('attachment-file-input');
+    // ちょうど 5MB のファイル（境界値・許可）
     const exactlyMaxFile = createMockFile('exactly5mb.jpg', 5242880, 'image/jpeg');
     expect(exactlyMaxFile.size).toBe(5242880);
     expect(exactlyMaxFile.size).toBe(5 * 1024 * 1024);
 
-    // ファイル入力にファイルを設定して変更イベントを発火
-    const fileInput = screen.getByTestId('attachment-file-input');
-    // accept 属性で JPEG が受け付けられること（境界値 5MB はクライアント側の accept に依存しない）
-    expect(fileInput.getAttribute('accept')).toContain('image/jpeg');
-    expect(fileInput).not.toBeDisabled();
+    fireEvent.change(fileInput, { target: { files: [exactlyMaxFile] } });
+
+    // ちょうど 5MB はバリデーション通過のため mutate が呼ばれ fetch が実行されること
+    // スタブでは fetch が呼ばれないため失敗する（Step 9 の正しい姿）
+    expect(globalThis.fetch).toHaveBeenCalled();
+    // バリデーションエラーが表示されないこと
+    expect(screen.queryByTestId('attachment-validation-error')).toBeNull();
   });
 
-  // ATT-FE-025: ドラッグ&ドロップで有効なファイルを受け付ける。
-  it('ATT-FE-025: ドロップゾーンへのドラッグ&ドロップでコンポーネントが応答する', () => {
+  // ATT-FE-025: ドラッグ&ドロップで有効なファイルを受け付け、mutate が呼ばれる。
+  // スタブコンポーネントではドロップ処理・mutate 呼出が未実装のため失敗する。
+  it('ATT-FE-025: ドロップゾーンへの JPEG ドラッグ&ドロップで mutate が呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'receipt.jpg',
+          file_size: 1024,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
 
     render(
       <AttachmentUploader
@@ -202,25 +325,24 @@ describe('AttachmentUploader', () => {
     );
 
     const uploader = screen.getByTestId('attachment-uploader');
-    expect(uploader).toBeInTheDocument();
-
-    // JPEG ファイルを生成してドラッグ&ドロップをシミュレート
     const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
-    expect(jpegFile.type).toBe('image/jpeg');
 
-    // コンポーネントが存在し、ドロップイベントを受け付けられること
+    // ドロップイベントを発火する
     fireEvent.drop(uploader, {
       dataTransfer: {
         files: [jpegFile],
         types: ['Files'],
       },
     });
-    // スタブコンポーネントのためドロップは処理されないが、コンポーネントが存在すること
-    expect(uploader).toBeInTheDocument();
+
+    // JPEG は許可形式のため drop 後に mutate が呼ばれ fetch が実行されること
+    // スタブではドロップ処理が未実装のため失敗する（Step 9 の正しい姿）
+    expect(globalThis.fetch).toHaveBeenCalled();
   });
 
-  // ATT-FE-026: ドラッグ&ドロップで無効なファイル（GIF）を拒否する。
-  it('ATT-FE-026: ドロップゾーンへの GIF ドラッグ&ドロップをコンポーネントが受け付けない', () => {
+  // ATT-FE-026: ドラッグ&ドロップで無効なファイル（GIF）を受け付けるとエラーが表示される。
+  // スタブコンポーネントではドロップ処理・エラー表示が未実装のため失敗する。
+  it('ATT-FE-026: ドロップゾーンへの GIF ドロップでバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
     render(
@@ -233,29 +355,41 @@ describe('AttachmentUploader', () => {
     );
 
     const uploader = screen.getByTestId('attachment-uploader');
-
-    // GIF ファイルを生成してドラッグ&ドロップをシミュレート
     const gifFile = createMockFile('animation.gif', 1024, 'image/gif');
-    expect(gifFile.type).toBe('image/gif');
 
-    // accept 属性で GIF が拒否されること（ファイル選択ダイアログでのフィルタリング）
-    const fileInput = screen.getByTestId('attachment-file-input');
-    expect(fileInput.getAttribute('accept')).not.toContain('image/gif');
-
-    // コンポーネントが存在すること
+    // GIF ファイルをドロップする
     fireEvent.drop(uploader, {
       dataTransfer: {
         files: [gifFile],
         types: ['Files'],
       },
     });
-    expect(uploader).toBeInTheDocument();
+
+    // GIF は許可リスト外のためバリデーションエラーが表示されること
+    // スタブではドロップ処理が未実装のため失敗する（Step 9 の正しい姿）
+    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
   // ATT-FE-027: アップロード成功後に onUploadSuccess コールバックが呼ばれる。
-  // スタブコンポーネントのため、onUploadSuccess Props が受け渡されることを検証する。
-  it('ATT-FE-027: onUploadSuccess コールバックが Props として受け渡される', () => {
+  // スタブコンポーネントでは onUploadSuccess が呼ばれないため失敗する。
+  it('ATT-FE-027: アップロード成功後に onUploadSuccess コールバックが呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
+    // アップロード成功モック
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'receipt.jpg',
+          file_size: 1024,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
 
     render(
       <AttachmentUploader
@@ -266,11 +400,15 @@ describe('AttachmentUploader', () => {
       />,
     );
 
-    // コンポーネントがレンダリングされること
-    expect(screen.getByTestId('attachment-uploader')).toBeInTheDocument();
-    // onUploadSuccess は非同期アップロード後に呼ばれるため、スタブでは直接呼ばれない
-    // ここでは Props が正しく渡されることを確認する
-    expect(onUploadSuccess).not.toHaveBeenCalled();
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // アップロード成功後に onUploadSuccess が呼ばれること
+    // スタブでは onUploadSuccess が呼ばれないため失敗する（Step 9 の正しい姿）
+    await waitFor(() => {
+      expect(onUploadSuccess).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ATT-FE-028: isUploading=true のときファイル入力と「+ ファイルを追加」ボタンが disabled になる。

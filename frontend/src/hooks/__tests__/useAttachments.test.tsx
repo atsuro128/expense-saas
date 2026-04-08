@@ -100,8 +100,8 @@ describe('useAttachments', () => {
     expect(result.current.data?.data).toEqual([]);
   });
 
-  // ATT-FE-031: queryKey が ['attachments', reportId, itemId] であること。
-  it('ATT-FE-031: queryKey が ["attachments", reportId, itemId] で設定される', async () => {
+  // ATT-FE-031: queryKey が ['reports', reportId, 'items', itemId, 'attachments'] であること。
+  it('ATT-FE-031: queryKey が ["reports", reportId, "items", itemId, "attachments"] で設定される', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -128,8 +128,8 @@ describe('useAttachments', () => {
       expect(result.current.isSuccess).toBe(true);
     });
 
-    // queryKey ['attachments', reportId, itemId] でキャッシュが存在すること
-    const cachedData = queryClient.getQueryData(['attachments', 'report-001', 'item-001']);
+    // queryKey ['reports', reportId, 'items', itemId, 'attachments'] でキャッシュが存在すること
+    const cachedData = queryClient.getQueryData(['reports', 'report-001', 'items', 'item-001', 'attachments']);
     expect(cachedData).toBeDefined();
   });
 

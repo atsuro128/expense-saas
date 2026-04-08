@@ -19,7 +19,7 @@ export interface UseAttachmentsParams {
  */
 export function useAttachments({ reportId, itemId }: UseAttachmentsParams) {
   return useQuery({
-    queryKey: ['attachments', reportId, itemId],
+    queryKey: ['reports', reportId, 'items', itemId, 'attachments'],
     queryFn: async () => {
       return api.get<ApiListResponse<Attachment>>(
         `/api/reports/${reportId}/items/${itemId}/attachments`,
