@@ -21,3 +21,11 @@ func buildAuthService(t *testing.T, pool *pgxpool.Pool) service.AuthService {
 
 	return service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
 }
+
+// buildAuthServiceWithoutDB は DB 接続なしで AuthService を生成して返すヘルパー。
+// 全メソッドが ErrNotImplemented を返すスタブ実装の検証に使用する。
+// リポジトリは一切呼び出されないため nil を渡しても安全。
+func buildAuthServiceWithoutDB(t *testing.T) service.AuthService {
+	t.Helper()
+	return service.NewAuthService(nil, nil, nil, nil, nil)
+}
