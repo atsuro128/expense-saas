@@ -7,6 +7,13 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
+    // @mui/x-date-pickers の ESM モジュールをインライン変換する。
+    // jsdom 環境では ESM ディレクトリインポートが解決できないため、vitest に変換させる。
+    server: {
+      deps: {
+        inline: ['@mui/x-date-pickers'],
+      },
+    },
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'html'],
