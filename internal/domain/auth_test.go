@@ -3,6 +3,7 @@ package domain_test
 import (
 	"crypto/rand"
 	"crypto/rsa"
+	"errors"
 	"strings"
 	"testing"
 	"time"
@@ -345,113 +346,263 @@ func TestGenerateRefreshToken_Expiry(t *testing.T) {
 
 // --- VerifyAccessToken テスト用ヘルパー ---
 
-// buildVerifier は JWTGenerator と対応する TokenVerifier（未実装スタブ）を返す。
-// VerifyAccessToken は domain.JWTGenerator には含まれないため、
-// テスト用に TokenVerifier の実装が必要。ここでは未実装のため nil を使用。
-// 実際のテストは実装後に動作することを前提として記述する。
+// newVerifier は JWTGenerator に対応する JWTVerifier を生成するテスト用ヘルパー。
+func newVerifier(priv *rsa.PrivateKey) *domain.JWTVerifier {
+	return domain.NewJWTVerifier(&priv.PublicKey)
+}
 
 // AUTH-014: 有効なアクセストークンの検証が成功すること。
 func TestVerifyAccessToken_Valid(t *testing.T) {
 	// AUTH-014
-	// TokenVerifier の実装は未実装のため、このテストは実装後に検証される。
-	// 現時点では JWTGenerator.GenerateAccessToken で生成したトークンの検証に失敗することを確認。
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
-	if err == nil {
-		// 実装後は VerifyAccessToken を呼び出す。
-		// 現時点では GenerateAccessToken が未実装エラーを返すため必ずここで t.Fatal となる。
-		t.Fatal("GenerateAccessToken は未実装ですが成功しました（実装スタブが変更されている可能性があります）")
+	gen, priv := newGenerator(t)
+	v := newVerifier(priv)
+
+	token, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken が失敗しました: %v", err)
+	}
+
+	claims, err := v.VerifyAccessToken(token)
+	if err != nil {
+		t.Fatalf("VerifyAccessToken が失敗しました: %v", err)
+	}
+	if claims.UserID != testUserID {
+		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+	if claims.TenantID != testTenantID {
+		t.Errorf("TenantID が期待値と異なります: got %v, want %v", claims.TenantID, testTenantID)
+	}
+	if claims.Role != testRole {
+		t.Errorf("Role が期待値と異なります: got %v, want %v", claims.Role, testRole)
 	}
 }
 
-// AUTH-015: 有効期限切れのアクセストークンで TOKEN_EXPIRED エラーが返ること。
+// AUTH-015: 有効期限切れのアクセストークンで ErrTokenExpired が返ること。
 func TestVerifyAccessToken_Expired(t *testing.T) {
 	// AUTH-015
-	// JWTGenerator が実装されていないため、このテストは実装後に動作する。
-	// VerifyAccessToken が ErrTokenExpired を返すことを検証する。
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
-	if err == nil {
-		t.Fatal("GenerateAccessToken は未実装ですが成功しました")
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	// 期限切れトークンを直接生成する（exp を過去に設定）。
+	type expiredClaims struct {
+		TenantID  string `json:"tenant_id"`
+		Role      string `json:"role"`
+		TokenType string `json:"token_type"`
+		gojwt.RegisteredClaims
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	claims := expiredClaims{
+		TenantID:  testTenantID.String(),
+		Role:      string(testRole),
+		TokenType: "access",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			Subject:   testUserID.String(),
+			IssuedAt:  gojwt.NewNumericDate(past.Add(-time.Hour)),
+			ExpiresAt: gojwt.NewNumericDate(past),
+			ID:        uuid.New().String(),
+		},
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	signed, err := tok.SignedString(priv)
+	if err != nil {
+		t.Fatalf("トークン署名に失敗しました: %v", err)
+	}
+
+	_, err = v.VerifyAccessToken(signed)
+	if !errors.Is(err, domain.ErrTokenExpired) {
+		t.Errorf("ErrTokenExpired を期待しましたが got: %v", err)
 	}
 }
 
-// AUTH-016: 別の秘密鍵で署名されたトークンで INVALID_TOKEN エラーが返ること。
+// AUTH-016: 別の秘密鍵で署名されたトークンで ErrInvalidToken が返ること。
 func TestVerifyAccessToken_InvalidSignature(t *testing.T) {
 	// AUTH-016
 	gen, _ := newGenerator(t)
-	_, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
-	if err == nil {
-		t.Fatal("GenerateAccessToken は未実装ですが成功しました")
+	// 別のキーで検証器を作成する（署名鍵と異なる）。
+	otherPriv := generateRSAKey(t)
+	v := newVerifier(otherPriv)
+
+	token, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken が失敗しました: %v", err)
+	}
+
+	_, err = v.VerifyAccessToken(token)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
 	}
 }
 
-// AUTH-017: HS256 で署名されたトークン（alg 混乱攻撃）で INVALID_TOKEN エラーが返ること。
+// AUTH-017: HS256 で署名されたトークン（alg 混乱攻撃）で ErrInvalidToken が返ること。
 func TestVerifyAccessToken_WrongAlgorithm(t *testing.T) {
 	// AUTH-017
-	// HS256 で署名したトークンを VerifyAccessToken に渡すと INVALID_TOKEN エラーが返ること。
-	// TokenVerifier 実装が必要。現時点では実装スタブのため失敗する。
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
-	if err == nil {
-		t.Fatal("GenerateAccessToken は未実装ですが成功しました")
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	// HS256 で署名したトークンを作成する（alg 混乱攻撃）。
+	type algClaims struct {
+		TokenType string `json:"token_type"`
+		gojwt.RegisteredClaims
+	}
+	claims := algClaims{
+		TokenType: "access",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			Subject:   testUserID.String(),
+			ExpiresAt: gojwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			ID:        uuid.New().String(),
+		},
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodHS256, claims)
+	signed, err := tok.SignedString([]byte("secret"))
+	if err != nil {
+		t.Fatalf("トークン署名に失敗しました: %v", err)
+	}
+
+	_, err = v.VerifyAccessToken(signed)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
 	}
 }
 
-// AUTH-018: 不正な発行者のトークンで INVALID_TOKEN エラーが返ること。
+// AUTH-018: 不正な発行者のトークンで ErrInvalidToken が返ること。
 func TestVerifyAccessToken_WrongIssuer(t *testing.T) {
 	// AUTH-018
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
-	if err == nil {
-		t.Fatal("GenerateAccessToken は未実装ですが成功しました")
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	type issuerClaims struct {
+		TenantID  string `json:"tenant_id"`
+		Role      string `json:"role"`
+		TokenType string `json:"token_type"`
+		gojwt.RegisteredClaims
+	}
+	claims := issuerClaims{
+		TenantID:  testTenantID.String(),
+		Role:      string(testRole),
+		TokenType: "access",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "wrong-issuer",
+			Subject:   testUserID.String(),
+			ExpiresAt: gojwt.NewNumericDate(time.Now().Add(15 * time.Minute)),
+			ID:        uuid.New().String(),
+		},
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	signed, err := tok.SignedString(priv)
+	if err != nil {
+		t.Fatalf("トークン署名に失敗しました: %v", err)
+	}
+
+	_, err = v.VerifyAccessToken(signed)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
 	}
 }
 
-// AUTH-019: リフレッシュトークンをアクセストークン検証に使用すると INVALID_TOKEN エラーが返ること。
+// AUTH-019: リフレッシュトークンをアクセストークン検証に使用すると ErrInvalidToken が返ること。
 func TestVerifyAccessToken_WrongTokenType(t *testing.T) {
 	// AUTH-019
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateRefreshToken(testUserID)
-	if err == nil {
-		t.Fatal("GenerateRefreshToken は未実装ですが成功しました")
+	gen, priv := newGenerator(t)
+	v := newVerifier(priv)
+
+	// リフレッシュトークンを生成する。
+	refreshToken, err := gen.GenerateRefreshToken(testUserID)
+	if err != nil {
+		t.Fatalf("GenerateRefreshToken が失敗しました: %v", err)
+	}
+
+	// リフレッシュトークンをアクセストークン検証に使用する。
+	_, err = v.VerifyAccessToken(refreshToken)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
 	}
 }
 
-// AUTH-020: 不正形式の文字列で INVALID_TOKEN エラーが返ること。
+// AUTH-020: 不正形式の文字列で ErrInvalidToken が返ること。
 func TestVerifyAccessToken_MalformedString(t *testing.T) {
 	// AUTH-020
-	// TokenVerifier が実装されると、"not.a.jwt" を渡したときに ErrInvalidToken が返ること。
-	// 現時点では TokenVerifier のインターフェース定義のみのため、コンパイル確認に留める。
-	_ = domain.ErrInvalidToken
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	_, err := v.VerifyAccessToken("not.a.jwt")
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
+	}
 }
 
-// AUTH-021: 有効なリフレッシュトークンの検証が成功し、sub と jti が返ること。
+// AUTH-021: 有効なリフレッシュトークンの検証が成功し、UserID と JTI が返ること。
 func TestVerifyRefreshToken_Valid(t *testing.T) {
 	// AUTH-021
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateRefreshToken(testUserID)
-	if err == nil {
-		t.Fatal("GenerateRefreshToken は未実装ですが成功しました")
+	gen, priv := newGenerator(t)
+	v := newVerifier(priv)
+
+	token, err := gen.GenerateRefreshToken(testUserID)
+	if err != nil {
+		t.Fatalf("GenerateRefreshToken が失敗しました: %v", err)
+	}
+
+	claims, err := v.VerifyRefreshToken(token)
+	if err != nil {
+		t.Fatalf("VerifyRefreshToken が失敗しました: %v", err)
+	}
+	if claims.UserID != testUserID {
+		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+	if claims.JTI == uuid.Nil {
+		t.Error("JTI が空（uuid.Nil）です")
 	}
 }
 
-// AUTH-022: 有効期限切れのリフレッシュトークンで TOKEN_EXPIRED エラーが返ること。
+// AUTH-022: 有効期限切れのリフレッシュトークンで ErrTokenExpired が返ること。
 func TestVerifyRefreshToken_Expired(t *testing.T) {
 	// AUTH-022
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateRefreshToken(testUserID)
-	if err == nil {
-		t.Fatal("GenerateRefreshToken は未実装ですが成功しました")
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	type expiredClaims struct {
+		TokenType string `json:"token_type"`
+		gojwt.RegisteredClaims
+	}
+	past := time.Now().Add(-2 * time.Hour)
+	claims := expiredClaims{
+		TokenType: "refresh",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			Subject:   testUserID.String(),
+			IssuedAt:  gojwt.NewNumericDate(past.Add(-time.Hour)),
+			ExpiresAt: gojwt.NewNumericDate(past),
+			ID:        uuid.New().String(),
+		},
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	signed, err := tok.SignedString(priv)
+	if err != nil {
+		t.Fatalf("トークン署名に失敗しました: %v", err)
+	}
+
+	_, err = v.VerifyRefreshToken(signed)
+	if !errors.Is(err, domain.ErrTokenExpired) {
+		t.Errorf("ErrTokenExpired を期待しましたが got: %v", err)
 	}
 }
 
-// AUTH-023: アクセストークンをリフレッシュトークン検証に使用すると INVALID_TOKEN エラーが返ること。
+// AUTH-023: アクセストークンをリフレッシュトークン検証に使用すると ErrInvalidToken が返ること。
 func TestVerifyRefreshToken_WrongTokenType(t *testing.T) {
 	// AUTH-023
-	gen, _ := newGenerator(t)
-	_, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
-	if err == nil {
-		t.Fatal("GenerateAccessToken は未実装ですが成功しました")
+	gen, priv := newGenerator(t)
+	v := newVerifier(priv)
+
+	// アクセストークンを生成する。
+	accessToken, err := gen.GenerateAccessToken(testUserID, testTenantID, testRole)
+	if err != nil {
+		t.Fatalf("GenerateAccessToken が失敗しました: %v", err)
+	}
+
+	// アクセストークンをリフレッシュトークン検証に使用する。
+	_, err = v.VerifyRefreshToken(accessToken)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
 	}
 }
