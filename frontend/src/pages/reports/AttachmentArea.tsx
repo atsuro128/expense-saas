@@ -17,8 +17,10 @@ export interface AttachmentAreaProps {
  * itemId が null の場合（追加モードで未保存）は非表示にする。
  */
 export default function AttachmentArea({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   reportId: _reportId,
   itemId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   canModify: _canModify,
 }: AttachmentAreaProps) {
   // _reportId・_canModify は機能実装時に使用する（スタブでは未使用）。

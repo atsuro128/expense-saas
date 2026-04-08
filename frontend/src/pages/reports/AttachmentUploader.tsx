@@ -23,8 +23,11 @@ const MAX_FILE_SIZE_BYTES = 5 * 1024 * 1024;
  * ファイル形式（JPEG, PNG, PDF）とサイズ（5MB）のクライアントサイドバリデーションを行う。
  */
 export default function AttachmentUploader({
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   reportId: _reportId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   itemId: _itemId,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   onUploadSuccess: _onUploadSuccess,
   isUploading,
 }: AttachmentUploaderProps) {
