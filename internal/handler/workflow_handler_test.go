@@ -12,6 +12,70 @@ package handler_test
 //   go test ./internal/handler/... -v -tags=integration -run TestListPendingReports
 //   go test ./internal/handler/... -v -tags=integration -run TestApproveReport
 //   etc.
+//
+// Traceability: test_cases/workflow.md（WFL-001〜WFL-063）
+// WFL-001 → TestListPendingReports_Success
+// WFL-002 → TestListPendingReports_IncludesOwnReport
+// WFL-003 → TestListPendingReports_ExcludesNonSubmitted
+// WFL-004 → TestListPendingReports_FilterByApplicantName
+// WFL-005 → TestListPendingReports_Pagination
+// WFL-006 → TestListPendingReports_Forbidden_Member
+// WFL-007 → TestListPendingReports_Forbidden_Admin
+// WFL-008 → TestListPendingReports_Forbidden_Accounting
+// WFL-009 → TestListPendingReports_Unauthorized
+// WFL-010 → TestApproveReport_Success
+// WFL-011 → TestApproveReport_SuccessWithComment
+// WFL-012 → TestApproveReport_SuccessWithoutComment
+// WFL-013 → TestApproveReport_AlreadyApproved
+// WFL-014 → TestApproveReport_DraftState
+// WFL-015 → TestApproveReport_RejectedState
+// WFL-016 → TestApproveReport_PaidState
+// WFL-018 → TestApproveReport_SelfApproval
+// WFL-019 → TestApproveReport_Forbidden_Member
+// WFL-020 → TestApproveReport_Forbidden_Admin
+// WFL-021 → TestApproveReport_Forbidden_Accounting
+// WFL-022 → TestApproveReport_Unauthorized
+// WFL-023 → TestApproveReport_NotFound
+// WFL-024 → TestApproveReport_Conflict_OptimisticLock
+// WFL-025 → TestApproveReport_MissingUpdatedAt
+// WFL-026 → TestRejectReport_Success
+// WFL-027 → TestRejectReport_MissingRejectionReason
+// WFL-028 → TestRejectReport_EmptyRejectionReason
+// WFL-029 → TestRejectReport_RejectionReasonMaxLength
+// WFL-030 → TestRejectReport_RejectionReasonTooLong
+// WFL-031 → TestRejectReport_AlreadyApproved
+// WFL-032 → TestRejectReport_DraftState
+// WFL-033 → TestRejectReport_RejectedState
+// WFL-034 → TestRejectReport_PaidState
+// WFL-035 → TestRejectReport_SelfRejection
+// WFL-036 → TestRejectReport_Forbidden_Member
+// WFL-037 → TestRejectReport_Forbidden_Admin
+// WFL-038 → TestRejectReport_Forbidden_Accounting
+// WFL-039 → TestRejectReport_Unauthorized
+// WFL-040 → TestRejectReport_NotFound
+// WFL-041 → TestRejectReport_Conflict_OptimisticLock
+// WFL-042 → TestListPayableReports_Success
+// WFL-043 → TestListPayableReports_IncludesOwnReport
+// WFL-044 → TestListPayableReports_ExcludesNonApproved
+// WFL-045 → TestListPayableReports_FilterByApplicantName
+// WFL-046 → TestListPayableReports_Pagination
+// WFL-047 → TestListPayableReports_Forbidden_Member
+// WFL-048 → TestListPayableReports_Forbidden_Approver
+// WFL-049 → TestListPayableReports_Forbidden_Admin
+// WFL-050 → TestListPayableReports_Unauthorized
+// WFL-051 → TestMarkReportAsPaid_Success
+// WFL-052 → TestMarkReportAsPaid_X5_SubmittedToPaid
+// WFL-053 → TestMarkReportAsPaid_X6_DraftToPaid
+// WFL-054 → TestMarkReportAsPaid_AlreadyPaid
+// WFL-055 → TestMarkReportAsPaid_RejectedState
+// WFL-056 → TestMarkReportAsPaid_SelfPayment
+// WFL-057 → TestMarkReportAsPaid_Forbidden_Member
+// WFL-058 → TestMarkReportAsPaid_Forbidden_Approver
+// WFL-059 → TestMarkReportAsPaid_Forbidden_Admin
+// WFL-060 → TestMarkReportAsPaid_Unauthorized
+// WFL-061 → TestMarkReportAsPaid_NotFound
+// WFL-062 → TestMarkReportAsPaid_Conflict_OptimisticLock
+// WFL-063 → TestMarkReportAsPaid_MissingUpdatedAt
 
 import (
 	"bytes"

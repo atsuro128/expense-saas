@@ -10,6 +10,92 @@ package handler_test
 //   go test ./internal/handler/... -v -tags=integration -run TestCreateItem
 //   go test ./internal/handler/... -v -tags=integration -run TestUpdateItem
 //   go test ./internal/handler/... -v -tags=integration -run TestDeleteItem
+//
+// Traceability: test_cases/items.md（ITM-001〜ITM-312）
+// ITM-001 → TestCreateItem_Success
+// ITM-002 → TestCreateItem_TotalAmountRecalculated
+// ITM-003 → TestCreateItem_ByApprover
+// ITM-004 → TestCreateItem_ByAccounting
+// ITM-005 → TestCreateItem_ByAdmin
+// ITM-006 → expense_item_test.go: TestExpenseItem_AmountMinimum
+// ITM-011 → TestCreateItem_AmountZero
+// ITM-012 → TestCreateItem_AmountNegative
+// ITM-013 → expense_item_test.go: TestExpenseItem_AmountZero
+// ITM-014 → expense_item_test.go: TestExpenseItem_AmountNegative
+// ITM-015 → TestCreateItem_MissingExpenseDate
+// ITM-016 → TestCreateItem_InvalidExpenseDateFormat
+// ITM-017 → TestCreateItem_MissingCategoryId
+// ITM-018 → TestCreateItem_InvalidCategoryId
+// ITM-019 → TestCreateItem_NonExistentCategoryId
+// ITM-020 → TestCreateItem_MissingDescription
+// ITM-021 → TestCreateItem_EmptyDescription
+// ITM-022 → TestCreateItem_DescriptionTooLong
+// ITM-023 → TestCreateItem_DescriptionMaxLength
+// ITM-031 → TestCreateItem_Unauthorized
+// ITM-032 → TestCreateItem_ExpiredToken
+// ITM-041 → TestCreateItem_ForbiddenByNonOwner
+// ITM-042 → TestCreateItem_ForbiddenByAdminNonOwner
+// ITM-051 → TestCreateItem_ReportNotFound
+// ITM-061 → TestCreateItem_ReportSubmitted_Rejected
+// ITM-062 → TestCreateItem_ReportApproved_Rejected
+// ITM-063 → TestCreateItem_ReportRejected_Rejected
+// ITM-064 → TestCreateItem_ReportPaid_Rejected
+// ITM-065 → expense_item_test.go: TestExpenseReport_AddItem_NotDraft
+// ITM-101 → TestUpdateItem_Success
+// ITM-102 → TestUpdateItem_TotalAmountRecalculated
+// ITM-103 → TestUpdateItem_ByApprover
+// ITM-104 → TestUpdateItem_ByAccounting
+// ITM-105 → TestUpdateItem_ByAdmin
+// ITM-111 → TestUpdateItem_AmountZero
+// ITM-112 → TestUpdateItem_AmountNegative
+// ITM-113 → TestUpdateItem_MissingUpdatedAt
+// ITM-114 → TestUpdateItem_MissingDescription
+// ITM-115 → TestUpdateItem_EmptyDescription
+// ITM-116 → TestUpdateItem_DescriptionTooLong
+// ITM-117 → TestUpdateItem_InvalidExpenseDateFormat
+// ITM-121 → TestUpdateItem_OptimisticLockConflict
+// ITM-131 → TestUpdateItem_Unauthorized
+// ITM-141 → TestUpdateItem_ForbiddenByNonOwner
+// ITM-142 → TestUpdateItem_ForbiddenByAdminNonOwner
+// ITM-151 → TestUpdateItem_ReportNotFound
+// ITM-152 → TestUpdateItem_ItemNotFound
+// ITM-153 → TestUpdateItem_ItemBelongsToDifferentReport
+// ITM-161 → TestUpdateItem_ReportSubmitted_Rejected
+// ITM-162 → TestUpdateItem_ReportApproved_Rejected
+// ITM-163 → TestUpdateItem_ReportRejected_Rejected
+// ITM-164 → TestUpdateItem_ReportPaid_Rejected
+// ITM-165 → expense_item_test.go: TestExpenseReport_UpdateItem_NotDraft
+// ITM-201 → TestDeleteItem_Success
+// ITM-202 → TestDeleteItem_TotalAmountRecalculated
+// ITM-203 → TestDeleteItem_SoftDelete
+// ITM-204 → TestDeleteItem_AttachmentsCascadeSoftDeleted
+// ITM-205 → TestDeleteItem_ByApprover
+// ITM-206 → TestDeleteItem_ByAccounting
+// ITM-207 → TestDeleteItem_ByAdmin
+// ITM-211 → TestDeleteItem_Unauthorized
+// ITM-221 → TestDeleteItem_ForbiddenByNonOwner
+// ITM-222 → TestDeleteItem_ForbiddenByAdminNonOwner
+// ITM-231 → TestDeleteItem_ReportNotFound
+// ITM-232 → TestDeleteItem_ItemNotFound
+// ITM-233 → TestDeleteItem_ItemBelongsToDifferentReport
+// ITM-234 → TestDeleteItem_AlreadyDeleted
+// ITM-241 → TestDeleteItem_ReportSubmitted_Rejected
+// ITM-242 → TestDeleteItem_ReportApproved_Rejected
+// ITM-243 → TestDeleteItem_ReportRejected_Rejected
+// ITM-244 → TestDeleteItem_ReportPaid_Rejected
+// ITM-245 → expense_item_test.go: TestExpenseReport_DeleteItem_NotDraft
+// ITM-301 → TestCreateItem_RBACAllRolesAllowed_Member
+// ITM-302 → TestCreateItem_RBACAllRolesAllowed_Approver
+// ITM-303 → TestCreateItem_RBACAllRolesAllowed_Accounting
+// ITM-304 → TestCreateItem_RBACAllRolesAllowed_Admin
+// ITM-305 → TestUpdateItem_RBACAllRolesAllowed_Member
+// ITM-306 → TestUpdateItem_RBACAllRolesAllowed_Approver
+// ITM-307 → TestUpdateItem_RBACAllRolesAllowed_Accounting
+// ITM-308 → TestUpdateItem_RBACAllRolesAllowed_Admin
+// ITM-309 → TestDeleteItem_RBACAllRolesAllowed_Member
+// ITM-310 → TestDeleteItem_RBACAllRolesAllowed_Approver
+// ITM-311 → TestDeleteItem_RBACAllRolesAllowed_Accounting
+// ITM-312 → TestDeleteItem_RBACAllRolesAllowed_Admin
 
 import (
 	"context"

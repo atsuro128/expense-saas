@@ -1,6 +1,34 @@
 // PendingApprovalsPage（ApprovalListPage）のユニットテスト。
 // WFL-FE-001〜026 に対応する。
 // SCR-WFL-001（承認待ち一覧）の画面コンポーネントをスタブ実装で検証する。
+//
+// Traceability: test_cases/workflow.md（WFL-FE-001〜WFL-FE-026）
+// WFL-FE-001 → 'WFL-FE-001: renders_pending_approvals_page_with_data'
+// WFL-FE-002 → 'WFL-FE-002: manages_filter_state'
+// WFL-FE-003 → 'WFL-FE-003: manages_pagination_state'
+// WFL-FE-004 → 'WFL-FE-004: resets_page_on_filter_change'
+// WFL-FE-005 → 'WFL-FE-005: redirects_non_approver_on_403'
+// WFL-FE-006 → 'WFL-FE-006: shows_skeleton_when_loading'
+// WFL-FE-007 → 'WFL-FE-007: shows_empty_state_no_filter'
+// WFL-FE-008 → 'WFL-FE-008: shows_empty_state_with_filter'
+// WFL-FE-009 → 'WFL-FE-009: shows_table_with_data'
+// WFL-FE-010 → 'WFL-FE-010: shows_toast_on_server_error'
+// WFL-FE-011 → ページ統合テストで代替（PendingFilterBar デバウンス: WFL-FE-002 に包含）
+// WFL-FE-012 → ページ統合テストで代替（PendingFilterBar リセット: WFL-FE-002/004 に包含）
+// WFL-FE-013 → 'WFL-FE-013: displays_report_count'
+// WFL-FE-014 → ページ統合テストで代替（PendingReportCount 非表示: WFL-FE-007 に包含）
+// WFL-FE-015 → ページ統合テストで代替（PendingReportCount 条件なし: WFL-FE-008 に包含）
+// WFL-FE-016 → 'WFL-FE-016: renders_table_columns'
+// WFL-FE-017 → 'WFL-FE-017: shows_self_label_for_own_report'
+// WFL-FE-018 → 'WFL-FE-018: hides_self_label_for_other_report'
+// WFL-FE-019 → 'WFL-FE-019: navigates_to_detail_on_row_click'
+// WFL-FE-020 → ページ統合テストで代替（PendingReportTable スケルトン: WFL-FE-006 に包含）
+// WFL-FE-021 → ページ統合テストで代替（PendingReportTable 空状態: WFL-FE-007 に包含）
+// WFL-FE-022 → SelfLabel.test.tsx: 'WFL-FE-022: renders_self_chip_when_own'
+// WFL-FE-023 → SelfLabel.test.tsx: 'WFL-FE-023: renders_nothing_when_not_own'
+// WFL-FE-024 → FilterResetButton.test.tsx: 'WFL-FE-024: enabled_when_filter_applied'
+// WFL-FE-025 → FilterResetButton.test.tsx: 'WFL-FE-025: disabled_when_no_filter'
+// WFL-FE-026 → FilterResetButton.test.tsx: 'WFL-FE-026: calls_on_reset_on_click'
 
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
