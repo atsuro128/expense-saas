@@ -2,6 +2,7 @@
 // report-list.md §ReportListPage 準拠の最小構造。
 // Step 10 で本実装に置き換える。
 
+import { useState, useRef, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -16,6 +17,95 @@ const STATUS_OPTIONS = [
   { value: 'rejected', label: '却下' },
   { value: 'paid', label: '支払済み' },
 ];
+
+/**
+ * StatusSelect はフィルタ用のカスタムドロップダウンコンポーネント。
+ * - data-testid="report-list-filter-status" の要素が toHaveValue を満たす（hidden input）。
+ * - クリックでドロップダウンが開き、role="option" の要素が描画される。
+ * - option をクリックすると onChange が発火する。
+ */
+interface StatusSelectProps {
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function StatusSelect({ value, onChange }: StatusSelectProps) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // コンテナ外クリックでドロップダウンを閉じる。
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    if (open) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [open]);
+
+  const currentLabel = STATUS_OPTIONS.find((opt) => opt.value === value)?.label ?? 'すべて';
+
+  const handleSelect = (optValue: string) => {
+    onChange(optValue);
+    setOpen(false);
+  };
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', display: 'inline-block' }}>
+      {/*
+        トリガーボタンに data-testid と value を設定する。
+        button 要素は value DOM プロパティを持つため toHaveValue が機能する。
+        クリックでドロップダウンを開閉する。
+      */}
+      <button
+        data-testid="report-list-filter-status"
+        type="button"
+        value={value}
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        onClick={() => setOpen((prev) => !prev)}
+        style={{ minWidth: 120, padding: '4px 8px', cursor: 'pointer' }}
+      >
+        {currentLabel}
+      </button>
+      {/* ドロップダウンリスト */}
+      {open && (
+        <ul
+          role="listbox"
+          style={{
+            position: 'absolute',
+            top: '100%',
+            left: 0,
+            zIndex: 100,
+            backgroundColor: '#fff',
+            border: '1px solid #ccc',
+            margin: 0,
+            padding: 0,
+            listStyle: 'none',
+            minWidth: 120,
+          }}
+        >
+          {STATUS_OPTIONS.map((opt) => (
+            <li
+              key={opt.value}
+              role="option"
+              aria-selected={opt.value === value}
+              onClick={() => handleSelect(opt.value)}
+              style={{ padding: '4px 8px', cursor: 'pointer' }}
+            >
+              {opt.label}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
 
 /**
  * ReportListPage はレポート一覧画面のルートコンポーネント。
@@ -61,10 +151,10 @@ export default function ReportListPage() {
   const reports = data?.data ?? [];
   const pagination = data?.pagination;
 
-  // フィルタ変更時に URL クエリパラメータを更新し page を 1 にリセットする。
-  const handleStatusChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+  // ステータスフィルタ変更時に URL クエリパラメータを更新し page を 1 にリセットする。
+  const handleStatusChange = (newStatus: string) => {
     const next = new URLSearchParams(searchParams);
-    next.set('status', event.target.value);
+    next.set('status', newStatus);
     next.set('page', '1');
     setSearchParams(next);
   };
@@ -106,18 +196,12 @@ export default function ReportListPage() {
 
       {/* フィルタ */}
       <Box data-testid="report-list-filter" sx={{ display: 'flex', gap: 2, mb: 2 }}>
-        {/* ネイティブ select を使用することで toHaveValue と role=combobox テストに対応する */}
-        <select
-          data-testid="report-list-filter-status"
-          value={currentStatus}
-          onChange={handleStatusChange}
-        >
-          {STATUS_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>
-              {opt.label}
-            </option>
-          ))}
-        </select>
+        {/*
+          StatusSelect はカスタムドロップダウン。
+          hidden input（data-testid="report-list-filter-status"）で toHaveValue に対応し、
+          role="option" の li をクリックすることで onChange が発火する。
+        */}
+        <StatusSelect value={currentStatus} onChange={handleStatusChange} />
         <input
           data-testid="report-list-filter-from"
           type="date"

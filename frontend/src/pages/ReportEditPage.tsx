@@ -9,6 +9,7 @@ import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import { useReport, useUpdateReport } from '../hooks/useReports';
 import { useAuth } from '../hooks/useAuth';
+import { showGlobalToast, clearGlobalToasts } from '../utils/globalToast';
 
 /**
  * ReportEditPage はレポート編集画面のルートコンポーネント。
@@ -31,10 +32,17 @@ export default function ReportEditPage() {
   const [periodStart, setPeriodStart] = useState('');
   const [periodEnd, setPeriodEnd] = useState('');
   const [apiError, setApiError] = useState<string | null>(null);
-  const [toastMessage] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   const report = data?.data;
+
+  // マウント時にグローバルトーストコンテナ内の残留トーストをクリーンアップする。
+  // 前のページ遷移で表示されたトーストが残っていた場合に備える。
+  // document.body 全体ではなく専用コンテナだけを対象にすることで
+  // React がレンダリングした toast 要素を誤って削除しない。
+  useEffect(() => {
+    clearGlobalToasts();
+  }, []);
 
   // レポートデータが取得されたらフォームを初期化する。
   useEffect(() => {
@@ -46,24 +54,39 @@ export default function ReportEditPage() {
     }
   }, [report, initialized]);
 
+  // 404 エラー時: グローバルトーストを表示して一覧にリダイレクトする。
+  useEffect(() => {
+    if (!isError) return;
+    const apiErr = error as (Error & { status?: number; code?: string }) | null;
+    if (apiErr?.status === 404 || apiErr?.code === 'RESOURCE_NOT_FOUND') {
+      // グローバルトーストを表示してからナビゲートする（ページ遷移後もトーストが残る）。
+      showGlobalToast('指定されたデータが見つかりません。', 'error');
+      navigate('/reports');
+    }
+  }, [isError, error, navigate]);
+
+  // draft でない場合: グローバルトーストを表示して詳細画面にリダイレクトする。
+  useEffect(() => {
+    if (!report) return;
+    // 所有者チェック: 所有者でない場合はトーストのみ表示（リダイレクトなし）。
+    if (authResult.user && report.submitter?.id !== authResult.user.id) return;
+    if (report.status !== 'draft') {
+      // グローバルトーストを表示してからナビゲートする（ページ遷移後もトーストが残る）。
+      showGlobalToast('提出済みのレポートは編集できません', 'warning');
+      navigate(`/reports/${report.id}`);
+    }
+  }, [report, authResult.user, navigate]);
+
   // ローディング中はスケルトンを表示する。
   if (isLoading) {
     return <div data-testid="page-skeleton" data-variant="form" />;
   }
 
-  // 404 エラー時は一覧にリダイレクトしてトーストを表示する。
+  // 404 エラー後のリダイレクト待ち（useEffect でナビゲート中）はローディングと同様に null を返す。
   if (isError) {
     const apiErr = error as (Error & { status?: number; code?: string }) | null;
     if (apiErr?.status === 404 || apiErr?.code === 'RESOURCE_NOT_FOUND') {
-      return (
-        <Box>
-          <div data-testid="app-toast" data-severity="error">
-            {apiErr instanceof Error ? apiErr.message : 'レポートが見つかりませんでした'}
-          </div>
-          {/* 404 時は /reports にリダイレクト（useEffect で navigate を呼ぶ）。 */}
-          <RedirectOnMount to="/reports" onNavigate={navigate} />
-        </Box>
-      );
+      return null;
     }
   }
 
@@ -71,25 +94,18 @@ export default function ReportEditPage() {
     return null;
   }
 
-  // 所有者でない場合はトーストを表示する。
+  // 所有者でない場合はトーストを表示する（リダイレクトはしない）。
   if (authResult.user && report.submitter?.id !== authResult.user.id) {
     return (
       <div data-testid="app-toast" data-severity="error">
-        このレポートを編集する権限がありません
+        この操作を行う権限がありません。
       </div>
     );
   }
 
-  // draft でない場合は詳細画面にリダイレクトしてトーストを表示する。
+  // draft でない場合はリダイレクト待ち（useEffect でナビゲート中）は null を返す。
   if (report.status !== 'draft') {
-    return (
-      <Box>
-        <div data-testid="app-toast" data-severity="warning">
-          このレポートは編集できません
-        </div>
-        <RedirectOnMount to={`/reports/${report.id}`} onNavigate={navigate} />
-      </Box>
-    );
+    return null;
   }
 
   // フォーム送信処理。
@@ -122,13 +138,6 @@ export default function ReportEditPage() {
 
   return (
     <Box component="form" onSubmit={handleSubmit} sx={{ maxWidth: 600, mx: 'auto', p: 2 }}>
-      {/* トースト通知 */}
-      {toastMessage !== null && (
-        <div data-testid="app-toast" data-severity="error">
-          {toastMessage}
-        </div>
-      )}
-
       {/* エラーアラート */}
       {apiError !== null && (
         <div data-testid="form-alert" role="alert">
@@ -185,12 +194,4 @@ export default function ReportEditPage() {
       </Box>
     </Box>
   );
-}
-
-// マウント直後に navigate を呼ぶヘルパーコンポーネント。
-function RedirectOnMount({ to, onNavigate }: { to: string; onNavigate: (path: string) => void }) {
-  useEffect(() => {
-    onNavigate(to);
-  }, [to, onNavigate]);
-  return null;
 }
