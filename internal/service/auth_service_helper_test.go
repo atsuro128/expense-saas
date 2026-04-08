@@ -5,8 +5,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"expense-saas/internal/domain"
 	"expense-saas/internal/repository/postgres"
 	"expense-saas/internal/service"
+	"expense-saas/internal/testutil"
 )
 
 // buildAuthService はテスト用 DB を使用する AuthService を生成して返すヘルパー。
@@ -22,7 +24,13 @@ func buildAuthService(t *testing.T, pool *pgxpool.Pool) service.AuthService {
 	refreshTokenRepo := postgres.NewRefreshTokenRepo(pool)
 	passwordResetRepo := postgres.NewPasswordResetRepo(pool)
 
-	return service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
+	// テスト用 RSA 鍵ペアを使用する。
+	kp := testutil.GenerateTestKeyPair(t)
+	hasher := domain.NewArgon2idHasher()
+	tokenGen := domain.NewJWTGenerator(kp.PrivateKey)
+	tokenVerifier := domain.NewJWTVerifier(kp.PublicKey)
+
+	return service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 }
 
 // buildAuthServiceWithoutDB は DB 接続なしで AuthService を生成して返すヘルパー。
