@@ -71,7 +71,9 @@ describe('useUploadAttachment', () => {
     // リクエストボディが FormData であること
     expect(calledOptions?.body).toBeInstanceOf(FormData);
     // 返却値に添付情報が含まれること（ApiResponse<Attachment> 形式）
-    expect(result.current.data?.data.id).toBe('att-new');
+    await waitFor(() => {
+      expect(result.current.data?.data.id).toBe('att-new');
+    });
   });
 
   // ATT-FE-037: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
@@ -135,7 +137,9 @@ describe('useUploadAttachment', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
     // ApiClientError は code プロパティを持つ
     expect((result.current.error as { code?: string })?.code).toBe('INVALID_FILE_TYPE');
   });
@@ -162,7 +166,9 @@ describe('useUploadAttachment', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
     expect((result.current.error as { code?: string })?.code).toBe('FILE_TOO_LARGE');
   });
 
@@ -187,7 +193,9 @@ describe('useUploadAttachment', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
     expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_EDITABLE');
   });
 });

@@ -1272,3 +1272,91 @@ func TestDeleteAttachment_AlreadyDeleted(t *testing.T) {
 	// 404 RESOURCE_NOT_FOUND: 削除済みリソースは存在しないものとして扱う（ATT-054）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
+
+// =============================================================================
+// テナント分離テスト（CRS-008〜CRS-011）
+// =============================================================================
+
+// CRS-008: 他テナントの添付にアップロ���ド → 404 RESOURCE_NOT_FOUND。
+func TestTenantIsolation_UploadAttachment_OtherTenant_404(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	// テナントB にレポート・明細を作成する。
+	tenantBID := testutil.MustParseUUID(testutil.TenantBID)
+	memberBID := testutil.MustParseUUID(testutil.UserMemberBID)
+	reportBID := testutil.CreateReport(t, pool, tenantBID, memberBID)
+	itemBID := testutil.CreateItem(t, pool, tenantBID, reportBID, testutil.GetTransportCategoryID(t, pool))
+
+	// テナントA の userMember がテナントB の明細に添付をアップロードする。
+	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments"
+	content := makeJPEGFile(1024)
+	req := buildMultipartRequest(t, url, "file", "test.jpg", "image/jpeg", content)
+	req = srv.AuthRequest(t, http.MethodPost, url, req.Body, testutil.UserMemberID, testutil.TenantAID, "member")
+	req.Header.Set("Content-Type", req.Header.Get("Content-Type"))
+	rec := srv.Execute(req)
+
+	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-008）。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
+}
+
+// CRS-009: 他テナントの添付一覧を取得 → 404 RESOURCE_NOT_FOUND。
+func TestTenantIsolation_ListAttachments_OtherTenant_404(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantBID := testutil.MustParseUUID(testutil.TenantBID)
+	memberBID := testutil.MustParseUUID(testutil.UserMemberBID)
+	reportBID := testutil.CreateReport(t, pool, tenantBID, memberBID)
+	itemBID := testutil.CreateItem(t, pool, tenantBID, reportBID, testutil.GetTransportCategoryID(t, pool))
+
+	// テナントA の userMember がテナントB の明細の添付一覧を取得する。
+	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-009）。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
+}
+
+// CRS-010: 他テナントの添付ダウンロード URL 取得 → 404 RESOURCE_NOT_FOUND。
+func TestTenantIsolation_GetAttachmentDownload_OtherTenant_404(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantBID := testutil.MustParseUUID(testutil.TenantBID)
+	memberBID := testutil.MustParseUUID(testutil.UserMemberBID)
+	reportBID := testutil.CreateReport(t, pool, tenantBID, memberBID)
+	itemBID := testutil.CreateItem(t, pool, tenantBID, reportBID, testutil.GetTransportCategoryID(t, pool))
+	attBID := testutil.CreateAttachment(t, pool, tenantBID, reportBID, itemBID,
+		testutil.WithAttachmentFileName("receipt-b.jpg"),
+		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
+	)
+
+	// テナントA の userMember がテナントB の添付のダウンロード URL を取得する。
+	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments/" + attBID.String()
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-010）。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
+}
+
+// CRS-011: 他テナントの添付を削除 → 404 RESOURCE_NOT_FOUND。
+func TestTenantIsolation_DeleteAttachment_OtherTenant_404(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantBID := testutil.MustParseUUID(testutil.TenantBID)
+	memberBID := testutil.MustParseUUID(testutil.UserMemberBID)
+	reportBID := testutil.CreateReport(t, pool, tenantBID, memberBID)
+	itemBID := testutil.CreateItem(t, pool, tenantBID, reportBID, testutil.GetTransportCategoryID(t, pool))
+	attBID := testutil.CreateAttachment(t, pool, tenantBID, reportBID, itemBID,
+		testutil.WithAttachmentFileName("receipt-b.jpg"),
+		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
+	)
+
+	// テナントA の userMember がテナントB の添付を削除する。
+	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments/" + attBID.String()
+	req := srv.AuthRequest(t, http.MethodDelete, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-011）。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
+}
