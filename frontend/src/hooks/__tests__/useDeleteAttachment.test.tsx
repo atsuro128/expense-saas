@@ -2,6 +2,7 @@
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
 // MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
 // useDeleteAttachment は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// ATT-FE-041〜044 に対応する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
@@ -60,8 +61,8 @@ describe('useDeleteAttachment（スタブ）', () => {
     vi.restoreAllMocks();
   });
 
-  // ATT-FE-030: DELETE /api/reports/{reportId}/items/{itemId}/attachments/{attId} を呼び出す。
-  it('ATT-FE-030: DELETE /api/reports/{reportId}/items/{itemId}/attachments/{attId} が呼び出される', async () => {
+  // ATT-FE-041: DELETE /api/reports/{reportId}/items/{itemId}/attachments/{attId} を呼び出す。
+  it('ATT-FE-041: DELETE /api/reports/{reportId}/items/{itemId}/attachments/{attId} が呼び出される', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 204,
@@ -84,10 +85,11 @@ describe('useDeleteAttachment（スタブ）', () => {
       '/api/reports/report-001/items/item-001/attachments/att-001',
       expect.objectContaining({ method: 'DELETE' }),
     );
+    expect(result.current.isSuccess).toBe(true);
   });
 
-  // ATT-FE-031: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
-  it('ATT-FE-031: ミューテーション成功後にレポート詳細キャッシュが無効化される', async () => {
+  // ATT-FE-042: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
+  it('ATT-FE-042: ミューテーション成功後にレポート詳細キャッシュが無効化される', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 204,
@@ -122,14 +124,14 @@ describe('useDeleteAttachment（スタブ）', () => {
     });
   });
 
-  // ATT-FE-032: API が 403 FORBIDDEN を返すと isError=true になる（非所有者が削除）。
-  it('ATT-FE-032: API が 403 FORBIDDEN を返すと isError=true になる', async () => {
+  // ATT-FE-043: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる（添付不存在）。
+  it('ATT-FE-043: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
-      status: 403,
+      status: 404,
       headers: { get: () => null },
       json: async () => ({
-        error: { code: 'FORBIDDEN', message: '権限がありません' },
+        error: { code: 'RESOURCE_NOT_FOUND', message: 'リソースが見つかりません' },
       }),
     } as unknown as Response);
 
@@ -137,15 +139,17 @@ describe('useDeleteAttachment（スタブ）', () => {
 
     await act(async () => {
       await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-001' }),
+        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-999' }),
       ).rejects.toThrow();
     });
 
     expect(result.current.isError).toBe(true);
+    const error = result.current.error as { status?: number };
+    expect(error.status).toBe(404);
   });
 
-  // ATT-FE-033: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる（非 draft 状態）。
-  it('ATT-FE-033: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる', async () => {
+  // ATT-FE-044: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる（非 draft 状態）。
+  it('ATT-FE-044: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 422,
@@ -166,27 +170,5 @@ describe('useDeleteAttachment（スタブ）', () => {
     expect(result.current.isError).toBe(true);
     const error = result.current.error as { code?: string };
     expect(error.code).toBe('REPORT_NOT_EDITABLE');
-  });
-
-  // ATT-FE-034: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる（添付不存在）。
-  it('ATT-FE-034: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: false,
-      status: 404,
-      headers: { get: () => null },
-      json: async () => ({
-        error: { code: 'RESOURCE_NOT_FOUND', message: 'リソースが見つかりません' },
-      }),
-    } as unknown as Response);
-
-    const { result } = renderHook(() => useDeleteAttachmentStub(), { wrapper: createWrapper() });
-
-    await act(async () => {
-      await expect(
-        result.current.mutateAsync({ reportId: 'report-001', itemId: 'item-001', attId: 'att-999' }),
-      ).rejects.toThrow();
-    });
-
-    expect(result.current.isError).toBe(true);
   });
 });

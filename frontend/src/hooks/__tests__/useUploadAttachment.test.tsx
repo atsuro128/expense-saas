@@ -2,6 +2,7 @@
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
 // MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
 // useUploadAttachment は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// ATT-FE-036〜040 に対応する。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
@@ -66,11 +67,11 @@ describe('useUploadAttachment（スタブ）', () => {
     vi.restoreAllMocks();
   });
 
-  // ATT-FE-020: POST /api/reports/{reportId}/items/{itemId}/attachments を multipart/form-data で呼び出す。
-  it('ATT-FE-020: POST /api/reports/{reportId}/items/{itemId}/attachments を呼び出し、添付情報が返る', async () => {
+  // ATT-FE-036: POST /api/reports/{reportId}/items/{itemId}/attachments を multipart/form-data で呼び出す。
+  it('ATT-FE-036: POST /api/reports/{reportId}/items/{itemId}/attachments を呼び出し、添付情報が返る', async () => {
     const mockCreatedAttachment = {
       data: {
-        id: 'att-001',
+        id: 'att-new',
         item_id: 'item-001',
         file_name: 'receipt.jpg',
         file_size: 1024,
@@ -103,39 +104,15 @@ describe('useUploadAttachment（スタブ）', () => {
       '/api/reports/report-001/items/item-001/attachments',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(result.current.data).toEqual(mockCreatedAttachment.data);
-  });
-
-  // ATT-FE-021: リクエストボディが FormData であること（multipart/form-data）。
-  it('ATT-FE-021: リクエストボディが FormData で送信される', async () => {
-    globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 201,
-      headers: { get: () => null },
-      json: async () => ({
-        data: { id: 'att-001', file_name: 'receipt.jpg', mime_type: 'image/jpeg', file_size: 1024 },
-      }),
-    } as unknown as Response);
-
-    const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper: createWrapper() });
-
-    const testFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
-
-    await act(async () => {
-      await result.current.mutateAsync({
-        reportId: 'report-001',
-        itemId: 'item-001',
-        file: testFile,
-      });
-    });
-
     // リクエストボディが FormData であること
     const calledBody = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[1]?.body;
     expect(calledBody).toBeInstanceOf(FormData);
+    // 返却値が 'att-new' であること
+    expect(result.current.data?.id).toBe('att-new');
   });
 
-  // ATT-FE-022: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
-  it('ATT-FE-022: ミューテーション成功後にレポート詳細キャッシュが無効化される', async () => {
+  // ATT-FE-037: ミューテーション成功後にレポート詳細のクエリキャッシュが無効化される。
+  it('ATT-FE-037: ミューテーション成功後にレポート詳細キャッシュが無効化される', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 201,
@@ -174,8 +151,8 @@ describe('useUploadAttachment（スタブ）', () => {
     });
   });
 
-  // ATT-FE-023: API が 422 INVALID_FILE_TYPE を返すと isError=true になる（MIME タイプ不正）。
-  it('ATT-FE-023: API が 422 INVALID_FILE_TYPE を返すと isError=true になる', async () => {
+  // ATT-FE-038: API が 422 INVALID_FILE_TYPE を返すと isError=true になる（MIME タイプ不正）。
+  it('ATT-FE-038: API が 422 INVALID_FILE_TYPE を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 422,
@@ -200,8 +177,8 @@ describe('useUploadAttachment（スタブ）', () => {
     expect(error.code).toBe('INVALID_FILE_TYPE');
   });
 
-  // ATT-FE-024: API が 413 FILE_TOO_LARGE を返すと isError=true になる（サイズ超過）。
-  it('ATT-FE-024: API が 413 FILE_TOO_LARGE を返すと isError=true になる', async () => {
+  // ATT-FE-039: API が 413 FILE_TOO_LARGE を返すと isError=true になる（サイズ超過）。
+  it('ATT-FE-039: API が 413 FILE_TOO_LARGE を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 413,
@@ -213,7 +190,7 @@ describe('useUploadAttachment（スタブ）', () => {
 
     const { result } = renderHook(() => useUploadAttachmentStub(), { wrapper: createWrapper() });
 
-    // 5MB を超えるファイル
+    // 5MB を超えるファイル（5,242,881 B）
     const largeFile = new File([new ArrayBuffer(5242881)], 'large.jpg', { type: 'image/jpeg' });
 
     await act(async () => {
@@ -227,8 +204,8 @@ describe('useUploadAttachment（スタブ）', () => {
     expect(error.code).toBe('FILE_TOO_LARGE');
   });
 
-  // ATT-FE-025: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる（非 draft 状態）。
-  it('ATT-FE-025: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる', async () => {
+  // ATT-FE-040: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる（非 draft 状態）。
+  it('ATT-FE-040: API が 422 REPORT_NOT_EDITABLE を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 422,

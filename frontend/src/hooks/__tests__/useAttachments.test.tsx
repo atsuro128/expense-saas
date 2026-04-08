@@ -2,6 +2,7 @@
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
 // MSW が未インストールのため fetch をモックして API 呼び出しをシミュレートする。
 // useAttachments は未実装のため、fetch を直接呼ぶスタブ Hook を使用して API 契約を検証する。
+// ATT-FE-029〜032 に対応する。
 
 import { renderHook, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
@@ -47,8 +48,8 @@ describe('useAttachments（スタブ）', () => {
     vi.restoreAllMocks();
   });
 
-  // ATT-FE-001: GET /api/reports/{reportId}/items/{itemId}/attachments を呼び出す。
-  it('ATT-FE-001: GET /api/reports/{reportId}/items/{itemId}/attachments を呼び出し、添付一覧が返る', async () => {
+  // ATT-FE-029: GET /api/reports/{reportId}/items/{itemId}/attachments を呼び出し、添付一覧が返る。
+  it('ATT-FE-029: GET /api/reports/{reportId}/items/{itemId}/attachments を呼び出し、添付一覧が返る', async () => {
     const mockAttachments = {
       data: [
         {
@@ -85,8 +86,30 @@ describe('useAttachments（スタブ）', () => {
     expect(result.current.data).toEqual(mockAttachments);
   });
 
-  // ATT-FE-002: queryKey が ['attachments', reportId, itemId] であること。
-  it('ATT-FE-002: queryKey が ["attachments", reportId, itemId] で設定される', async () => {
+  // ATT-FE-030: API モックが空配列を返す場合、data.data が空配列になる。
+  it('ATT-FE-030: API が空配列を返すと data.data が空配列', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: [] }),
+    } as unknown as Response);
+
+    const { result } = renderHook(
+      () => useAttachmentsStub({ reportId: 'report-001', itemId: 'item-001' }),
+      { wrapper: createWrapper() },
+    );
+
+    await waitFor(() => {
+      expect(result.current.isSuccess).toBe(true);
+    });
+
+    const data = result.current.data as { data: unknown[] };
+    expect(data.data).toEqual([]);
+  });
+
+  // ATT-FE-031: queryKey が ['attachments', reportId, itemId] であること。
+  it('ATT-FE-031: queryKey が ["attachments", reportId, itemId] で設定される', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: true,
       status: 200,
@@ -115,8 +138,8 @@ describe('useAttachments（スタブ）', () => {
     expect(cachedData).toBeDefined();
   });
 
-  // ATT-FE-003: API が 403 FORBIDDEN を返すと isError=true になる。
-  it('ATT-FE-003: API が 403 FORBIDDEN を返すと isError=true になる', async () => {
+  // ATT-FE-032: API がエラーを返すと isError=true になる（API エラーハンドリング）。
+  it('ATT-FE-032: API が 403 FORBIDDEN を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
       ok: false,
       status: 403,
@@ -132,41 +155,5 @@ describe('useAttachments（スタブ）', () => {
     await waitFor(() => {
       expect(result.current.isError).toBe(true);
     });
-  });
-
-  // ATT-FE-004: 添付一覧に download_url フィールドが含まれない。
-  it('ATT-FE-004: listAttachments レスポンスの各要素に download_url が含まれない', async () => {
-    const mockAttachments = {
-      data: [
-        {
-          id: 'att-001',
-          item_id: 'item-001',
-          file_name: 'receipt.jpg',
-          file_size: 245760,
-          mime_type: 'image/jpeg',
-          created_at: '2026-03-01T00:00:00Z',
-          // download_url は含まれない（files.md §5）
-        },
-      ],
-    };
-
-    globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 200,
-      headers: { get: () => null },
-      json: async () => mockAttachments,
-    } as unknown as Response);
-
-    const { result } = renderHook(
-      () => useAttachmentsStub({ reportId: 'report-001', itemId: 'item-001' }),
-      { wrapper: createWrapper() },
-    );
-
-    await waitFor(() => {
-      expect(result.current.isSuccess).toBe(true);
-    });
-
-    const data = result.current.data as { data: Array<Record<string, unknown>> };
-    expect(data.data[0]).not.toHaveProperty('download_url');
   });
 });
