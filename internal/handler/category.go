@@ -18,6 +18,21 @@ func NewCategoryHandler(svc service.CategoryService) *CategoryHandler {
 }
 
 // ListCategories は GET /api/categories を処理します。
+// 操作者のテナントで参照可能な有効カテゴリを返します。
 func (h *CategoryHandler) ListCategories(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	categories, err := h.svc.ListCategories(r.Context(), actor)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"data": categories,
+	})
 }

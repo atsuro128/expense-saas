@@ -1,8 +1,11 @@
 package handler
 
 import (
+	"encoding/json"
 	"net/http"
+	"time"
 
+	"expense-saas/internal/domain"
 	"expense-saas/internal/middleware"
 	"expense-saas/internal/service"
 )
@@ -19,25 +22,187 @@ func NewWorkflowHandler(svc service.WorkflowService) *WorkflowHandler {
 
 // ListPendingReports は GET /api/workflow/pending を処理します。
 func (h *WorkflowHandler) ListPendingReports(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	params := domain.WorkflowListParams{
+		Page:    1,
+		PerPage: 20,
+	}
+
+	reports, pagination, err := h.svc.ListPendingReports(r.Context(), actor, params)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"data":       reports,
+		"pagination": pagination,
+	})
+}
+
+// approveReportRequest は POST /api/workflow/{id}/approve のリクエストボディを表します。
+type approveReportRequest struct {
+	Comment   *string `json:"comment"`
+	UpdatedAt string  `json:"updated_at"`
 }
 
 // ApproveReport は POST /api/workflow/{id}/approve を処理します。
 func (h *WorkflowHandler) ApproveReport(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	reportID, err := parseUUIDParam(r, "id")
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		return
+	}
+
+	var req approveReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		return
+	}
+
+	if req.UpdatedAt == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
+		return
+	}
+
+	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
+		return
+	}
+
+	detail, err := h.svc.ApproveReport(r.Context(), actor, reportID, req.Comment, updatedAt.UTC())
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, detail)
+}
+
+// rejectReportRequest は POST /api/workflow/{id}/reject のリクエストボディを表します。
+type rejectReportRequest struct {
+	Reason    string `json:"reason"`
+	UpdatedAt string `json:"updated_at"`
 }
 
 // RejectReport は POST /api/workflow/{id}/reject を処理します。
 func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	reportID, err := parseUUIDParam(r, "id")
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		return
+	}
+
+	var req rejectReportRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		return
+	}
+
+	if req.UpdatedAt == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
+		return
+	}
+
+	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
+		return
+	}
+
+	detail, err := h.svc.RejectReport(r.Context(), actor, reportID, req.Reason, updatedAt.UTC())
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, detail)
 }
 
 // ListPayableReports は GET /api/workflow/payable を処理します。
 func (h *WorkflowHandler) ListPayableReports(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	params := domain.WorkflowListParams{
+		Page:    1,
+		PerPage: 20,
+	}
+
+	reports, pagination, err := h.svc.ListPayableReports(r.Context(), actor, params)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"data":       reports,
+		"pagination": pagination,
+	})
+}
+
+// markAsPaidRequest は POST /api/workflow/{id}/pay のリクエストボディを表します。
+type markAsPaidRequest struct {
+	UpdatedAt string `json:"updated_at"`
 }
 
 // MarkReportAsPaid は POST /api/workflow/{id}/pay を処理します。
 func (h *WorkflowHandler) MarkReportAsPaid(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	reportID, err := parseUUIDParam(r, "id")
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		return
+	}
+
+	var req markAsPaidRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		return
+	}
+
+	if req.UpdatedAt == "" {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
+		return
+	}
+
+	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
+		return
+	}
+
+	detail, err := h.svc.MarkReportAsPaid(r.Context(), actor, reportID, updatedAt.UTC())
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, detail)
 }

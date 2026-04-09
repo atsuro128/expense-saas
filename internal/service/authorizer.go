@@ -19,8 +19,7 @@ type Authorizer interface {
 	CanMarkAsPaid(actor domain.Actor, report *domain.ExpenseReport) error
 }
 
-// authorizerImpl は Authorizer のスタブ実装。
-// ビジネスロジックが実装されるまで、全メソッドは ErrNotImplemented を返す。
+// authorizerImpl は Authorizer の本実装。
 type authorizerImpl struct{}
 
 // NewAuthorizer はデフォルトの Authorizer を生成して返す。
@@ -28,18 +27,60 @@ func NewAuthorizer() Authorizer {
 	return &authorizerImpl{}
 }
 
-func (a *authorizerImpl) CanModifyReport(_ domain.Actor, _ *domain.ExpenseReport) error {
-	return ErrNotImplemented
+// CanModifyReport は操作者がレポートの所有者かを確認する（RBC-010）。
+// 所有者以外は ErrForbidden を返す。
+func (a *authorizerImpl) CanModifyReport(actor domain.Actor, report *domain.ExpenseReport) error {
+	if actor.UserID != report.UserID {
+		return domain.ErrForbidden
+	}
+	return nil
 }
 
-func (a *authorizerImpl) CanViewReport(_ domain.Actor, _ *domain.ExpenseReport) error {
-	return ErrNotImplemented
+// CanViewReport は操作者がレポートを参照できるかをロールに応じて確認する。
+//
+// - Member: 自分のレポートのみ参照可（RBC-010）
+// - Approver: 自分のレポート + 他者の submitted/approved/rejected/paid 状態のレポート（RBC-011）
+// - Accounting / Admin: テナント内全レポート参照可（RBC-013, RBC-015）
+func (a *authorizerImpl) CanViewReport(actor domain.Actor, report *domain.ExpenseReport) error {
+	// 自分のレポートは常に参照可能。
+	if actor.UserID == report.UserID {
+		return nil
+	}
+
+	switch actor.Role {
+	case domain.RoleAdmin, domain.RoleAccounting:
+		// テナント内全レポート参照可。
+		return nil
+	case domain.RoleApprover:
+		// Approver は submitted/approved/rejected/paid 状態の他者レポートを参照可（RBC-011）。
+		switch report.Status {
+		case domain.ReportStatusSubmitted,
+			domain.ReportStatusApproved,
+			domain.ReportStatusRejected,
+			domain.ReportStatusPaid:
+			return nil
+		}
+		return domain.ErrForbidden
+	default:
+		// Member は自分のレポートのみ。
+		return domain.ErrForbidden
+	}
 }
 
-func (a *authorizerImpl) CanApproveOrReject(_ domain.Actor, _ *domain.ExpenseReport) error {
-	return ErrNotImplemented
+// CanApproveOrReject は操作者が申請者本人でないかを確認する（RBC-016 自己承認禁止）。
+// 自己承認の場合は ErrSelfApprovalNotAllowed を返す。
+func (a *authorizerImpl) CanApproveOrReject(actor domain.Actor, report *domain.ExpenseReport) error {
+	if actor.UserID == report.UserID {
+		return domain.ErrSelfApprovalNotAllowed
+	}
+	return nil
 }
 
-func (a *authorizerImpl) CanMarkAsPaid(_ domain.Actor, _ *domain.ExpenseReport) error {
-	return ErrNotImplemented
+// CanMarkAsPaid は操作者が申請者本人でないかを確認する（RBC-012 自己支払禁止）。
+// 自己支払の場合は ErrSelfPaymentNotAllowed を返す。
+func (a *authorizerImpl) CanMarkAsPaid(actor domain.Actor, report *domain.ExpenseReport) error {
+	if actor.UserID == report.UserID {
+		return domain.ErrSelfPaymentNotAllowed
+	}
+	return nil
 }
