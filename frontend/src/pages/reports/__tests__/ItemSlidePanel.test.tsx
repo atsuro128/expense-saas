@@ -5,7 +5,20 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type ReactNode } from 'react';
 import ItemSlidePanel from '../ItemSlidePanel';
+
+// テスト用 QueryClientProvider ラッパー。
+// AttachmentArea が useQueryClient を使うため、item が存在するケースで必要。
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
 
 // テスト用フィクスチャ: mockItem（閲覧・編集モードの初期値）
 const mockItem = {
@@ -77,6 +90,7 @@ describe('ItemSlidePanel', () => {
 
   // ITM-FE-021: mode='edit', item=mockItem のとき編集モードのタイトルが表示される。
   it('ITM-FE-021: mode=edit のとき編集モードのタイトルが表示される', () => {
+    // item が存在するとき AttachmentArea が QueryClient を使うため wrapper が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -84,6 +98,7 @@ describe('ItemSlidePanel', () => {
         item={mockItem}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // 編集モードのタイトル（「明細編集」等）が表示される（ITM-FE-021）。スタブ実装のため現在は失敗する。
@@ -92,6 +107,7 @@ describe('ItemSlidePanel', () => {
 
   // ITM-FE-022: mode='view', item=mockItem のとき閲覧モードのタイトルが表示される。
   it('ITM-FE-022: mode=view のとき閲覧モードのタイトルが表示される', () => {
+    // item が存在するとき AttachmentArea が QueryClient を使うため wrapper が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -99,6 +115,7 @@ describe('ItemSlidePanel', () => {
         item={mockItem}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // 閲覧モードのタイトル（「明細詳細」等）が表示される（ITM-FE-022）。スタブ実装のため現在は失敗する。
@@ -107,6 +124,7 @@ describe('ItemSlidePanel', () => {
 
   // ITM-FE-023: mode='view', item=mockItem のとき ItemForm が mode='view' で描画される（readonly）。
   it('ITM-FE-023: mode=view のとき ItemForm が mode=view で描画される', () => {
+    // item が存在するとき AttachmentArea が QueryClient を使うため wrapper が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -114,6 +132,7 @@ describe('ItemSlidePanel', () => {
         item={mockItem}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // ItemForm が readonly で描画される（ITM-FE-023）。スタブ実装のため現在は失敗する。
@@ -122,6 +141,7 @@ describe('ItemSlidePanel', () => {
 
   // ITM-FE-024: mode='edit', item=mockItem のとき ItemForm に defaultValues が渡される。
   it('ITM-FE-024: mode=edit, item=mockItem のとき ItemForm に mockItem の値が defaultValues として渡される', () => {
+    // item が存在するとき AttachmentArea が QueryClient を使うため wrapper が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -129,6 +149,7 @@ describe('ItemSlidePanel', () => {
         item={mockItem}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // ItemForm に defaultValues が渡される（ITM-FE-024）。スタブ実装のため現在は失敗する。
