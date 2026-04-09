@@ -66,7 +66,7 @@ export default function ItemSlidePanel({
   // 明細データから ItemFormValues を生成する。
   const defaultValues: ItemFormValues | undefined = item
     ? {
-        expenseDate: item.expense_date,
+        expenseDate: item.expense_date.slice(0, 10),
         amount: item.amount,
         categoryId: item.category.id,
         description: item.description,

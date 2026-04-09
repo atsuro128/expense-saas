@@ -190,8 +190,16 @@ describe('ItemForm', () => {
       <ItemForm mode="add" {...defaultProps} onSubmit={onSubmit} />,
     );
 
-    // 全フィールド入力（ITM-FE-037）。スタブ実装のため現在は失敗する。
-    const saveButton = screen.getByRole('button', { name: /保存/ });
+    // 全フィールド入力（ITM-FE-037）。バリデーションを通過させるため全フィールドに有効値を入力する。
+    const dateInput = screen.getByLabelText(/日付/);
+    await userEvent.type(dateInput, '2026-03-10');
+    const amountInput = screen.getByLabelText(/金額/);
+    await userEvent.type(amountInput, '1000');
+    const categorySelect = screen.getByLabelText(/カテゴリ/);
+    await userEvent.selectOptions(categorySelect, 'cat-001');
+    const descInput = screen.getByLabelText(/摘要/);
+    await userEvent.type(descInput, 'タクシー代');
+    const saveButton = screen.getByRole('button', { name: /^保存する$/ });
     await userEvent.click(saveButton);
 
     // onSubmit が ItemFormValues 型のデータで呼ばれる。
@@ -237,7 +245,15 @@ describe('ItemForm', () => {
       <ItemForm mode="add" {...defaultProps} onSaveAndContinue={onSaveAndContinue} />,
     );
 
-    // 「保存して続けて追加」ボタン押下（ITM-FE-040）。スタブ実装のため現在は失敗する。
+    // 「保存して続けて追加」ボタン押下（ITM-FE-040）。バリデーションを通過させるため全フィールドに有効値を入力する。
+    const dateInput = screen.getByLabelText(/日付/);
+    await userEvent.type(dateInput, '2026-03-10');
+    const amountInput = screen.getByLabelText(/金額/);
+    await userEvent.type(amountInput, '1000');
+    const categorySelect = screen.getByLabelText(/カテゴリ/);
+    await userEvent.selectOptions(categorySelect, 'cat-001');
+    const descInput = screen.getByLabelText(/摘要/);
+    await userEvent.type(descInput, 'タクシー代');
     const button = screen.getByRole('button', { name: /保存して続けて追加/ });
     await userEvent.click(button);
 
