@@ -109,7 +109,9 @@ func (s *dashboardService) fillMemberFields(ctx context.Context, tenantID, userI
 			UpdatedAt:   r.UpdatedAt,
 		}
 	}
-	data.RecentReports = recentReports
+	// ポインタ代入: ゼロ件でも JSON に [] として含めるためポインタで設定する。
+	// nil（省略）ではなく &[]（空配列）として返すことで「フィールドなし」と区別できる。
+	data.RecentReports = &recentReports
 
 	return nil
 }
@@ -189,7 +191,9 @@ func (s *dashboardService) fillMonthlySummary(ctx context.Context, tenantID uuid
 	if err != nil {
 		return fmt.Errorf("dashboardService.fillMonthlySummary: MonthlySummary: %w", err)
 	}
-	data.MonthlySummary = summary
+	// ポインタ代入: ゼロ件でも JSON に [] として含めるためポインタで設定する。
+	// nil（省略）ではなく &[]（空配列）として返すことで「フィールドなし」と区別できる。
+	data.MonthlySummary = &summary
 
 	return nil
 }

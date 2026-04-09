@@ -74,6 +74,8 @@ SELECT COUNT(*)::int FROM tenant_memberships WHERE tenant_id = $1
 `
 
 // CountMembersByTenantID はテナント内のメンバー総数を返す。
+// db/queries/tenant_memberships.sql の CountMembersByTenantID クエリに対応する。
+// sqlc generate で再生成予定。
 func (q *Queries) CountMembersByTenantID(ctx context.Context, tenantID uuid.UUID) (int32, error) {
 	row := q.db.QueryRow(ctx, countMembersByTenantID, tenantID)
 	var count int32

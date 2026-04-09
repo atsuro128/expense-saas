@@ -167,18 +167,26 @@ type RecentReport struct {
 
 // DashboardData はロールごとに異なるダッシュボードのペイロード。
 // 各フィールドはアクターのロールに応じて設定される。
+//
+// RecentReports / MonthlySummary はポインタ型を採用する。
+//   - nil ポインタ: そのロールでは当該フィールドを返さない（omitempty で JSON から省略）
+//   - 非 nil ポインタ（空スライスを含む）: そのロールでは当該フィールドを返す（件数 0 でも JSON に含まれる）
+//
+// []T（スライス）で omitempty を使った場合、空スライスも nil と同様に省略されるため、
+// 「ゼロ件の配列を返す」ケースと「フィールド自体を返さない」ケースを区別できない。
+// ポインタ型にすることで nil（省略）と &[]T{}（空配列として返す）を明確に区別する。
 type DashboardData struct {
 	// メンバー・承認者・経理 共通
-	MyDraftCount     *int            `json:"my_draft_count,omitempty"`
-	MySubmittedCount *int            `json:"my_submitted_count,omitempty"`
-	MyRejectedCount  *int            `json:"my_rejected_count,omitempty"`
-	RecentReports    []RecentReport  `json:"recent_reports,omitempty"`
+	MyDraftCount     *int             `json:"my_draft_count,omitempty"`
+	MySubmittedCount *int             `json:"my_submitted_count,omitempty"`
+	MyRejectedCount  *int             `json:"my_rejected_count,omitempty"`
+	RecentReports    *[]RecentReport  `json:"recent_reports,omitempty"`
 	// 承認者専用
-	PendingApprovalCount *int             `json:"pending_approval_count,omitempty"`
+	PendingApprovalCount *int `json:"pending_approval_count,omitempty"`
 	// 経理専用
 	PendingPaymentCount *int `json:"pending_payment_count,omitempty"`
 	// 承認者・経理・管理者 共通
-	MonthlySummary []MonthlySummary `json:"monthly_summary,omitempty"`
+	MonthlySummary *[]MonthlySummary `json:"monthly_summary,omitempty"`
 	// 管理者専用
 	TenantDraftCount     *int `json:"tenant_draft_count,omitempty"`
 	TenantSubmittedCount *int `json:"tenant_submitted_count,omitempty"`
