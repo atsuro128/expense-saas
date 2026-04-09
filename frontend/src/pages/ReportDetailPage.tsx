@@ -1,13 +1,12 @@
 // レポート詳細ページ。
 // RPT-FE-064〜069 の仕様に対応する。
-// レポートデータを取得し、ReportBasicInfo・WorkflowActions・ItemListSection・ItemSlidePanel を統合する。
+// レポートデータを取得し、ReportInfoCard・ReportActionBar・ItemListSection・ItemSlidePanel を統合する。
 
 import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import PageSkeleton from '../components/ui/PageSkeleton';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
@@ -19,8 +18,8 @@ import { useRejectReport } from '../hooks/useRejectReport';
 import { useMarkAsPaid } from '../hooks/useMarkAsPaid';
 import { useCreateItem, useUpdateItem, useDeleteItem } from '../hooks/useItems';
 import { useCategories } from '../hooks/useCategories';
-import ReportBasicInfo from './reports/ReportBasicInfo';
-import WorkflowActions from './reports/WorkflowActions';
+import ReportInfoCard from './reports/ReportInfoCard';
+import ReportActionBar from './reports/ReportActionBar';
 import ItemListSection from './reports/ItemListSection';
 import ItemSlidePanel, { type PanelMode } from './reports/ItemSlidePanel';
 import type { ItemFormValues } from './reports/ItemForm';
@@ -46,7 +45,8 @@ interface ToastState {
 /**
  * ReportDetailPage はレポート詳細情報と操作ボタンを表示する画面。
  * 提出・削除操作は確認ダイアログを通じて実行する。
- * WorkflowActions（承認・却下・支払完了）および ItemListSection・ItemSlidePanel を統合する。
+ * ReportInfoCard（情報表示）・ReportActionBar（操作ボタン）および
+ * ItemListSection・ItemSlidePanel を統合する。
  */
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -80,6 +80,9 @@ export default function ReportDetailPage() {
   const [selectedItem, setSelectedItem] = useState<ExpenseItemWithAttachments | null>(null);
   const [itemApiError, setItemApiError] = useState<string | null>(null);
 
+  // 「保存して続けて追加」後にフォームを再マウントするためのキー。
+  const [formKey, setFormKey] = useState(0);
+
   // レポートデータを取得する。
   const { data, isLoading, isError, error } = useReport(id);
   const report = data?.data;
@@ -110,8 +113,15 @@ export default function ReportDetailPage() {
 
   // エラー時はステータスコードに応じた表示を行う。
   if (isError) {
-    // ApiClientError からステータスコードを取得する。取得できない場合は 500 扱いとする。
-    const status = error instanceof ApiClientError ? error.status : 500;
+    // ApiClientError またはステータスプロパティを持つエラーからステータスコードを取得する。
+    // 取得できない場合は 500 扱いとする。
+    const errAsUnknown: unknown = error;
+    const status =
+      error instanceof ApiClientError
+        ? error.status
+        : typeof (errAsUnknown as Record<string, unknown>).status === 'number'
+          ? (errAsUnknown as { status: number }).status
+          : 500;
 
     if (status === 404) {
       // 404: EmptyState 表示（report-detail.md §11）
@@ -241,9 +251,6 @@ export default function ReportDetailPage() {
 
   // 現在のユーザーがオーナーかどうか（draft 状態で操作可能）。
   const isOwner = user?.id === report.submitter?.id;
-  const isDraft = report.status === 'draft';
-  // 明細が1件以上あるかどうか（提出ボタンの有効化条件）。
-  const hasItems = report.items.length > 0;
 
   /**
    * 承認ボタン押下時の処理。確認ダイアログを開く。
@@ -368,7 +375,15 @@ export default function ReportDetailPage() {
    */
   const handleDeleteItemConfirm = () => {
     if (deletingItemId === null) return;
-    deleteItem.mutate({ reportId: report.id, itemId: deletingItemId });
+    deleteItem.mutate(
+      { reportId: report.id, itemId: deletingItemId },
+      {
+        onSuccess: () => {
+          setToast({ open: true, severity: 'success', message: '明細を削除しました' });
+        },
+        onError: () => setItemApiError('明細の削除に失敗しました'),
+      },
+    );
     setDeletingItemId(null);
   };
 
@@ -387,7 +402,10 @@ export default function ReportDetailPage() {
           description: data.description,
         },
         {
-          onSuccess: () => setPanelOpen(false),
+          onSuccess: () => {
+            setPanelOpen(false);
+            setToast({ open: true, severity: 'success', message: '明細を追加しました' });
+          },
           onError: () => setItemApiError('明細の追加に失敗しました'),
         },
       );
@@ -403,7 +421,10 @@ export default function ReportDetailPage() {
           updated_at: selectedItem.updated_at,
         },
         {
-          onSuccess: () => setPanelOpen(false),
+          onSuccess: () => {
+            setPanelOpen(false);
+            setToast({ open: true, severity: 'success', message: '明細を更新しました' });
+          },
           onError: () => setItemApiError('明細の更新に失敗しました'),
         },
       );
@@ -412,6 +433,7 @@ export default function ReportDetailPage() {
 
   /**
    * 「保存して続けて追加」処理。
+   * 成功後は formKey をインクリメントして ItemSlidePanel を再マウントし、フォームをリセットする。
    */
   const handleItemSaveAndContinue = (data: ItemFormValues) => {
     setItemApiError(null);
@@ -425,9 +447,11 @@ export default function ReportDetailPage() {
       },
       {
         onSuccess: () => {
-          // フォームをリセットして追加モードを継続する。
+          // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームをリセットする。
           setSelectedItem(null);
           setPanelMode('add');
+          setFormKey((prev) => prev + 1);
+          setToast({ open: true, severity: 'success', message: '明細を追加しました' });
         },
         onError: () => setItemApiError('明細の追加に失敗しました'),
       },
@@ -435,6 +459,9 @@ export default function ReportDetailPage() {
   };
 
   const isItemPending = createItem.isPending || updateItem.isPending;
+
+  // ReportActionBar に渡す pendingAction。ワークフロー操作のペンディング状態を文字列として渡す。
+  const actionBarPendingAction = workflowPendingAction ?? null;
 
   return (
     <Box>
@@ -448,173 +475,28 @@ export default function ReportDetailPage() {
         </Box>
       )}
 
-      {/* レポート基本情報 */}
+      {/* レポート情報カード（基本情報・ワークフロー情報・再申請元リンクを含む） */}
       <Box sx={{ mb: 3 }}>
-        <ReportBasicInfo
-          title={report.title}
+        <ReportInfoCard report={report} />
+      </Box>
+
+      {/* アクションバー（ロール・所有権・ステータスに応じたボタンを表示） */}
+      <Box sx={{ mb: 2 }}>
+        <ReportActionBar
           status={report.status}
-          periodStart={report.period_start}
-          periodEnd={report.period_end}
-          totalAmount={report.total_amount}
-          submitterName={report.submitter?.name ?? ''}
-          createdAt={report.created_at}
+          isOwner={isOwner}
+          currentUserRole={user?.role ?? ''}
+          itemCount={report.items.length}
+          pendingAction={actionBarPendingAction}
+          onEdit={() => navigate(`/reports/${report.id}/edit`)}
+          onSubmitReport={() => setDialogAction('submit')}
+          onDelete={() => setDialogAction('delete')}
+          onResubmit={() => navigate(`/reports/new?ref=${report.id}`)}
+          onApprove={handleApprove}
+          onReject={handleReject}
+          onPay={handleMarkAsPaid}
         />
-
-        {/* 再申請元リンク（reference_report_id が存在する場合のみ表示） */}
-        {report.reference_report_id && (
-          <Box sx={{ mt: 1 }}>
-            <Typography variant="body2" component="span">
-              再申請元:{' '}
-            </Typography>
-            <Link to={`/reports/${report.reference_report_id}`}>元レポートを表示</Link>
-          </Box>
-        )}
-
-        {/* ワークフロー情報（提出・承認・却下・支払の各フェーズの情報を条件付きで表示） */}
-        {(report.submitted_at ||
-          report.approved_by ||
-          report.rejected_by ||
-          report.paid_by) && (
-          <Paper variant="outlined" sx={{ mt: 2, p: 2 }}>
-            {/* 提出日 */}
-            {report.submitted_at && (
-              <Typography variant="body2">
-                提出日:{' '}
-                {new Date(report.submitted_at).toLocaleString('ja-JP', {
-                  year: 'numeric',
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </Typography>
-            )}
-
-            {/* 承認情報（approved_by が存在する場合） */}
-            {report.approved_by && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2">承認者: {report.approved_by.name}</Typography>
-                {report.approved_at && (
-                  <Typography variant="body2">
-                    承認日:{' '}
-                    {new Date(report.approved_at).toLocaleString('ja-JP', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Typography>
-                )}
-                {report.approval_comment && (
-                  <Typography variant="body2">承認コメント: {report.approval_comment}</Typography>
-                )}
-              </Box>
-            )}
-
-            {/* 却下情報（rejected_by が存在する場合、赤色背景で表示） */}
-            {report.rejected_by && (
-              <Box sx={{ mt: 1, p: 1, bgcolor: 'error.light', borderRadius: 1 }}>
-                <Typography variant="body2">却下者: {report.rejected_by.name}</Typography>
-                {report.rejected_at && (
-                  <Typography variant="body2">
-                    却下日:{' '}
-                    {new Date(report.rejected_at).toLocaleString('ja-JP', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Typography>
-                )}
-                {report.rejection_reason && (
-                  <Typography variant="body2">却下理由: {report.rejection_reason}</Typography>
-                )}
-              </Box>
-            )}
-
-            {/* 支払情報（paid_by が存在する場合） */}
-            {report.paid_by && (
-              <Box sx={{ mt: 1 }}>
-                <Typography variant="body2">支払処理者: {report.paid_by.name}</Typography>
-                {report.paid_at && (
-                  <Typography variant="body2">
-                    支払日:{' '}
-                    {new Date(report.paid_at).toLocaleString('ja-JP', {
-                      year: 'numeric',
-                      month: '2-digit',
-                      day: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
-                  </Typography>
-                )}
-              </Box>
-            )}
-          </Paper>
-        )}
       </Box>
-
-      {/* アクションボタンエリア（オーナー向け: 編集・提出・削除・再申請） */}
-      <Box data-testid="report-action-bar" sx={{ display: 'flex', gap: 1, mb: 2, flexWrap: 'wrap' }}>
-        {/* 編集ボタン: 所有者かつ draft 状態の場合に表示（report-detail.md §4 A1） */}
-        {isOwner && isDraft && (
-          <Link to={`/reports/${report.id}/edit`}>
-            <button type="button">編集</button>
-          </Link>
-        )}
-
-        {/* 提出ボタン: 所有者かつ draft 状態の場合に表示（report-detail.md §4 A2）。明細0件時は disabled にする。 */}
-        {isOwner && isDraft && (
-          <Box>
-            <button
-              type="button"
-              onClick={() => setDialogAction('submit')}
-              disabled={!hasItems}
-            >
-              提出する
-            </button>
-            {!hasItems && (
-              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
-                明細を1件以上追加してから提出してください
-              </Typography>
-            )}
-          </Box>
-        )}
-
-        {/* 削除ボタン: 所有者かつ draft 状態の場合に表示（report-detail.md §4 A3） */}
-        {isOwner && isDraft && (
-          <button
-            type="button"
-            onClick={() => setDialogAction('delete')}
-          >
-            削除する
-          </button>
-        )}
-
-        {/* 再申請ボタン: 所有者かつ rejected 状態の場合に表示（report-detail.md §4 A4） */}
-        {isOwner && report.status === 'rejected' && (
-          <Link to={`/reports/new?ref=${report.id}`}>
-            <button type="button">再申請</button>
-          </Link>
-        )}
-      </Box>
-
-      {/* ワークフロー操作ボタン（承認・却下・支払完了） */}
-      {user?.role && (
-        <Box sx={{ mb: 2 }}>
-          <WorkflowActions
-            status={report.status}
-            currentUserRole={user.role}
-            isOwner={isOwner}
-            onApprove={handleApprove}
-            onReject={handleReject}
-            onMarkAsPaid={handleMarkAsPaid}
-            pendingAction={workflowPendingAction}
-          />
-        </Box>
-      )}
 
       {/* 明細一覧セクション */}
       <Box sx={{ mb: 3 }}>
@@ -629,8 +511,9 @@ export default function ReportDetailPage() {
         />
       </Box>
 
-      {/* 明細スライドパネル */}
+      {/* 明細スライドパネル（formKey で再マウントしてフォームリセットを実現） */}
       <ItemSlidePanel
+        key={formKey}
         open={panelOpen}
         mode={panelMode}
         reportId={report.id}

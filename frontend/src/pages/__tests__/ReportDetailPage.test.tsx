@@ -273,9 +273,10 @@ describe('ReportDetailPage', () => {
     renderPage('test-report-id');
 
     // 削除ボタンをクリックする。
-    // スタブ実装では OwnerActions が存在しないため失敗する。
-    const deleteButton = screen.getByRole('button', { name: /削除/ });
-    await user.click(deleteButton);
+    // OwnerActions のレポート削除ボタン（1番目）をクリックする。
+    // ItemTable にも明細削除ボタンが存在するため getAllByRole で取得し先頭を使用する。
+    const deleteButtons = screen.getAllByRole('button', { name: /削除/ });
+    await user.click(deleteButtons[0]!);
 
     // 確認ダイアログが表示されること。
     await waitFor(() => {
