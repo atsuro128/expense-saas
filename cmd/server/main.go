@@ -108,7 +108,7 @@ func main() {
 	// サービス。
 	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
-	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
+	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
 	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
 	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
