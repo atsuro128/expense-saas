@@ -181,7 +181,8 @@ func main() {
 			all.Delete("/api/reports/{id}/items/{itemId}", itemHandler.DeleteItem)
 
 			// 添付ファイル。
-			all.Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
+			all.With(middleware.RateLimitByUser(bgCtx, 10, time.Minute)).
+				Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.GetAttachmentDownload)
 			all.Delete("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.DeleteAttachment)
