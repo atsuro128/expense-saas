@@ -1,7 +1,7 @@
-// 経費レポートに関する React Query Hook のスタブ実装。
-// 本実装は Step9 で行う。現時点では型定義のみを提供し、テスト時には vi.mock でモックする。
+// 経費レポートに関する React Query Hook の本実装。
+// TanStack Query（useQuery/useMutation）と api クライアントを使用する。
 
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { ApiListResponse, ApiResponse, ExpenseReportDetail, ExpenseReportSummary, PendingReport, PayableReport } from '../api/types';
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
@@ -15,17 +15,40 @@ export interface MyReportsParams {
   to?: string;
 }
 
-// useMyReports: GET /api/reports — 自分のレポート一覧を取得する Hook のスタブ。
-// スタブ実装では常に空データを返す。
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function useMyReports(_params?: MyReportsParams): UseQueryResult<ApiListResponse<ExpenseReportSummary>> {
-  throw new Error('useMyReports is not implemented yet');
+/**
+ * useMyReports: GET /api/reports — 自分のレポート一覧を取得する Hook。
+ * queryKey: ['reports', 'mine', params]
+ */
+export function useMyReports(params: MyReportsParams = {}): UseQueryResult<ApiListResponse<ExpenseReportSummary>> {
+  const { page, per_page, status, from, to } = params;
+
+  // クエリパラメータを構築する。
+  const searchParams = new URLSearchParams();
+  if (page !== undefined) searchParams.set('page', String(page));
+  if (per_page !== undefined) searchParams.set('per_page', String(per_page));
+  if (status) searchParams.set('status', status);
+  if (from) searchParams.set('from', from);
+  if (to) searchParams.set('to', to);
+
+  const qs = searchParams.toString();
+  const url = qs ? `/api/reports?${qs}` : '/api/reports';
+
+  return useQuery<ApiListResponse<ExpenseReportSummary>>({
+    queryKey: ['reports', 'mine', params],
+    queryFn: () => api.get<ApiListResponse<ExpenseReportSummary>>(url),
+  });
 }
 
-// useReport: GET /api/reports/:id — レポート詳細を取得する Hook のスタブ。
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export function useReport(_reportId?: string): UseQueryResult<ApiResponse<ExpenseReportDetail>> {
-  throw new Error('useReport is not implemented yet');
+/**
+ * useReport: GET /api/reports/:id — レポート詳細を取得する Hook。
+ * queryKey: ['reports', 'detail', id]
+ */
+export function useReport(reportId?: string): UseQueryResult<ApiResponse<ExpenseReportDetail>> {
+  return useQuery<ApiResponse<ExpenseReportDetail>>({
+    queryKey: ['reports', 'detail', reportId],
+    queryFn: () => api.get<ApiResponse<ExpenseReportDetail>>(`/api/reports/${reportId}`),
+    enabled: !!reportId,
+  });
 }
 
 // useCreateReport のミューテーション入力型。
@@ -36,9 +59,32 @@ export interface CreateReportInput {
   reference_report_id?: string;
 }
 
-// useCreateReport: POST /api/reports — レポート作成 Hook のスタブ。
+/**
+ * useCreateReport: POST /api/reports — レポート作成 Hook。
+ * 成功時: ['reports', 'mine'] と ['dashboard'] のキャッシュを無効化する。
+ */
 export function useCreateReport(): UseMutationResult<{ id: string }, Error, CreateReportInput> {
-  throw new Error('useCreateReport is not implemented yet');
+  const queryClient = useQueryClient();
+
+  return useMutation<{ id: string }, Error, CreateReportInput>({
+    mutationFn: async (input: CreateReportInput) => {
+      const body: Record<string, unknown> = {
+        title: input.title,
+        period_start: input.period_start,
+        period_end: input.period_end,
+      };
+      if (input.reference_report_id) {
+        body['reference_report_id'] = input.reference_report_id;
+      }
+      const res = await api.post<ApiResponse<{ id: string }>>('/api/reports', body);
+      return res.data;
+    },
+    onSuccess: () => {
+      // レポート一覧・ダッシュボードのクエリキャッシュを無効化する。
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
 }
 
 // useUpdateReport のミューテーション入力型。
@@ -50,9 +96,31 @@ export interface UpdateReportInput {
   updated_at: string;
 }
 
-// useUpdateReport: PUT /api/reports/:id — レポート更新 Hook のスタブ。
+/**
+ * useUpdateReport: PUT /api/reports/:id — レポート更新 Hook。
+ * 成功時: ['reports', 'detail', id]・['reports', 'mine']・['dashboard'] のキャッシュを無効化する。
+ */
 export function useUpdateReport(): UseMutationResult<ExpenseReportDetail, Error, UpdateReportInput> {
-  throw new Error('useUpdateReport is not implemented yet');
+  const queryClient = useQueryClient();
+
+  return useMutation<ExpenseReportDetail, Error, UpdateReportInput>({
+    mutationFn: async (input: UpdateReportInput) => {
+      const body = {
+        title: input.title,
+        period_start: input.period_start,
+        period_end: input.period_end,
+        updated_at: input.updated_at,
+      };
+      const res = await api.put<ApiResponse<ExpenseReportDetail>>(`/api/reports/${input.id}`, body);
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      // レポート詳細・一覧・ダッシュボードのクエリキャッシュを無効化する。
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
 }
 
 // useSubmitReport のミューテーション入力型。
@@ -61,14 +129,48 @@ export interface SubmitReportInput {
   updated_at: string;
 }
 
-// useSubmitReport: POST /api/reports/:id/submit — レポート提出 Hook のスタブ。
+/**
+ * useSubmitReport: POST /api/reports/:id/submit — レポート提出 Hook。
+ * 成功時: ['reports', 'detail', id]・['reports', 'mine']・['dashboard']・['workflow', 'pending'] のキャッシュを無効化する。
+ */
 export function useSubmitReport(): UseMutationResult<ExpenseReportDetail, Error, SubmitReportInput> {
-  throw new Error('useSubmitReport is not implemented yet');
+  const queryClient = useQueryClient();
+
+  return useMutation<ExpenseReportDetail, Error, SubmitReportInput>({
+    mutationFn: async (input: SubmitReportInput) => {
+      const res = await api.post<ApiResponse<ExpenseReportDetail>>(
+        `/api/reports/${input.id}/submit`,
+        { updated_at: input.updated_at },
+      );
+      return res.data;
+    },
+    onSuccess: (_data, variables) => {
+      // レポート詳細・一覧・ダッシュボード・承認待ちのクエリキャッシュを無効化する。
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+      void queryClient.invalidateQueries({ queryKey: ['workflow', 'pending'] });
+    },
+  });
 }
 
-// useDeleteReport: DELETE /api/reports/:id — レポート削除 Hook のスタブ。
+/**
+ * useDeleteReport: DELETE /api/reports/:id — レポート削除 Hook。
+ * 成功時: ['reports', 'mine'] と ['dashboard'] のキャッシュを無効化する。
+ */
 export function useDeleteReport(): UseMutationResult<void, Error, string> {
-  throw new Error('useDeleteReport is not implemented yet');
+  const queryClient = useQueryClient();
+
+  return useMutation<void, Error, string>({
+    mutationFn: async (reportId: string) => {
+      await api.delete<void>(`/api/reports/${reportId}`);
+    },
+    onSuccess: () => {
+      // レポート一覧・ダッシュボードのクエリキャッシュを無効化する。
+      void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
+      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+    },
+  });
 }
 
 // usePendingReports のパラメータ型。
