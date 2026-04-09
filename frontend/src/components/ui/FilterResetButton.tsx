@@ -23,6 +23,7 @@ export default function FilterResetButton({ onReset, isFiltered }: FilterResetBu
       startIcon={<FilterAltOffIcon />}
       onClick={onReset}
       disabled={!isFiltered}
+      data-testid="filter-reset-button"
     >
       フィルタをリセット
     </Button>

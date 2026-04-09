@@ -3,7 +3,7 @@
 // URL クエリパラメータでフィルタ条件・ページ番号を管理する。
 
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import MenuItem from '@mui/material/MenuItem';
@@ -37,6 +37,7 @@ const STATUS_OPTIONS = [
 export default function ReportListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const location = useLocation();
 
   // URL クエリパラメータからフィルタ初期値を取得する。
   const page = parseInt(searchParams.get('page') ?? '1', 10);
@@ -44,8 +45,15 @@ export default function ReportListPage() {
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
 
-  // トースト表示状態。
+  // トースト表示状態（エラー用）。
   const [toastOpen, setToastOpen] = useState(false);
+
+  // ナビゲーション経由のトースト状態（削除成功等）。
+  const [navToast, setNavToast] = useState<{ open: boolean; severity: 'success' | 'error'; message: string }>({
+    open: false,
+    severity: 'success',
+    message: '',
+  });
 
   // レポート一覧データを取得する。
   const { data, isLoading, isError, error } = useMyReports({
@@ -57,6 +65,16 @@ export default function ReportListPage() {
 
   // エラー時はトーストを表示する。
   const shouldShowError = isError && error !== null;
+
+  // ナビゲーション state にトーストが含まれる場合は表示し、state をクリアして二重表示を防ぐ。
+  useEffect(() => {
+    const stateToast = (location.state as { toast?: { severity: 'success' | 'error'; message: string } } | null)?.toast;
+    if (stateToast) {
+      setNavToast({ open: true, ...stateToast });
+      // history state をクリアして再レンダリング時に再表示しない。
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   /**
    * MUI Select の display div に value プロパティを設定する。
@@ -130,6 +148,14 @@ export default function ReportListPage() {
           onClose={() => setToastOpen(true)}
         />
       )}
+
+      {/* ナビゲーション経由のトースト（削除成功等） */}
+      <AppToast
+        open={navToast.open}
+        severity={navToast.severity}
+        message={navToast.message}
+        onClose={() => setNavToast((prev) => ({ ...prev, open: false }))}
+      />
 
       {/* レポート一覧ヘッダー */}
       <Box

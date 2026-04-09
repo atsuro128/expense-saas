@@ -1,7 +1,8 @@
-// レポート基本情報コンポーネント（スタブ）。
+// レポート基本情報コンポーネント。
 // SCR-RPT-004 に対応する。
 
 import type { ReportStatus } from '../../api/types';
+import StatusChip from '../../components/ui/StatusChip';
 
 export interface ReportBasicInfoProps {
   title: string;
@@ -15,6 +16,7 @@ export interface ReportBasicInfoProps {
 
 /**
  * ReportBasicInfo はレポートのタイトル・ステータス・期間・金額・作成者・作成日を表示する。
+ * createdAt は日本語ロケール形式（YYYY年MM月DD日 HH:mm）で表示する。
  */
 export default function ReportBasicInfo({
   title,
@@ -25,16 +27,27 @@ export default function ReportBasicInfo({
   submitterName,
   createdAt,
 }: ReportBasicInfoProps) {
+  // createdAt を日本語形式でフォーマットする（ISO 文字列と重複しないように）。
+  const formattedCreatedAt = new Date(createdAt).toLocaleString('ja-JP', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
   return (
     <div>
       <h2>{title}</h2>
-      <span data-testid="status-chip">{status}</span>
+      <span data-testid="status-chip">
+        <StatusChip status={status} />
+      </span>
       <p>
         {periodStart} 〜 {periodEnd}
       </p>
-      <p data-testid="total-amount">{totalAmount.toLocaleString()}</p>
+      <p data-testid="total-amount">¥{totalAmount.toLocaleString()}</p>
       <p>{submitterName}</p>
-      <p>{createdAt}</p>
+      <p>{formattedCreatedAt}</p>
     </div>
   );
 }

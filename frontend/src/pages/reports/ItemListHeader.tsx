@@ -1,7 +1,6 @@
-// 明細一覧セクションヘッダーコンポーネント（スタブ）。
+// 明細一覧セクションヘッダーコンポーネント。
 // 明細件数と「+ 明細追加」ボタンを横並びに配置する。
 // SCR-RPT-004 §5 に対応する。
-// Step 9: スタブ実装。Step 10 で本実装に置き換える。
 
 export interface ItemListHeaderProps {
   /** 明細件数 */
@@ -16,7 +15,15 @@ export interface ItemListHeaderProps {
  * ItemListHeader は明細セクションのヘッダー。
  * 「明細一覧（N件）」と「明細追加」ボタンを表示する。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function ItemListHeader(_props: ItemListHeaderProps) {
-  return <div data-testid="item-list-header">NOT IMPLEMENTED</div>;
+export default function ItemListHeader({ itemCount, canAddItem, onAddItem }: ItemListHeaderProps) {
+  return (
+    <div data-testid="item-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <h3>明細一覧（{itemCount}件）</h3>
+      {canAddItem && (
+        <button type="button" onClick={onAddItem}>
+          明細追加
+        </button>
+      )}
+    </div>
+  );
 }
