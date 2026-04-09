@@ -1,7 +1,6 @@
-// 明細テーブルコンポーネント（スタブ）。
+// 明細テーブルコンポーネント。
 // 明細データをテーブル形式で表示する。
 // SCR-RPT-004 §5 に対応する。
-// Step 9: スタブ実装。Step 10 で本実装に置き換える。
 
 import type { ExpenseItemWithAttachments } from '../../api/types';
 
@@ -21,8 +20,61 @@ export interface ItemTableProps {
 /**
  * ItemTable は明細データをテーブル形式で表示する。
  * 操作列（編集・削除ボタン）は canEditItems=true の場合のみ表示する。
+ * 編集・削除ボタンのクリックはイベント伝播を停止し、行クリックを発火しない。
  */
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-export default function ItemTable(_props: ItemTableProps) {
-  return <div data-testid="item-table">NOT IMPLEMENTED</div>;
+export default function ItemTable({ items, canEditItems, onItemClick, onEditItem, onDeleteItem }: ItemTableProps) {
+  return (
+    <table data-testid="item-table">
+      <thead>
+        <tr>
+          <th>日付</th>
+          <th>金額</th>
+          <th>カテゴリ</th>
+          <th>摘要</th>
+          <th>添付数</th>
+          {canEditItems && <th>操作</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((item) => (
+          <tr
+            key={item.id}
+            data-testid={`item-row-${item.id}`}
+            onClick={() => onItemClick(item.id)}
+            style={{ cursor: 'pointer' }}
+          >
+            <td>{item.expense_date}</td>
+            <td>{item.amount.toLocaleString()}</td>
+            <td>{item.category.name_ja}</td>
+            <td>{item.description}</td>
+            <td>{item.attachments.length}</td>
+            {canEditItems && (
+              <td>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    // 行クリックが発火しないようにイベント伝播を停止する。
+                    e.stopPropagation();
+                    onEditItem(item.id);
+                  }}
+                >
+                  編集
+                </button>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    // 行クリックが発火しないようにイベント伝播を停止する。
+                    e.stopPropagation();
+                    onDeleteItem(item.id);
+                  }}
+                >
+                  削除
+                </button>
+              </td>
+            )}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
 }
