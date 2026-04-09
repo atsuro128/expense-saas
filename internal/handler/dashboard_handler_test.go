@@ -573,6 +573,8 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 	// 当月の1日を period_start として設定する（monthly_summary の集計軸は period_start）。
 	now := time.Now().UTC()
 	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	// 当月末日を period_end として設定する（CHECK (period_start <= period_end) 制約を満たすため）。
+	currentMonthEnd := currentMonthStart.AddDate(0, 1, -1)
 
 	// approved ステータスのレポートを作成する（10000円）。
 	// monthly_summary の集計に含まれてはならない。
@@ -580,6 +582,7 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 		testutil.WithReportStatus(domain.ReportStatusApproved),
 		testutil.WithReportTotalAmount(10000),
 		testutil.WithReportPeriodStart(currentMonthStart),
+		testutil.WithReportPeriodEnd(currentMonthEnd),
 		testutil.WithReportTitle("集計対象外の承認済みレポート（10000円）"),
 	)
 
@@ -589,6 +592,7 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 		testutil.WithReportStatus(domain.ReportStatusPaid),
 		testutil.WithReportTotalAmount(5000),
 		testutil.WithReportPeriodStart(currentMonthStart),
+		testutil.WithReportPeriodEnd(currentMonthEnd),
 		testutil.WithReportTitle("集計対象の支払済みレポート（5000円）"),
 	)
 

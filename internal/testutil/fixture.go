@@ -411,6 +411,14 @@ func WithReportPeriodStart(t time.Time) ReportOption {
 	}
 }
 
+// WithReportPeriodEnd は CreateReport の period_end を設定する。
+// period_start と合わせて指定することで CHECK (period_start <= period_end) 制約違反を防ぐ。
+func WithReportPeriodEnd(t time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["period_end"] = t
+	}
+}
+
 // ItemOption は CreateItem の関数型オプション。
 type ItemOption func(m map[string]interface{})
 
