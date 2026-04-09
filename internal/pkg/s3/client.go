@@ -1,122 +1,122 @@
 package s3
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"net/http"
-	"net/url"
 	"os"
-	"strings"
 	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-// Client は S3/MinIO 互換ストレージへのアクセスを提供する実装。
-// 本番環境では AWS S3 を、ローカル開発では MinIO を使用する。
-// AWS SDK v2 を使用せず、署名付き URL については簡易実装（テスト用途を考慮）。
+// Client は AWS SDK v2 を使った S3/MinIO 互換ストレージクライアント。
+// 本番環境では ECS タスクロール経由の認証、ローカルでは MinIO のスタティック認証を使う。
 type Client struct {
-	endpoint  string // S3 エンドポイント URL（ローカルでは http://localhost:9000）
-	bucket    string // バケット名
-	accessKey string // アクセスキー
-	secretKey string // シークレットキー
-	region    string // リージョン
-	httpCli   *http.Client
+	s3Client      *s3.Client
+	presignClient *s3.PresignClient
+	bucket        string
 }
 
 // NewClientFromEnv は環境変数から S3 クライアントを生成する。
 // 環境変数:
-//   - S3_ENDPOINT: エンドポイント URL（省略時は AWS S3 使用）
+//   - S3_ENDPOINT: カスタムエンドポイント URL（省略時は AWS S3 を使用）
 //   - S3_BUCKET: バケット名
-//   - AWS_ACCESS_KEY_ID: アクセスキー
+//   - AWS_ACCESS_KEY_ID: アクセスキー（省略時は ECS タスクロール等のデフォルトクレデンシャルを使用）
 //   - AWS_SECRET_ACCESS_KEY: シークレットキー
 //   - AWS_REGION: リージョン（省略時は ap-northeast-1）
-func NewClientFromEnv() *Client {
+func NewClientFromEnv() (*Client, error) {
 	region := os.Getenv("AWS_REGION")
 	if region == "" {
 		region = "ap-northeast-1"
 	}
+
+	var opts []func(*config.LoadOptions) error
+	opts = append(opts, config.WithRegion(region))
+
+	// スタティックキーが設定されていればスタティッククレデンシャルを使う（ローカル MinIO 用）。
+	accessKey := os.Getenv("AWS_ACCESS_KEY_ID")
+	secretKey := os.Getenv("AWS_SECRET_ACCESS_KEY")
+	if accessKey != "" && secretKey != "" {
+		opts = append(opts, config.WithCredentialsProvider(
+			credentials.NewStaticCredentialsProvider(accessKey, secretKey, ""),
+		))
+	}
+
+	cfg, err := config.LoadDefaultConfig(context.Background(), opts...)
+	if err != nil {
+		return nil, fmt.Errorf("s3.NewClientFromEnv: load config: %w", err)
+	}
+
+	// S3 クライアントオプション。
+	var s3Opts []func(*s3.Options)
+
+	endpoint := os.Getenv("S3_ENDPOINT")
+	if endpoint != "" {
+		// MinIO 等のカスタムエンドポイント用設定。
+		s3Opts = append(s3Opts, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true // MinIO はパス形式を使用する。
+		})
+	}
+
+	client := s3.NewFromConfig(cfg, s3Opts...)
+	presigner := s3.NewPresignClient(client)
+
 	return &Client{
-		endpoint:  os.Getenv("S3_ENDPOINT"),
-		bucket:    os.Getenv("S3_BUCKET"),
-		accessKey: os.Getenv("AWS_ACCESS_KEY_ID"),
-		secretKey: os.Getenv("AWS_SECRET_ACCESS_KEY"),
-		region:    region,
-		httpCli:   &http.Client{Timeout: 30 * time.Second},
-	}
+		s3Client:      client,
+		presignClient: presigner,
+		bucket:        os.Getenv("S3_BUCKET"),
+	}, nil
 }
 
-// baseURL はバケットのベース URL を返す。
-func (c *Client) baseURL() string {
-	if c.endpoint != "" {
-		// MinIO パス形式（http://localhost:9000/bucket）。
-		ep := strings.TrimRight(c.endpoint, "/")
-		return ep + "/" + c.bucket
-	}
-	// AWS S3 仮想ホスト形式。
-	return fmt.Sprintf("https://%s.s3.%s.amazonaws.com", c.bucket, c.region)
-}
-
-// Upload はオブジェクトをストレージにアップロードする。
-// テスト環境では InMemoryClient を使用するため、本実装は本番環境専用。
+// Upload はオブジェクトを S3 にアップロードする。
 func (c *Client) Upload(ctx context.Context, key string, data io.Reader, contentType string) error {
-	body, err := io.ReadAll(data)
+	_, err := c.s3Client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(c.bucket),
+		Key:         aws.String(key),
+		Body:        data,
+		ContentType: aws.String(contentType),
+		ACL:         s3types.ObjectCannedACLPrivate,
+	})
 	if err != nil {
-		return fmt.Errorf("s3.Upload: read data: %w", err)
-	}
-
-	objectURL := c.baseURL() + "/" + key
-	req, err := http.NewRequestWithContext(ctx, http.MethodPut, objectURL, bytes.NewReader(body))
-	if err != nil {
-		return fmt.Errorf("s3.Upload: create request: %w", err)
-	}
-	req.Header.Set("Content-Type", contentType)
-	req.ContentLength = int64(len(body))
-
-	resp, err := c.httpCli.Do(req)
-	if err != nil {
-		return fmt.Errorf("s3.Upload: do request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusNoContent {
-		return fmt.Errorf("s3.Upload: unexpected status %d", resp.StatusCode)
+		return fmt.Errorf("s3.Upload: PutObject: %w", err)
 	}
 	return nil
 }
 
 // PresignGetObject は署名付きダウンロード URL を生成する。
-// 本番環境では AWS SDK の Presign を使用すべきだが、簡易実装として URL を構築する。
-// テスト環境では InMemoryClient を使用する。
-func (c *Client) PresignGetObject(_ context.Context, key, fileName, _ string, expiry time.Duration) (string, time.Time, error) {
+// ResponseContentType を付与し、Content-Disposition で元ファイル名を返す。
+func (c *Client) PresignGetObject(ctx context.Context, key, fileName, mimeType string, expiry time.Duration) (string, time.Time, error) {
 	expiresAt := time.Now().UTC().Add(expiry)
 
-	// 簡易的なプリサイン URL（本番では AWS SDK を使用すること）。
-	base := c.baseURL() + "/" + key
-	q := url.Values{}
-	q.Set("response-content-disposition", fmt.Sprintf(`attachment; filename="%s"`, fileName))
-	q.Set("X-Amz-Expires", fmt.Sprintf("%d", int(expiry.Seconds())))
-	presigned := base + "?" + q.Encode()
+	disposition := fmt.Sprintf(`attachment; filename="%s"`, fileName)
 
-	return presigned, expiresAt, nil
+	req, err := c.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
+		Bucket:                     aws.String(c.bucket),
+		Key:                        aws.String(key),
+		ResponseContentType:        aws.String(mimeType),
+		ResponseContentDisposition: aws.String(disposition),
+	}, s3.WithPresignExpires(expiry))
+	if err != nil {
+		return "", time.Time{}, fmt.Errorf("s3.PresignGetObject: %w", err)
+	}
+
+	return req.URL, expiresAt, nil
 }
 
-// Delete はオブジェクトをストレージから削除する。
+// Delete はオブジェクトを S3 から削除する。
 func (c *Client) Delete(ctx context.Context, key string) error {
-	objectURL := c.baseURL() + "/" + key
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, objectURL, nil)
+	_, err := c.s3Client.DeleteObject(ctx, &s3.DeleteObjectInput{
+		Bucket: aws.String(c.bucket),
+		Key:    aws.String(key),
+	})
 	if err != nil {
-		return fmt.Errorf("s3.Delete: create request: %w", err)
-	}
-
-	resp, err := c.httpCli.Do(req)
-	if err != nil {
-		return fmt.Errorf("s3.Delete: do request: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusNoContent && resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("s3.Delete: unexpected status %d", resp.StatusCode)
+		return fmt.Errorf("s3.Delete: DeleteObject: %w", err)
 	}
 	return nil
 }

@@ -107,7 +107,11 @@ func main() {
 	hasher := domain.NewArgon2idHasher()
 
 	// S3 クライアント（環境変数から設定を読み込む）。
-	storageClient := pkgs3.NewClientFromEnv()
+	storageClient, err := pkgs3.NewClientFromEnv()
+	if err != nil {
+		slog.Error("S3 クライアントの初期化に失敗しました", "error", err)
+		os.Exit(1)
+	}
 
 	// サービス。
 	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
