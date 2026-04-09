@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"time"
+	"unicode/utf8"
 
 	"expense-saas/internal/domain"
 	"expense-saas/internal/middleware"
@@ -118,7 +119,7 @@ func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// reason の最大長チェック（openapi.yaml: maxLength: 1000）。
-	if len(req.Reason) > 1000 {
+	if utf8.RuneCountInString(req.Reason) > 1000 {
 		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "reason must be 1000 characters or less")
 		return
 	}
