@@ -18,6 +18,21 @@ func NewDashboardHandler(svc service.DashboardService) *DashboardHandler {
 }
 
 // GetDashboard は GET /api/dashboard を処理します。
+// アクターのロールに応じたダッシュボードデータを JSON で返します。
 func (h *DashboardHandler) GetDashboard(w http.ResponseWriter, r *http.Request) {
-	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "認証情報が不正です")
+		return
+	}
+
+	data, err := h.svc.GetDashboard(r.Context(), actor)
+	if err != nil {
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "ダッシュボードデータの取得に失敗しました")
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"data": data,
+	})
 }

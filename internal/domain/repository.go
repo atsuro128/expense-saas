@@ -65,6 +65,8 @@ type MembershipRepository interface {
 	ListByTenantID(ctx context.Context, tenantID uuid.UUID) ([]TenantMembership, error)
 	// HasApprover はテナントに承認者が1人以上いる場合に true を返す。
 	HasApprover(ctx context.Context, tenantID uuid.UUID) (bool, error)
+	// CountByTenantID はテナント内のメンバー総数を返す（ダッシュボードの tenant_member_count に使用）。
+	CountByTenantID(ctx context.Context, tenantID uuid.UUID) (int, error)
 }
 
 // CategoryRepository は経費カテゴリマスターデータへの読み取りアクセスを提供する。
@@ -104,6 +106,8 @@ type ReportRepository interface {
 	// ListPayable はテナント内の承認済みレポートを返す。
 	// 戻り値の int は総件数（ページネーション用）。
 	ListPayable(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
+	// ListRecentReports はダッシュボード用に指定ユーザーの直近レポートを limit 件取得する。
+	ListRecentReports(ctx context.Context, tenantID, userID uuid.UUID, limit int) ([]ExpenseReport, error)
 }
 
 // ItemRepository は ExpenseItem エンティティの永続化操作を提供する。
