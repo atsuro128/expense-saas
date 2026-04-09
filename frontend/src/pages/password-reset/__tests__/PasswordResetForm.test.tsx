@@ -17,7 +17,8 @@ describe('PasswordResetForm', () => {
     );
 
     expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
-    expect(screen.getByLabelText('パスワード（確認）')).toBeInTheDocument();
+    // 画面仕様 §4 ラベル: 「確認用パスワード」
+    expect(screen.getByLabelText('確認用パスワード')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'パスワードを変更する' })).toBeInTheDocument();
   });
 
@@ -31,7 +32,7 @@ describe('PasswordResetForm', () => {
     );
 
     await userEvent.type(screen.getByLabelText('新しいパスワード'), 'NewPass1!');
-    await userEvent.type(screen.getByLabelText('パスワード（確認）'), 'NewPass1!');
+    await userEvent.type(screen.getByLabelText('確認用パスワード'), 'NewPass1!');
     await userEvent.click(screen.getByRole('button', { name: 'パスワードを変更する' }));
 
     await waitFor(() => {
@@ -43,42 +44,44 @@ describe('PasswordResetForm', () => {
     });
   });
 
-  // AUTH-FE-066: new_password が空のとき必須エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-066: new_password が空のとき必須エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-066: new_password が空のとき必須エラーが表示されること。
+  it('AUTH-FE-066: new_password が空のとき必須エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <PasswordResetForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: 'パスワードを変更する' }));
+    // new_password フィールドにフォーカスしてすぐ離す（onBlur によるバリデーション発火）。
+    await userEvent.click(screen.getByLabelText('新しいパスワード'));
+    await userEvent.tab();
 
-    // 実装後: パスワード必須エラーが表示されること。
+    // 画面仕様 V1: 「新しいパスワードを入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/パスワード.*必須/)).toBeInTheDocument();
+      expect(screen.queryByText('新しいパスワードを入力してください')).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-067: new_password が 7 文字のとき最小長エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-067: new_password が 7 文字のとき最小長エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-067: new_password が 7 文字のとき最小長エラーが表示されること。
+  it('AUTH-FE-067: new_password が 7 文字のとき最小長エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <PasswordResetForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
+    // 7 文字入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('新しいパスワード'), 'Short1!');
-    await userEvent.type(screen.getByLabelText('パスワード（確認）'), 'Short1!');
-    await userEvent.click(screen.getByRole('button', { name: 'パスワードを変更する' }));
+    await userEvent.tab();
 
-    // 実装後: パスワード最小長エラーが表示されること。
+    // 画面仕様 V2: 「パスワードは8文字以上で入力してください」
     await waitFor(() => {
       expect(screen.queryByText(/8文字/)).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-068: パスワード不一致のとき確認用パスワードにエラーが表示されること（実装後に動作）。
-  it('AUTH-FE-068: パスワード不一致のとき確認用フィールドにエラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-068: パスワード不一致のとき確認用パスワードにエラーが表示されること。
+  it('AUTH-FE-068: パスワード不一致のとき確認用フィールドにエラーが表示される', async () => {
     render(
       <MemoryRouter>
         <PasswordResetForm onSubmit={() => {}} apiError={null} isPending={false} />
@@ -86,10 +89,10 @@ describe('PasswordResetForm', () => {
     );
 
     await userEvent.type(screen.getByLabelText('新しいパスワード'), 'NewPass1!');
-    await userEvent.type(screen.getByLabelText('パスワード（確認）'), 'DiffPass1!');
+    await userEvent.type(screen.getByLabelText('確認用パスワード'), 'DiffPass1!');
     await userEvent.click(screen.getByRole('button', { name: 'パスワードを変更する' }));
 
-    // 実装後: パスワード不一致エラーが表示されること。
+    // 画面仕様 V4: 「パスワードが一致しません」
     await waitFor(() => {
       expect(screen.queryByText(/パスワードが一致/)).toBeInTheDocument();
     });
@@ -119,7 +122,7 @@ describe('PasswordResetForm', () => {
     );
 
     expect(screen.getByLabelText('新しいパスワード')).toBeDisabled();
-    expect(screen.getByLabelText('パスワード（確認）')).toBeDisabled();
+    expect(screen.getByLabelText('確認用パスワード')).toBeDisabled();
     expect(screen.getByRole('button', { name: 'パスワードを変更する' })).toBeDisabled();
   });
 });
