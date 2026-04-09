@@ -11,6 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countMembersByTenantID = `-- name: CountMembersByTenantID :one
+SELECT COUNT(*)::int FROM tenant_memberships WHERE tenant_id = $1
+`
+
+func (q *Queries) CountMembersByTenantID(ctx context.Context, tenantID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, countMembersByTenantID, tenantID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createMembership = `-- name: CreateMembership :one
 INSERT INTO tenant_memberships (tenant_id, user_id, role)
 VALUES ($1, $2, $3)
@@ -67,20 +78,6 @@ func (q *Queries) HasApprover(ctx context.Context, tenantID uuid.UUID) (bool, er
 	var has_approver bool
 	err := row.Scan(&has_approver)
 	return has_approver, err
-}
-
-const countMembersByTenantID = `-- name: CountMembersByTenantID :one
-SELECT COUNT(*)::int FROM tenant_memberships WHERE tenant_id = $1
-`
-
-// CountMembersByTenantID はテナント内のメンバー総数を返す。
-// db/queries/tenant_memberships.sql の CountMembersByTenantID クエリに対応する。
-// sqlc generate で再生成予定。
-func (q *Queries) CountMembersByTenantID(ctx context.Context, tenantID uuid.UUID) (int32, error) {
-	row := q.db.QueryRow(ctx, countMembersByTenantID, tenantID)
-	var count int32
-	err := row.Scan(&count)
-	return count, err
 }
 
 const listMembershipsByTenantID = `-- name: ListMembershipsByTenantID :many
