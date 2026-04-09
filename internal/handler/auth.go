@@ -326,8 +326,9 @@ func (h *AuthHandler) handleAuthError(w http.ResponseWriter, err error, isPasswo
 		}
 	case errors.Is(err, domain.ErrTokenExpired):
 		if isPasswordReset {
-			// パスワードリセットのトークン期限切れは 422。
-			middleware.RespondError(w, http.StatusUnprocessableEntity, "TOKEN_EXPIRED", "トークンの有効期限が切れています")
+			// パスワードリセットの期限切れトークンは FE・画面仕様（auth-password-reset.md §10/§11）に合わせて
+			// INVALID_TOKEN で返す。期限切れも無効トークンも「無効なリンク」として同一扱いする。
+			middleware.RespondError(w, http.StatusUnprocessableEntity, "INVALID_TOKEN", "トークンが無効または期限切れです")
 		} else {
 			middleware.RespondError(w, http.StatusUnauthorized, "TOKEN_EXPIRED", "トークンの有効期限が切れています")
 		}
