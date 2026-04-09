@@ -68,6 +68,8 @@ func respondDomainError(w http.ResponseWriter, err error) {
 		middleware.RespondError(w, http.StatusConflict, "CONFLICT", err.Error())
 	case domain.ErrInvalidPeriod:
 		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+	case domain.ErrInvalidAmount:
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
 	default:
 		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "internal server error")
 	}
