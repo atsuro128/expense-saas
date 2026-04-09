@@ -21,6 +21,7 @@ import (
 	"expense-saas/internal/handler"
 	"expense-saas/internal/middleware"
 	appjwt "expense-saas/internal/pkg/jwt"
+	pkgs3 "expense-saas/internal/pkg/s3"
 	"expense-saas/internal/repository/postgres"
 	"expense-saas/internal/service"
 )
@@ -105,11 +106,14 @@ func main() {
 	// 認証ドメインサービス。
 	hasher := domain.NewArgon2idHasher()
 
+	// S3 クライアント（環境変数から設定を読み込む）。
+	storageClient := pkgs3.NewClientFromEnv()
+
 	// サービス。
 	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
-	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
+	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient)
 	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
 	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
 	categorySvc := service.NewCategoryService(categoryRepo)

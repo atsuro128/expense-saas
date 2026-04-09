@@ -2,12 +2,25 @@ package service
 
 import (
 	"context"
+	"io"
 	"time"
 
 	"github.com/google/uuid"
 
 	"expense-saas/internal/domain"
 )
+
+// StorageClient はオブジェクトストレージ（S3/MinIO）への操作を抽象化するインターフェース。
+// テスト時はインメモリモックに差し替える。
+type StorageClient interface {
+	// Upload はオブジェクトをストレージにアップロードする。
+	Upload(ctx context.Context, key string, data io.Reader, contentType string) error
+	// PresignGetObject は指定オブジェクトのダウンロード用署名付き URL を生成する。
+	// expires は URL の有効期限、expiresAt は有効期限の絶対日時を返す。
+	PresignGetObject(ctx context.Context, key, fileName, mimeType string, expiry time.Duration) (url string, expiresAt time.Time, err error)
+	// Delete はオブジェクトをストレージから削除する。
+	Delete(ctx context.Context, key string) error
+}
 
 // AuthService はユーザー登録・ログイン・トークン管理・パスワードリセットを担う。
 type AuthService interface {
