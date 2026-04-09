@@ -10,6 +10,8 @@ export interface WorkflowActionsProps {
   status: ReportStatus;
   /** 現在のユーザーのロール */
   currentUserRole: Role;
+  /** レポートの作成者かどうか（自己承認・自己支払禁止用） */
+  isOwner: boolean;
   /** 承認ボタンのコールバック */
   onApprove: () => void;
   /** 却下ボタンのコールバック */
@@ -28,11 +30,17 @@ export interface WorkflowActionsProps {
 export default function WorkflowActions({
   status,
   currentUserRole,
+  isOwner,
   onApprove,
   onReject,
   onMarkAsPaid,
   pendingAction,
 }: WorkflowActionsProps) {
+  // 自己承認・自己支払禁止: オーナー自身にはワークフロー操作ボタンを表示しない。
+  if (isOwner) {
+    return null;
+  }
+
   // Approver かつ提出済みのとき「承認」「却下」ボタンを表示する。
   if (currentUserRole === 'approver' && status === 'submitted') {
     const isApproving = pendingAction === 'approve';

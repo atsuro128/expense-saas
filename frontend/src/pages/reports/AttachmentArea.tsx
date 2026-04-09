@@ -118,6 +118,7 @@ function AttachmentAreaContent({
           itemId={itemId}
           onUploadSuccess={handleUploadSuccess}
           isUploading={isUploading}
+          onUploadError={(message) => showToast('error', message)}
         />
       )}
       <AppToast

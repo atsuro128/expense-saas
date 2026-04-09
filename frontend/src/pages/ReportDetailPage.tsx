@@ -29,6 +29,9 @@ type DialogAction = 'submit' | 'delete' | null;
 /** ワークフロー操作のペンディング種別 */
 type WorkflowPendingAction = 'approve' | 'reject' | 'pay' | null;
 
+/** ワークフロー確認ダイアログの操作種別 */
+type WorkflowDialogAction = 'approve' | 'reject' | 'pay' | null;
+
 /**
  * ReportDetailPage はレポート詳細情報と操作ボタンを表示する画面。
  * 提出・削除操作は確認ダイアログを通じて実行する。
@@ -47,6 +50,12 @@ export default function ReportDetailPage() {
 
   // ワークフロー操作のペンディング状態。
   const [workflowPendingAction, setWorkflowPendingAction] = useState<WorkflowPendingAction>(null);
+
+  // ワークフロー確認ダイアログの操作種別。
+  const [workflowDialogAction, setWorkflowDialogAction] = useState<WorkflowDialogAction>(null);
+
+  // 明細削除確認ダイアログ用: 削除対象の明細 ID。
+  const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
   // スライドパネルの状態。
   const [panelOpen, setPanelOpen] = useState(false);
@@ -144,46 +153,64 @@ export default function ReportDetailPage() {
   const isDraft = report.status === 'draft';
 
   /**
-   * 承認ボタン押下時の処理。
+   * 承認ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleApprove = () => {
-    setWorkflowPendingAction('approve');
-    approveReport.mutate(
-      { id: report.id, updated_at: report.updated_at },
-      {
-        onSuccess: () => setWorkflowPendingAction(null),
-        onError: () => setWorkflowPendingAction(null),
-      },
-    );
+    setWorkflowDialogAction('approve');
   };
 
   /**
-   * 却下ボタン押下時の処理。
-   * TODO: 却下理由入力ダイアログの実装（現在はハードコード）。
+   * 却下ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleReject = () => {
-    setWorkflowPendingAction('reject');
-    rejectReport.mutate(
-      { id: report.id, reason: '', updated_at: report.updated_at },
-      {
-        onSuccess: () => setWorkflowPendingAction(null),
-        onError: () => setWorkflowPendingAction(null),
-      },
-    );
+    setWorkflowDialogAction('reject');
   };
 
   /**
-   * 支払完了ボタン押下時の処理。
+   * 支払完了ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleMarkAsPaid = () => {
-    setWorkflowPendingAction('pay');
-    markAsPaid.mutate(
-      { id: report.id, updated_at: report.updated_at },
-      {
-        onSuccess: () => setWorkflowPendingAction(null),
-        onError: () => setWorkflowPendingAction(null),
-      },
-    );
+    setWorkflowDialogAction('pay');
+  };
+
+  /**
+   * ワークフロー確認ダイアログの「確認」ボタン押下時の処理。
+   * approve: 承認コメント（任意）付きで承認 API を呼ぶ。
+   * reject: 却下理由（必須）付きで却下 API を呼ぶ。
+   * pay: 支払完了 API を呼ぶ。
+   */
+  const handleWorkflowDialogConfirm = (inputValue?: string) => {
+    if (workflowDialogAction === 'approve') {
+      setWorkflowDialogAction(null);
+      setWorkflowPendingAction('approve');
+      approveReport.mutate(
+        { id: report.id, comment: inputValue, updated_at: report.updated_at },
+        {
+          onSuccess: () => setWorkflowPendingAction(null),
+          onError: () => setWorkflowPendingAction(null),
+        },
+      );
+    } else if (workflowDialogAction === 'reject') {
+      setWorkflowDialogAction(null);
+      setWorkflowPendingAction('reject');
+      rejectReport.mutate(
+        { id: report.id, reason: inputValue ?? '', updated_at: report.updated_at },
+        {
+          onSuccess: () => setWorkflowPendingAction(null),
+          onError: () => setWorkflowPendingAction(null),
+        },
+      );
+    } else if (workflowDialogAction === 'pay') {
+      setWorkflowDialogAction(null);
+      setWorkflowPendingAction('pay');
+      markAsPaid.mutate(
+        { id: report.id, updated_at: report.updated_at },
+        {
+          onSuccess: () => setWorkflowPendingAction(null),
+          onError: () => setWorkflowPendingAction(null),
+        },
+      );
+    }
   };
 
   /**
@@ -219,10 +246,19 @@ export default function ReportDetailPage() {
   };
 
   /**
-   * 明細削除ボタン押下時の処理。
+   * 明細削除ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleDeleteItem = (itemId: string) => {
-    deleteItem.mutate({ reportId: report.id, itemId });
+    setDeletingItemId(itemId);
+  };
+
+  /**
+   * 明細削除確認ダイアログの「削除する」ボタン押下時の処理。
+   */
+  const handleDeleteItemConfirm = () => {
+    if (deletingItemId === null) return;
+    deleteItem.mutate({ reportId: report.id, itemId: deletingItemId });
+    setDeletingItemId(null);
   };
 
   /**
@@ -328,6 +364,7 @@ export default function ReportDetailPage() {
           <WorkflowActions
             status={report.status}
             currentUserRole={user.role}
+            isOwner={isOwner}
             onApprove={handleApprove}
             onReject={handleReject}
             onMarkAsPaid={handleMarkAsPaid}
@@ -370,7 +407,7 @@ export default function ReportDetailPage() {
         onItemSaveAndContinue={handleItemSaveAndContinue}
       />
 
-      {/* 操作確認ダイアログ */}
+      {/* 提出・削除確認ダイアログ */}
       <ConfirmDialog
         open={dialogAction !== null}
         title={dialogAction === 'submit' ? 'レポートを提出しますか？' : 'レポートを削除しますか？'}
@@ -384,6 +421,59 @@ export default function ReportDetailPage() {
         cancelLabel="キャンセル"
         onConfirm={handleDialogConfirm}
         onCancel={() => setDialogAction(null)}
+      />
+
+      {/* ワークフロー操作確認ダイアログ（承認・却下・支払完了） */}
+      <ConfirmDialog
+        open={workflowDialogAction !== null}
+        title={
+          workflowDialogAction === 'approve'
+            ? 'このレポートを承認しますか？'
+            : workflowDialogAction === 'reject'
+              ? 'このレポートを却下しますか？'
+              : 'このレポートの支払完了を記録しますか？'
+        }
+        message=""
+        confirmLabel={
+          workflowDialogAction === 'approve'
+            ? '承認する'
+            : workflowDialogAction === 'reject'
+              ? '却下する'
+              : '支払完了にする'
+        }
+        confirmColor={workflowDialogAction === 'reject' ? 'error' : 'primary'}
+        cancelLabel="キャンセル"
+        inputField={
+          workflowDialogAction === 'approve'
+            ? {
+                label: '承認コメント',
+                required: false,
+                maxLength: 1000,
+                multiline: true,
+              }
+            : workflowDialogAction === 'reject'
+              ? {
+                  label: '却下理由',
+                  required: true,
+                  maxLength: 1000,
+                  multiline: true,
+                }
+              : undefined
+        }
+        onConfirm={handleWorkflowDialogConfirm}
+        onCancel={() => setWorkflowDialogAction(null)}
+      />
+
+      {/* 明細削除確認ダイアログ */}
+      <ConfirmDialog
+        open={deletingItemId !== null}
+        title="この明細を削除しますか？"
+        message="この操作は取り消せません。"
+        confirmLabel="削除する"
+        confirmColor="error"
+        cancelLabel="キャンセル"
+        onConfirm={handleDeleteItemConfirm}
+        onCancel={() => setDeletingItemId(null)}
       />
     </Box>
   );
