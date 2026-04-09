@@ -6,6 +6,7 @@ import { useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import PageSkeleton from '../components/ui/PageSkeleton';
@@ -66,6 +67,9 @@ export default function ReportDetailPage() {
 
   // ワークフロー確認ダイアログの操作種別。
   const [workflowDialogAction, setWorkflowDialogAction] = useState<WorkflowDialogAction>(null);
+
+  // 409 Conflict が発生したかどうか（競合バナー表示に使用）。
+  const [conflictDetected, setConflictDetected] = useState(false);
 
   // 明細削除確認ダイアログ用: 削除対象の明細 ID。
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
@@ -152,11 +156,14 @@ export default function ReportDetailPage() {
   const handleActionError = (err: unknown, fallbackMsg: string) => {
     if (err instanceof ApiClientError) {
       if (err.status === 409) {
+        // 競合検知: バナーを表示して再読み込みを促す。
+        setConflictDetected(true);
         setToast({
           open: true,
-          severity: 'error',
-          message: 'このレポートは他のユーザーによって更新されました。画面を再読み込みしてください。',
+          severity: 'warning',
+          message: 'このレポートは他のユーザーによって更新されました。',
         });
+        return;
       } else if (err.status === 422) {
         setToast({
           open: true,
@@ -211,8 +218,8 @@ export default function ReportDetailPage() {
   const handleDeleteConfirm = () => {
     deleteMutate(report.id, {
       onSuccess: () => {
-        // 削除後は画面遷移するためトースト表示は不要。
-        navigate('/reports');
+        // 削除成功後: 遷移先の ReportListPage でトーストを表示するために state を渡す。
+        navigate('/reports', { state: { toast: { severity: 'success', message: 'レポートを削除しました' } } });
       },
       onError: (err: Error) => {
         setDialogAction(null);
@@ -431,6 +438,16 @@ export default function ReportDetailPage() {
 
   return (
     <Box>
+      {/* 競合検知バナー: 409 Conflict が発生した場合に再読み込みを促す */}
+      {conflictDetected && (
+        <Box sx={{ mb: 2, p: 2, bgcolor: 'warning.light', borderRadius: 1, display: 'flex', alignItems: 'center', gap: 2 }}>
+          <Typography>このレポートは他のユーザーによって更新されました。</Typography>
+          <Button variant="contained" size="small" onClick={() => window.location.reload()}>
+            再読み込み
+          </Button>
+        </Box>
+      )}
+
       {/* レポート基本情報 */}
       <Box sx={{ mb: 3 }}>
         <ReportBasicInfo

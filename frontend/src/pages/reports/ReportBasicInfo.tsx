@@ -45,7 +45,7 @@ export default function ReportBasicInfo({
       <p>
         {periodStart} 〜 {periodEnd}
       </p>
-      <p data-testid="total-amount">{totalAmount.toLocaleString()}</p>
+      <p data-testid="total-amount">¥{totalAmount.toLocaleString()}</p>
       <p>{submitterName}</p>
       <p>{formattedCreatedAt}</p>
     </div>

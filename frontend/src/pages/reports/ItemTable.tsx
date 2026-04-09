@@ -43,8 +43,11 @@ export default function ItemTable({ items, canEditItems, onItemClick, onEditItem
             onClick={() => onItemClick(item.id)}
             style={{ cursor: 'pointer' }}
           >
-            <td>{item.expense_date}</td>
-            <td>{item.amount.toLocaleString()}</td>
+            <td>
+              {/* ISO 日付文字列を YYYY/MM/DD 形式に変換する */}
+              {new Date(item.expense_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+            </td>
+            <td>¥{item.amount.toLocaleString()}</td>
             <td>{item.category.name_ja}</td>
             <td>{item.description}</td>
             <td>{item.attachments.length}</td>
