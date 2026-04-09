@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
+	"expense-saas/internal/domain"
 	"expense-saas/internal/middleware"
 	"expense-saas/internal/service"
 )
@@ -21,6 +22,33 @@ type ItemHandler struct {
 // NewItemHandler は ItemHandler を生成して返します。
 func NewItemHandler(svc service.ItemService) *ItemHandler {
 	return &ItemHandler{svc: svc}
+}
+
+// itemResponse は POST/PUT の明細レスポンスを openapi.yaml の ExpenseItem 契約に合わせる構造体。
+// ExpenseItemDTO から attachments を除外し、expense_date を YYYY-MM-DD 形式に変換する。
+type itemResponse struct {
+	ID          uuid.UUID  `json:"id"`
+	ReportID    uuid.UUID  `json:"report_id"`
+	ExpenseDate string     `json:"expense_date"`
+	Amount      int        `json:"amount"`
+	Category    any        `json:"category"`
+	Description string     `json:"description"`
+	CreatedAt   time.Time  `json:"created_at"`
+	UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+// toItemResponse は ExpenseItemDTO を API 契約準拠のレスポンスに変換する。
+func toItemResponse(dto *domain.ExpenseItemDTO) itemResponse {
+	return itemResponse{
+		ID:          dto.ID,
+		ReportID:    dto.ReportID,
+		ExpenseDate: dto.ExpenseDate.Format("2006-01-02"),
+		Amount:      dto.Amount,
+		Category:    dto.Category,
+		Description: dto.Description,
+		CreatedAt:   dto.CreatedAt,
+		UpdatedAt:   dto.UpdatedAt,
+	}
 }
 
 // createItemRequest は POST /api/reports/{id}/items のリクエストボディを表します。
@@ -138,7 +166,7 @@ func (h *ItemHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusCreated, map[string]interface{}{"data": dto})
+	middleware.RespondJSON(w, http.StatusCreated, map[string]any{"data": toItemResponse(dto)})
 }
 
 // updateItemRequest は PUT /api/reports/{id}/items/{itemId} のリクエストボディを表します。
@@ -289,7 +317,7 @@ func (h *ItemHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": dto})
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{"data": toItemResponse(dto)})
 }
 
 // DeleteItem は DELETE /api/reports/{id}/items/{itemId} を処理します。
