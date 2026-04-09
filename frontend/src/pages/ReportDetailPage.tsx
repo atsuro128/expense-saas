@@ -146,6 +146,46 @@ export default function ReportDetailPage() {
   }
 
   /**
+   * アクションエラー時の共通トースト表示処理。
+   * ステータスコードに応じてメッセージを切り替える。
+   */
+  const handleActionError = (err: unknown, fallbackMsg: string) => {
+    if (err instanceof ApiClientError) {
+      if (err.status === 409) {
+        setToast({
+          open: true,
+          severity: 'error',
+          message: 'このレポートは他のユーザーによって更新されました。画面を再読み込みしてください。',
+        });
+      } else if (err.status === 422) {
+        setToast({
+          open: true,
+          severity: 'error',
+          message: err.message || fallbackMsg,
+        });
+      } else if (err.status === 403) {
+        setToast({
+          open: true,
+          severity: 'error',
+          message: 'この操作を行う権限がありません。',
+        });
+      } else {
+        setToast({
+          open: true,
+          severity: 'error',
+          message: 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
+        });
+      }
+    } else {
+      setToast({
+        open: true,
+        severity: 'error',
+        message: 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
+      });
+    }
+  };
+
+  /**
    * 提出確認後の処理。キャッシュを更新してダイアログを閉じる。
    */
   const handleSubmitConfirm = () => {
@@ -155,9 +195,11 @@ export default function ReportDetailPage() {
         onSuccess: () => {
           queryClient.invalidateQueries({ queryKey: ['reports', 'detail', report.id] });
           setDialogAction(null);
+          setToast({ open: true, severity: 'success', message: 'レポートを提出しました' });
         },
-        onError: () => {
+        onError: (err: Error) => {
           setDialogAction(null);
+          handleActionError(err, '提出に失敗しました');
         },
       },
     );
@@ -169,10 +211,12 @@ export default function ReportDetailPage() {
   const handleDeleteConfirm = () => {
     deleteMutate(report.id, {
       onSuccess: () => {
+        // 削除後は画面遷移するためトースト表示は不要。
         navigate('/reports');
       },
-      onError: () => {
+      onError: (err: Error) => {
         setDialogAction(null);
+        handleActionError(err, '削除に失敗しました');
       },
     });
   };
@@ -191,6 +235,8 @@ export default function ReportDetailPage() {
   // 現在のユーザーがオーナーかどうか（draft 状態で操作可能）。
   const isOwner = user?.id === report.submitter?.id;
   const isDraft = report.status === 'draft';
+  // 明細が1件以上あるかどうか（提出ボタンの有効化条件）。
+  const hasItems = report.items.length > 0;
 
   /**
    * 承認ボタン押下時の処理。確認ダイアログを開く。
@@ -226,8 +272,14 @@ export default function ReportDetailPage() {
       approveReport.mutate(
         { id: report.id, comment: inputValue, updated_at: report.updated_at },
         {
-          onSuccess: () => setWorkflowPendingAction(null),
-          onError: () => setWorkflowPendingAction(null),
+          onSuccess: () => {
+            setWorkflowPendingAction(null);
+            setToast({ open: true, severity: 'success', message: 'レポートを承認しました' });
+          },
+          onError: (err: Error) => {
+            setWorkflowPendingAction(null);
+            handleActionError(err, '承認に失敗しました');
+          },
         },
       );
     } else if (workflowDialogAction === 'reject') {
@@ -236,8 +288,14 @@ export default function ReportDetailPage() {
       rejectReport.mutate(
         { id: report.id, reason: inputValue ?? '', updated_at: report.updated_at },
         {
-          onSuccess: () => setWorkflowPendingAction(null),
-          onError: () => setWorkflowPendingAction(null),
+          onSuccess: () => {
+            setWorkflowPendingAction(null);
+            setToast({ open: true, severity: 'success', message: 'レポートを却下しました' });
+          },
+          onError: (err: Error) => {
+            setWorkflowPendingAction(null);
+            handleActionError(err, '却下に失敗しました');
+          },
         },
       );
     } else if (workflowDialogAction === 'pay') {
@@ -246,8 +304,14 @@ export default function ReportDetailPage() {
       markAsPaid.mutate(
         { id: report.id, updated_at: report.updated_at },
         {
-          onSuccess: () => setWorkflowPendingAction(null),
-          onError: () => setWorkflowPendingAction(null),
+          onSuccess: () => {
+            setWorkflowPendingAction(null);
+            setToast({ open: true, severity: 'success', message: '支払完了を記録しました' });
+          },
+          onError: (err: Error) => {
+            setWorkflowPendingAction(null);
+            handleActionError(err, '支払完了の記録に失敗しました');
+          },
         },
       );
     }
@@ -484,14 +548,22 @@ export default function ReportDetailPage() {
           </Link>
         )}
 
-        {/* 提出ボタン: 所有者かつ draft 状態の場合に表示（report-detail.md §4 A2） */}
+        {/* 提出ボタン: 所有者かつ draft 状態の場合に表示（report-detail.md §4 A2）。明細0件時は disabled にする。 */}
         {isOwner && isDraft && (
-          <button
-            type="button"
-            onClick={() => setDialogAction('submit')}
-          >
-            提出する
-          </button>
+          <Box>
+            <button
+              type="button"
+              onClick={() => setDialogAction('submit')}
+              disabled={!hasItems}
+            >
+              提出する
+            </button>
+            {!hasItems && (
+              <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.5 }}>
+                明細を1件以上追加してから提出してください
+              </Typography>
+            )}
+          </Box>
         )}
 
         {/* 削除ボタン: 所有者かつ draft 状態の場合に表示（report-detail.md §4 A3） */}
