@@ -3,18 +3,20 @@ package middleware
 import (
 	"context"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type contextKey string
 
 const (
-	requestIDKey  contextKey = "request_id"
-	userIDKey     contextKey = "user_id"
-	tenantIDKey   contextKey = "tenant_id"
-	roleKey       contextKey = "role"
-	connKey       contextKey = "conn"
+	requestIDKey   contextKey = "request_id"
+	userIDKey      contextKey = "user_id"
+	tenantIDKey    contextKey = "tenant_id"
+	roleKey        contextKey = "role"
+	connKey        contextKey = "conn"
 	requestInfoKey contextKey = "request_info"
+	txKey          contextKey = "tx"
 )
 
 // RequestInfo は Logger がコンテキストに格納するミュータブルな構造体です。
@@ -85,5 +87,16 @@ func SetConn(ctx context.Context, conn *pgxpool.Conn) context.Context {
 // GetConn はコンテキストからデータベース接続を取得します。
 func GetConn(ctx context.Context) *pgxpool.Conn {
 	v, _ := ctx.Value(connKey).(*pgxpool.Conn)
+	return v
+}
+
+// SetTx はトランザクションをコンテキストに格納する。
+func SetTx(ctx context.Context, tx pgx.Tx) context.Context {
+	return context.WithValue(ctx, txKey, tx)
+}
+
+// GetTx はコンテキストからトランザクションを取得する。
+func GetTx(ctx context.Context) pgx.Tx {
+	v, _ := ctx.Value(txKey).(pgx.Tx)
 	return v
 }

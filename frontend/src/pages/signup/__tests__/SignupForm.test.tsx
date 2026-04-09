@@ -48,120 +48,109 @@ describe('SignupForm', () => {
     });
   });
 
-  // AUTH-FE-032: company_name が空のとき必須エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-032: company_name が空のとき必須エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-032: company_name が空のとき必須エラーが表示されること。
+  it('AUTH-FE-032: company_name が空のとき必須エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    // company_name を空のまま他のフィールドを入力して送信する。
-    await userEvent.type(screen.getByLabelText('ユーザー名'), 'Test User');
-    await userEvent.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
-    await userEvent.type(screen.getByLabelText('パスワード'), 'TestPass1!');
-    await userEvent.click(screen.getByRole('button', { name: '新規登録' }));
+    // company_name フィールドにフォーカスしてすぐ離す（onBlur によるバリデーション発火）。
+    await userEvent.click(screen.getByLabelText('会社名'));
+    await userEvent.tab();
 
-    // 実装後: 会社名必須エラーが表示されること。
+    // 画面仕様 V1: 「会社名を入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/会社名.*必須/)).toBeInTheDocument();
+      expect(screen.queryByText('会社名を入力してください')).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-033: company_name が 201 文字のとき文字数超過エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-033: company_name が 201 文字のとき文字数超過エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-033: company_name が 201 文字のとき文字数超過エラーが表示されること。
+  it('AUTH-FE-033: company_name が 201 文字のとき文字数超過エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
+    // 201 文字入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('会社名'), 'あ'.repeat(201));
-    await userEvent.type(screen.getByLabelText('ユーザー名'), 'Test User');
-    await userEvent.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
-    await userEvent.type(screen.getByLabelText('パスワード'), 'TestPass1!');
-    await userEvent.click(screen.getByRole('button', { name: '新規登録' }));
+    await userEvent.tab();
 
-    // 実装後: 文字数超過エラーが表示されること。
+    // 画面仕様 V2: 「会社名は200文字以内で入力してください」
     await waitFor(() => {
       expect(screen.queryByText(/200文字/)).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-034: user_name が空のとき必須エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-034: user_name が空のとき必須エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-034: user_name が空のとき必須エラーが表示されること。
+  it('AUTH-FE-034: user_name が空のとき必須エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    await userEvent.type(screen.getByLabelText('会社名'), 'Test Corp');
-    await userEvent.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
-    await userEvent.type(screen.getByLabelText('パスワード'), 'TestPass1!');
-    await userEvent.click(screen.getByRole('button', { name: '新規登録' }));
+    // user_name フィールドにフォーカスしてすぐ離す（onBlur によるバリデーション発火）。
+    await userEvent.click(screen.getByLabelText('ユーザー名'));
+    await userEvent.tab();
 
-    // 実装後: ユーザー名必須エラーが表示されること。
+    // 画面仕様 V3: 「ユーザー名を入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/ユーザー名.*必須/)).toBeInTheDocument();
+      expect(screen.queryByText('ユーザー名を入力してください')).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-035: email 形式不正のとき形式エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-035: email 形式不正のとき形式エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-035: email 形式不正のとき形式エラーが表示されること。
+  it('AUTH-FE-035: email 形式不正のとき形式エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    await userEvent.type(screen.getByLabelText('会社名'), 'Test Corp');
-    await userEvent.type(screen.getByLabelText('ユーザー名'), 'Test User');
+    // 不正な形式を入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('メールアドレス'), 'not-an-email');
-    await userEvent.type(screen.getByLabelText('パスワード'), 'TestPass1!');
-    await userEvent.click(screen.getByRole('button', { name: '新規登録' }));
+    await userEvent.tab();
 
-    // 実装後: メール形式エラーが表示されること。
+    // 画面仕様 V6: 「有効なメールアドレスを入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/メール.*形式/)).toBeInTheDocument();
+      expect(screen.queryByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-036: password が 7 文字のとき最小長エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-036: password が 7 文字のとき最小長エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-036: password が 7 文字のとき最小長エラーが表示されること。
+  it('AUTH-FE-036: password が 7 文字のとき最小長エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    await userEvent.type(screen.getByLabelText('会社名'), 'Test Corp');
-    await userEvent.type(screen.getByLabelText('ユーザー名'), 'Test User');
-    await userEvent.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    // 7 文字入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('パスワード'), 'Short1!'); // 7 文字
-    await userEvent.click(screen.getByRole('button', { name: '新規登録' }));
+    await userEvent.tab();
 
-    // 実装後: パスワード最小長エラーが表示されること。
+    // 画面仕様 V8: 「パスワードは8文字以上で入力してください」
     await waitFor(() => {
       expect(screen.queryByText(/8文字/)).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-037: password が 129 文字のとき文字数超過エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-037: password が 129 文字のとき文字数超過エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-037: password が 129 文字のとき文字数超過エラーが表示されること。
+  it('AUTH-FE-037: password が 129 文字のとき文字数超過エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    await userEvent.type(screen.getByLabelText('会社名'), 'Test Corp');
-    await userEvent.type(screen.getByLabelText('ユーザー名'), 'Test User');
-    await userEvent.type(screen.getByLabelText('メールアドレス'), 'new@example.com');
+    // 129 文字入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('パスワード'), 'a'.repeat(129));
-    await userEvent.click(screen.getByRole('button', { name: '新規登録' }));
+    await userEvent.tab();
 
-    // 実装後: パスワード文字数超過エラーが表示されること。
+    // 「パスワードは128文字以内で入力してください」
     await waitFor(() => {
       expect(screen.queryByText(/128文字/)).toBeInTheDocument();
     });

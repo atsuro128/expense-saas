@@ -139,6 +139,17 @@ func (s *reportService) ListMyReports(ctx context.Context, actor domain.Actor, p
 
 // ListAllReports はテナント内の全レポートを一覧取得する（Admin / Accounting 専用）。
 func (s *reportService) ListAllReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]domain.ExpenseReportSummary, *domain.Pagination, error) {
+	// PerPage のデフォルト値を設定する。
+	if params.PerPage <= 0 {
+		params.PerPage = 20
+	}
+	if params.PerPage > 100 {
+		params.PerPage = 100
+	}
+	if params.Page <= 0 {
+		params.Page = 1
+	}
+
 	reports, total, err := s.reportRepo.List(ctx, actor.TenantID, params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("reportService.ListAllReports: %w", err)

@@ -37,7 +37,7 @@ WHERE tenant_id  = $1
   AND (sqlc.narg('from_date')::date IS NULL OR period_start >= sqlc.narg('from_date'))
   AND (sqlc.narg('to_date')::date IS NULL OR period_end <= sqlc.narg('to_date'))
   AND (sqlc.narg('user_id')::uuid IS NULL OR user_id = sqlc.narg('user_id'))
-ORDER BY created_at DESC
+ORDER BY submitted_at DESC NULLS LAST, created_at DESC, report_id DESC
 LIMIT $2 OFFSET $3;
 
 -- name: CountAllReports :one

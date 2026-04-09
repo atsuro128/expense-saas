@@ -37,36 +37,39 @@ describe('PasswordResetRequestForm', () => {
     });
   });
 
-  // AUTH-FE-050: email が空のとき必須エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-050: email が空のとき必須エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-050: email が空のとき必須エラーが表示されること。
+  it('AUTH-FE-050: email が空のとき必須エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <PasswordResetRequestForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
-    await userEvent.click(screen.getByRole('button', { name: '送信' }));
+    // email フィールドにフォーカスしてすぐ離す（onBlur によるバリデーション発火）。
+    await userEvent.click(screen.getByLabelText('メールアドレス'));
+    await userEvent.tab();
 
-    // 実装後: メールアドレス必須エラーが表示されること。
+    // 画面仕様 V1: 「メールアドレスを入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/メールアドレス.*必須/)).toBeInTheDocument();
+      expect(screen.queryByText('メールアドレスを入力してください')).toBeInTheDocument();
     });
   });
 
-  // AUTH-FE-051: email 形式不正のとき形式エラーが表示されること（実装後に動作）。
-  it('AUTH-FE-051: email 形式不正のとき形式エラーが表示される（実装後に動作）', async () => {
+  // AUTH-FE-051: email 形式不正のとき形式エラーが表示されること。
+  it('AUTH-FE-051: email 形式不正のとき形式エラーが表示される', async () => {
     render(
       <MemoryRouter>
         <PasswordResetRequestForm onSubmit={() => {}} apiError={null} isPending={false} />
       </MemoryRouter>,
     );
 
+    // 不正な形式を入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('メールアドレス'), 'not-valid');
-    await userEvent.click(screen.getByRole('button', { name: '送信' }));
+    await userEvent.tab();
 
-    // 実装後: メール形式エラーが表示されること。
+    // 画面仕様 V2: 「有効なメールアドレスを入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/メール.*形式/)).toBeInTheDocument();
+      expect(screen.queryByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
     });
   });
 

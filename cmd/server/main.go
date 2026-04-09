@@ -2,6 +2,9 @@ package main
 
 import (
 	"context"
+	"crypto/rsa"
+	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -14,6 +17,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"expense-saas/internal/config"
+	"expense-saas/internal/domain"
 	"expense-saas/internal/handler"
 	"expense-saas/internal/middleware"
 	appjwt "expense-saas/internal/pkg/jwt"
@@ -59,20 +63,24 @@ func main() {
 	}
 	slog.Info("database connection established")
 
-	// 5. JWT 鍵ファイルの検証と検証器の初期化。
-	// TODO: Signer 実装時に os.Stat を NewSigner（NewVerifier と同等の PEM パース検証）に置き換える。
-	if _, err := os.Stat(cfg.JWTPrivateKeyPath); err != nil {
-		slog.Error("JWT private key file not found", "error", err, "path", cfg.JWTPrivateKeyPath)
-		os.Exit(1)
-	}
-	slog.Info("JWT private key file verified", "path", cfg.JWTPrivateKeyPath)
+	// 5. JWT 鍵ファイルの読み込みと JWT コンポーネントの初期化。
 
+	// 秘密鍵の読み込み（JWTGenerator 用）。
+	rsaPrivKey := loadRSAPrivateKey(cfg.JWTPrivateKeyPath)
+	tokenGen := domain.NewJWTGenerator(rsaPrivKey)
+	slog.Info("JWT private key loaded", "path", cfg.JWTPrivateKeyPath)
+
+	// 公開鍵から appjwt.Verifier（middleware.Auth 用）を初期化する。
 	verifier, err := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
 	if err != nil {
 		slog.Error("failed to initialize JWT verifier", "error", err, "path", cfg.JWTPublicKeyPath)
 		os.Exit(1)
 	}
 	slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
+
+	// 公開鍵から domain.JWTVerifier（service 層の TokenVerifier）を初期化する。
+	rsaPubKey := loadRSAPublicKey(cfg.JWTPublicKeyPath)
+	tokenVerifier := domain.NewJWTVerifier(rsaPubKey)
 
 	// 6. バックグラウンド goroutine 用のコンテキストを生成する（レートリミッタのクリーンアップ等）。
 	bgCtx, bgCancel := context.WithCancel(context.Background())
@@ -94,8 +102,11 @@ func main() {
 	// 認可。
 	authorizer := service.NewAuthorizer()
 
+	// 認証ドメインサービス。
+	hasher := domain.NewArgon2idHasher()
+
 	// サービス。
-	authSvc := service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
+	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
 	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
@@ -226,4 +237,67 @@ func main() {
 	}
 
 	slog.Info("server stopped")
+}
+
+// loadRSAPrivateKey は PEM ファイルから RSA 秘密鍵を読み込む。
+// 失敗した場合はプロセスを終了する。
+func loadRSAPrivateKey(path string) *rsa.PrivateKey {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Error("failed to read private key file", "error", err, "path", path)
+		os.Exit(1)
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		slog.Error("failed to decode PEM block from private key file", "path", path)
+		os.Exit(1)
+	}
+
+	// PKCS8 形式としてパースを試み、失敗した場合は PKCS1 形式を試みる。
+	parsedKey, errPKCS8 := x509.ParsePKCS8PrivateKey(block.Bytes)
+	if errPKCS8 != nil {
+		pkcs1Key, errPKCS1 := x509.ParsePKCS1PrivateKey(block.Bytes)
+		if errPKCS1 != nil {
+			slog.Error("failed to parse private key", "pkcs8_error", errPKCS8, "pkcs1_error", errPKCS1, "path", path)
+			os.Exit(1)
+		}
+		return pkcs1Key
+	}
+
+	rsaKey, ok := parsedKey.(*rsa.PrivateKey)
+	if !ok {
+		slog.Error("private key is not an RSA key", "path", path)
+		os.Exit(1)
+	}
+	return rsaKey
+}
+
+// loadRSAPublicKey は PEM ファイルから RSA 公開鍵を読み込む。
+// 失敗した場合はプロセスを終了する。
+func loadRSAPublicKey(path string) *rsa.PublicKey {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		slog.Error("failed to read public key file", "error", err, "path", path)
+		os.Exit(1)
+	}
+
+	block, _ := pem.Decode(data)
+	if block == nil {
+		slog.Error("failed to decode PEM block from public key file", "path", path)
+		os.Exit(1)
+	}
+
+	parsedKey, err := x509.ParsePKIXPublicKey(block.Bytes)
+	if err != nil {
+		slog.Error("failed to parse public key", "error", err, "path", path)
+		os.Exit(1)
+	}
+
+	rsaKey, ok := parsedKey.(*rsa.PublicKey)
+	if !ok {
+		slog.Error("public key is not an RSA key", "path", path)
+		os.Exit(1)
+	}
+	return rsaKey
 }

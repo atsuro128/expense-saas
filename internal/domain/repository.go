@@ -140,6 +140,9 @@ type RefreshTokenRepository interface {
 	GetByJTI(ctx context.Context, jti uuid.UUID) (*RefreshToken, error)
 	// Revoke はトークンを失効済みとしてマークする。
 	Revoke(ctx context.Context, jti uuid.UUID) error
+	// RevokeAllByUserID は指定ユーザーの全リフレッシュトークンを失効済みにする。
+	// パスワードリセット後の強制ログアウトに使用する（security.md §2.3）。
+	RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error
 }
 
 // PasswordResetTokenRepository は PasswordResetToken エンティティの永続化操作を提供する。

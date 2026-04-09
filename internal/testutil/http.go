@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"expense-saas/internal/domain"
 	"expense-saas/internal/handler"
 	"expense-saas/internal/middleware"
 	appjwt "expense-saas/internal/pkg/jwt"
@@ -48,8 +49,13 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	// 認可チェッカー。
 	authorizer := service.NewAuthorizer()
 
+	// 認証ドメインサービス（Argon2id + JWT）。
+	hasher := domain.NewArgon2idHasher()
+	tokenGen := domain.NewJWTGenerator(kp.PrivateKey)
+	tokenVerifier := domain.NewJWTVerifier(kp.PublicKey)
+
 	// service 層。
-	authSvc := service.NewAuthService(userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo)
+	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, authorizer)
 	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
