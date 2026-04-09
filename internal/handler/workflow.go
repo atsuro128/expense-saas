@@ -88,7 +88,7 @@ func (h *WorkflowHandler) ApproveReport(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, detail)
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": detail})
 }
 
 // rejectReportRequest は POST /api/workflow/{id}/reject のリクエストボディを表します。
@@ -134,7 +134,7 @@ func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, detail)
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": detail})
 }
 
 // ListPayableReports は GET /api/workflow/payable を処理します。
@@ -204,5 +204,5 @@ func (h *WorkflowHandler) MarkReportAsPaid(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, detail)
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": detail})
 }

@@ -39,7 +39,7 @@ func (a *authorizerImpl) CanModifyReport(actor domain.Actor, report *domain.Expe
 // CanViewReport は操作者がレポートを参照できるかをロールに応じて確認する。
 //
 // - Member: 自分のレポートのみ参照可（RBC-010）
-// - Approver: 自分のレポート + 他者の submitted/approved/rejected/paid 状態のレポート（RBC-011）
+// - Approver: 自分のレポート + submitted 状態のレポート + 自分が承認/却下したレポート（RBC-011, SS10.3）
 // - Accounting / Admin: テナント内全レポート参照可（RBC-013, RBC-015）
 func (a *authorizerImpl) CanViewReport(actor domain.Actor, report *domain.ExpenseReport) error {
 	// 自分のレポートは常に参照可能。
@@ -52,12 +52,16 @@ func (a *authorizerImpl) CanViewReport(actor domain.Actor, report *domain.Expens
 		// テナント内全レポート参照可。
 		return nil
 	case domain.RoleApprover:
-		// Approver は submitted/approved/rejected/paid 状態の他者レポートを参照可（RBC-011）。
-		switch report.Status {
-		case domain.ReportStatusSubmitted,
-			domain.ReportStatusApproved,
-			domain.ReportStatusRejected,
-			domain.ReportStatusPaid:
+		// submitted 状態の他者レポートは参照可（RBC-011）。
+		if report.Status == domain.ReportStatusSubmitted {
+			return nil
+		}
+		// 自分が承認したレポートは参照可（SS10.3 authz.md）。
+		if report.ApprovedBy != nil && *report.ApprovedBy == actor.UserID {
+			return nil
+		}
+		// 自分が却下したレポートは参照可（SS10.3 authz.md）。
+		if report.RejectedBy != nil && *report.RejectedBy == actor.UserID {
 			return nil
 		}
 		return domain.ErrForbidden

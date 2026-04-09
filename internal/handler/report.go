@@ -160,7 +160,7 @@ func (h *ReportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusCreated, detail)
+	middleware.RespondJSON(w, http.StatusCreated, map[string]interface{}{"data": detail})
 }
 
 // GetReport は GET /api/reports/{id} を処理します。
@@ -183,7 +183,7 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, detail)
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": detail})
 }
 
 // updateReportRequest は PUT /api/reports/{id} のリクエストボディを表します。
@@ -250,7 +250,7 @@ func (h *ReportHandler) UpdateReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, detail)
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": detail})
 }
 
 // DeleteReport は DELETE /api/reports/{id} を処理します。
@@ -312,7 +312,7 @@ func (h *ReportHandler) SubmitReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	middleware.RespondJSON(w, http.StatusOK, detail)
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{"data": detail})
 }
 
 // --- プライベートヘルパー ---
