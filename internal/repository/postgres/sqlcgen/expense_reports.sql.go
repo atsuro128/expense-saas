@@ -293,7 +293,7 @@ WHERE tenant_id  = $1
   AND ($5::date IS NULL OR period_start >= $5)
   AND ($6::date IS NULL OR period_end <= $6)
   AND ($7::uuid IS NULL OR user_id = $7)
-ORDER BY created_at DESC
+ORDER BY submitted_at DESC NULLS LAST, created_at DESC, report_id DESC
 LIMIT $2 OFFSET $3
 `
 
