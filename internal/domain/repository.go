@@ -126,8 +126,8 @@ type ItemRepository interface {
 
 // AttachmentRepository は Attachment エンティティの永続化操作を提供する。
 type AttachmentRepository interface {
-	// Create は添付ファイルのメタデータを保存する。
-	Create(ctx context.Context, tenantID, reportID, itemID uuid.UUID, fileName string, fileSize int, mimeType MimeType, s3Key string) (*Attachment, error)
+	// Create は添付ファイルのメタデータを保存する。attachmentID は呼び出し側で生成した UUID を渡す。
+	Create(ctx context.Context, attachmentID, tenantID, reportID, itemID uuid.UUID, fileName string, fileSize int, mimeType MimeType, s3Key string) (*Attachment, error)
 	// GetByID はテナント・レポート・明細にスコープされた添付ファイルを取得する。
 	GetByID(ctx context.Context, tenantID, reportID, itemID, attachmentID uuid.UUID) (*Attachment, error)
 	// ListByItemID は明細の全有効添付ファイルを取得する。

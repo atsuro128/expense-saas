@@ -101,7 +101,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, actor domain.A
 	}
 
 	// DB にメタデータを保存する。
-	att, err := s.attachmentRepo.Create(ctx, actor.TenantID, reportID, itemID, upload.FileName, upload.FileSize, upload.MimeType, s3Key)
+	att, err := s.attachmentRepo.Create(ctx, attachmentID, actor.TenantID, reportID, itemID, upload.FileName, upload.FileSize, upload.MimeType, s3Key)
 	if err != nil {
 		// S3 アップロード済みだが DB 保存失敗した場合はエラーを返す（バッチ削除で孤立オブジェクトを回収する）。
 		return nil, fmt.Errorf("attachmentService.UploadAttachment: save metadata: %w", err)
