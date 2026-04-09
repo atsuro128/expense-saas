@@ -7,8 +7,8 @@ export const passwordResetRequestSchema = z.object({
   /** メールアドレス: 必須かつ email 形式。 */
   email: z
     .string()
-    .min(1, 'メールアドレスは必須です')
-    .email('メールアドレスの形式が正しくありません'),
+    .min(1, 'メールアドレスを入力してください')
+    .email('有効なメールアドレスを入力してください'),
 });
 
 /** passwordResetRequestSchema から推論した型。 */

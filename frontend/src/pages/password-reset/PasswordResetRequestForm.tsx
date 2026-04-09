@@ -39,6 +39,8 @@ export default function PasswordResetRequestForm({
     formState: { errors },
   } = useForm<PasswordResetRequestInput>({
     resolver: zodResolver(passwordResetRequestSchema),
+    // フォーカスアウト時にバリデーションを発火する（画面仕様 §5 準拠）。
+    mode: 'onBlur',
   });
 
   /** バリデーション通過後に data のみを onSubmit に渡すラッパー。 */

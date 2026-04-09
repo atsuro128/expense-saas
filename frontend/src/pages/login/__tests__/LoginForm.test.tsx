@@ -43,8 +43,7 @@ describe('LoginForm', () => {
   });
 
   // AUTH-FE-016: email が空のとき必須エラーが表示され onSubmit が呼ばれないこと。
-  // 注意: スタブ実装では react-hook-form + zod がないため、このテストは実装後に動作する。
-  it('AUTH-FE-016: email が空のとき必須エラーが表示される（実装後に動作）', async () => {
+  it('AUTH-FE-016: email が空のとき必須エラーが表示される', async () => {
     const mockOnSubmit = vi.fn();
     render(
       <MemoryRouter>
@@ -52,22 +51,19 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    // email を空のまま送信する。
-    await userEvent.type(screen.getByLabelText('パスワード'), 'TestPass1!');
-    await userEvent.click(screen.getByRole('button', { name: 'ログイン' }));
+    // email フィールドにフォーカスしてすぐ離す（onBlur によるバリデーション発火）。
+    await userEvent.click(screen.getByLabelText('メールアドレス'));
+    await userEvent.tab();
 
-    // スタブでは onSubmit が呼ばれてしまうが、実装後はフロントエンドバリデーションで防ぐ。
-    // 実装後のテスト: expect(mockOnSubmit).not.toHaveBeenCalled()
-    // 実装後: email エラーメッセージが表示されること。
-    // 現時点では失敗するテストとして残す。
     await waitFor(() => {
-      // バリデーションエラーが表示されていること（実装後に通過する）。
-      expect(screen.queryByText(/メールアドレス.*必須/)).toBeInTheDocument();
+      // 画面仕様 V1: 「メールアドレスを入力してください」
+      expect(screen.queryByText('メールアドレスを入力してください')).toBeInTheDocument();
     });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 
   // AUTH-FE-017: email 形式不正のとき形式エラーが表示され onSubmit が呼ばれないこと。
-  it('AUTH-FE-017: email 形式不正のとき形式エラーが表示される（実装後に動作）', async () => {
+  it('AUTH-FE-017: email 形式不正のとき形式エラーが表示される', async () => {
     const mockOnSubmit = vi.fn();
     render(
       <MemoryRouter>
@@ -75,18 +71,18 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
+    // 不正な形式を入力してフォーカスアウト（onBlur によるバリデーション発火）。
     await userEvent.type(screen.getByLabelText('メールアドレス'), 'not-an-email');
-    await userEvent.type(screen.getByLabelText('パスワード'), 'TestPass1!');
-    await userEvent.click(screen.getByRole('button', { name: 'ログイン' }));
+    await userEvent.tab();
 
-    // 実装後: 形式エラーが表示されること。
+    // 画面仕様 V2: 「有効なメールアドレスを入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/メール.*形式/)).toBeInTheDocument();
+      expect(screen.queryByText('有効なメールアドレスを入力してください')).toBeInTheDocument();
     });
   });
 
   // AUTH-FE-018: password が空のとき必須エラーが表示されること。
-  it('AUTH-FE-018: password が空のとき必須エラーが表示される（実装後に動作）', async () => {
+  it('AUTH-FE-018: password が空のとき必須エラーが表示される', async () => {
     const mockOnSubmit = vi.fn();
     render(
       <MemoryRouter>
@@ -94,13 +90,15 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    await userEvent.type(screen.getByLabelText('メールアドレス'), 'user@example.com');
-    await userEvent.click(screen.getByRole('button', { name: 'ログイン' }));
+    // password フィールドにフォーカスしてすぐ離す（onBlur によるバリデーション発火）。
+    await userEvent.click(screen.getByLabelText('パスワード'));
+    await userEvent.tab();
 
-    // 実装後: パスワード必須エラーが表示されること。
+    // 画面仕様 V3: 「パスワードを入力してください」
     await waitFor(() => {
-      expect(screen.queryByText(/パスワード.*必須/)).toBeInTheDocument();
+      expect(screen.queryByText('パスワードを入力してください')).toBeInTheDocument();
     });
+    expect(mockOnSubmit).not.toHaveBeenCalled();
   });
 
   // AUTH-FE-019: apiError を指定すると FormAlert にメッセージが表示されること。
