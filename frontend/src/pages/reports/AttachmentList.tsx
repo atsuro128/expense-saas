@@ -1,4 +1,4 @@
-// AttachmentList コンポーネント（スタブ）。
+// AttachmentList コンポーネント。
 // 添付ファイル一覧を表示し、ダウンロードと削除操作を提供する。
 // report-detail.md §AttachmentList に対応する。
 
@@ -20,6 +20,8 @@ export interface AttachmentListProps {
 /**
  * AttachmentList は添付ファイル一覧を表示する。
  * 各ファイルのファイル名（クリックでダウンロード）、ファイルサイズ、削除ボタンを表示する。
+ * 空の場合は空状態メッセージを表示する。
+ * data-testid="attachment-list" は常に描画され、内部に空状態または一覧を表示する。
  */
 export default function AttachmentList({
   attachments,
@@ -28,37 +30,39 @@ export default function AttachmentList({
   onDelete,
   deletingId,
 }: AttachmentListProps) {
-  if (attachments.length === 0) {
-    return <div data-testid="attachment-list-empty">添付ファイルはありません</div>;
-  }
-
   return (
-    <ul data-testid="attachment-list">
-      {attachments.map((att) => (
-        <li key={att.id} data-testid={`attachment-item-${att.id}`}>
-          <button
-            type="button"
-            onClick={() => onDownload(att.id)}
-            disabled={deletingId === att.id}
-            data-testid={`attachment-download-${att.id}`}
-          >
-            {att.file_name}
-          </button>
-          <span data-testid={`attachment-size-${att.id}`}>
-            {att.file_size}
-          </span>
-          {canDelete && (
-            <button
-              type="button"
-              onClick={() => onDelete(att.id)}
-              disabled={deletingId === att.id}
-              data-testid={`attachment-delete-${att.id}`}
-            >
-              削除
-            </button>
-          )}
-        </li>
-      ))}
-    </ul>
+    <div data-testid="attachment-list">
+      {attachments.length === 0 ? (
+        <div data-testid="attachment-list-empty">添付ファイルはありません</div>
+      ) : (
+        <ul>
+          {attachments.map((att) => (
+            <li key={att.id} data-testid={`attachment-item-${att.id}`}>
+              <button
+                type="button"
+                onClick={() => onDownload(att.id)}
+                disabled={deletingId === att.id}
+                data-testid={`attachment-download-${att.id}`}
+              >
+                {att.file_name}
+              </button>
+              <span data-testid={`attachment-size-${att.id}`}>
+                {att.file_size}
+              </span>
+              {canDelete && (
+                <button
+                  type="button"
+                  onClick={() => onDelete(att.id)}
+                  disabled={deletingId === att.id}
+                  data-testid={`attachment-delete-${att.id}`}
+                >
+                  削除
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

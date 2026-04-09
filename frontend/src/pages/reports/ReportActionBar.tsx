@@ -46,31 +46,35 @@ export default function ReportActionBar({
     return null;
   }
 
-  // 所有者のアクション
+  // 所有者のアクション（draft または rejected 状態）
   if (isOwner && (status === 'draft' || status === 'rejected')) {
     return (
-      <OwnerActions
-        status={status}
-        itemCount={itemCount}
-        pendingAction={pendingAction as 'submit' | 'delete' | null}
-        onEdit={onEdit}
-        onSubmitReport={onSubmitReport}
-        onDelete={onDelete}
-        onResubmit={onResubmit}
-      />
+      <div data-testid="report-action-bar">
+        <OwnerActions
+          status={status}
+          itemCount={itemCount}
+          pendingAction={pendingAction as 'submit' | 'delete' | null}
+          onEdit={onEdit}
+          onSubmitReport={onSubmitReport}
+          onDelete={onDelete}
+          onResubmit={onResubmit}
+        />
+      </div>
     );
   }
 
   // 非所有者の承認者アクション（submitted 状態、自己承認禁止: RBC-016）
   if (!isOwner && currentUserRole === 'approver' && status === 'submitted') {
     return (
-      <div data-testid="workflow-actions">
-        <button type="button" onClick={onApprove} disabled={pendingAction !== null}>
-          承認
-        </button>
-        <button type="button" onClick={onReject} disabled={pendingAction !== null}>
-          却下
-        </button>
+      <div data-testid="report-action-bar">
+        <div data-testid="workflow-actions">
+          <button type="button" onClick={onApprove} disabled={pendingAction !== null}>
+            承認
+          </button>
+          <button type="button" onClick={onReject} disabled={pendingAction !== null}>
+            却下
+          </button>
+        </div>
       </div>
     );
   }
@@ -78,10 +82,12 @@ export default function ReportActionBar({
   // 非所有者の経理アクション（approved 状態）
   if (!isOwner && currentUserRole === 'accounting' && status === 'approved') {
     return (
-      <div data-testid="workflow-actions">
-        <button type="button" onClick={onPay} disabled={pendingAction !== null}>
-          支払完了
-        </button>
+      <div data-testid="report-action-bar">
+        <div data-testid="workflow-actions">
+          <button type="button" onClick={onPay} disabled={pendingAction !== null}>
+            支払完了
+          </button>
+        </div>
       </div>
     );
   }
