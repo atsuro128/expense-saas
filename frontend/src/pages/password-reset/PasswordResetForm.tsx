@@ -38,6 +38,8 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
     formState: { errors },
   } = useForm<PasswordResetSchemaInput>({
     resolver: zodResolver(passwordResetSchema),
+    // フォーカスアウト時にバリデーションを発火する（画面仕様 §5 準拠）。
+    mode: 'onBlur',
   });
 
   /** バリデーション通過後に new_password のみを onSubmit に渡すラッパー。 */
@@ -63,7 +65,7 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
       <TextField
         {...register('confirm_password')}
         id="confirm_password"
-        label="パスワード（確認）"
+        label="確認用パスワード"
         type="password"
         fullWidth
         disabled={isPending}

@@ -47,7 +47,7 @@ describe('PasswordResetPage', () => {
 
   const fillAndSubmitResetForm = async (password = 'NewPass1!') => {
     await userEvent.type(screen.getByLabelText('新しいパスワード'), password);
-    await userEvent.type(screen.getByLabelText('パスワード（確認）'), password);
+    await userEvent.type(screen.getByLabelText('確認用パスワード'), password);
     await userEvent.click(screen.getByRole('button', { name: 'パスワードを変更する' }));
   };
 
@@ -145,7 +145,7 @@ describe('PasswordResetPage', () => {
     renderPasswordResetPage();
 
     expect(screen.getByLabelText('新しいパスワード')).toBeInTheDocument();
-    expect(screen.getByLabelText('パスワード（確認）')).toBeInTheDocument();
+    expect(screen.getByLabelText('確認用パスワード')).toBeInTheDocument();
     expect(screen.queryByTestId('password-reset-complete')).not.toBeInTheDocument();
     expect(screen.queryByTestId('password-reset-token-invalid')).not.toBeInTheDocument();
   });

@@ -32,6 +32,8 @@ export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormPr
     formState: { errors },
   } = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
+    // フォーカスアウト時にバリデーションを発火する（画面仕様 §5 準拠）。
+    mode: 'onBlur',
   });
 
   /** バリデーション通過後に data のみを onSubmit に渡すラッパー。 */

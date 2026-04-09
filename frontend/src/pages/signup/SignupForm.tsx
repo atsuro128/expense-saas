@@ -32,6 +32,8 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
     formState: { errors },
   } = useForm<SignupInput>({
     resolver: zodResolver(signupSchema),
+    // フォーカスアウト時にバリデーションを発火する（画面仕様 §5 準拠）。
+    mode: 'onBlur',
   });
 
   /** バリデーション通過後に data のみを onSubmit に渡すラッパー。 */
