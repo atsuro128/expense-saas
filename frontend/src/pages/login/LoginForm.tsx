@@ -2,14 +2,14 @@
 // React Hook Form + Zod (loginSchema) でクライアントサイドバリデーションを行い、
 // 送信時に onSubmit コールバックを呼び出す。
 
+import TextField from '@mui/material/TextField';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
+import { loginSchema, type LoginInput } from './loginSchema';
 
-/** ログインフォームの入力値。 */
-export interface LoginInput {
-  email: string;
-  password: string;
-}
+export type { LoginInput };
 
 export interface LoginFormProps {
   /** フォーム送信時のコールバック。バリデーション通過後に呼ばれる。 */
@@ -23,29 +23,49 @@ export interface LoginFormProps {
 /**
  * LoginForm はログインフォームを描画する。
  * メールアドレスとパスワードの入力フィールド、送信ボタンを含む。
- * 未実装スタブ: 実装後に react-hook-form + zod を使用する。
+ * React Hook Form + Zod でクライアントサイドバリデーションを実装する。
  */
 export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormProps) {
-  // 未実装スタブ。
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const email = (form.elements.namedItem('email') as HTMLInputElement)?.value ?? '';
-    const password = (form.elements.namedItem('password') as HTMLInputElement)?.value ?? '';
-    onSubmit({ email, password });
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<LoginInput>({
+    resolver: zodResolver(loginSchema),
+    // フォーカスアウト時にバリデーションを発火する（画面仕様 §5 準拠）。
+    mode: 'onBlur',
+  });
+
+  /** バリデーション通過後に data のみを onSubmit に渡すラッパー。 */
+  const handleValidSubmit = (data: LoginInput) => {
+    onSubmit(data);
   };
 
   return (
-    <form onSubmit={handleSubmit}>
+    <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <div>
-        <label htmlFor="email">メールアドレス</label>
-        <input id="email" name="email" type="email" disabled={isPending} />
-      </div>
-      <div>
-        <label htmlFor="password">パスワード</label>
-        <input id="password" name="password" type="password" disabled={isPending} />
-      </div>
+      <TextField
+        {...register('email')}
+        id="email"
+        label="メールアドレス"
+        type="email"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.email}
+        helperText={errors.email?.message}
+        sx={{ mb: 2 }}
+      />
+      <TextField
+        {...register('password')}
+        id="password"
+        label="パスワード"
+        type="password"
+        fullWidth
+        disabled={isPending}
+        error={!!errors.password}
+        helperText={errors.password?.message}
+        sx={{ mb: 2 }}
+      />
       <SubmitButton label="ログイン" loading={isPending} />
     </form>
   );
