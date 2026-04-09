@@ -930,20 +930,24 @@ func TestGetMe_Success_Admin(t *testing.T) {
 
 	testutil.AssertStatus(t, rec, http.StatusOK)
 
+	// openapi.yaml UserProfile スキーマ準拠: id（uuid）・name・email・role・tenant{id,name}。
 	var resp struct {
 		Data struct {
-			UserID   string `json:"user_id"`
-			Email    string `json:"email"`
-			Role     string `json:"role"`
-			TenantID string `json:"tenant_id"`
+			ID    string `json:"id"`
+			Email string `json:"email"`
+			Role  string `json:"role"`
+			Tenant struct {
+				ID   string `json:"id"`
+				Name string `json:"name"`
+			} `json:"tenant"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("レスポンスの JSON デコードに失敗しました: %v (body: %s)", err, rec.Body.String())
 	}
 
-	if resp.Data.UserID != testutil.UserAdminID {
-		t.Errorf("user_id が期待値と異なります: got %q, want %q", resp.Data.UserID, testutil.UserAdminID)
+	if resp.Data.ID != testutil.UserAdminID {
+		t.Errorf("id が期待値と異なります: got %q, want %q", resp.Data.ID, testutil.UserAdminID)
 	}
 	if resp.Data.Email != "test-admin@example.com" {
 		t.Errorf("email が期待値と異なります: got %q, want %q", resp.Data.Email, "test-admin@example.com")
