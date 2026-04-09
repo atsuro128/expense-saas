@@ -397,10 +397,17 @@ func WithReportTotalAmount(amount int) ReportOption {
 }
 
 // WithReportSubmittedAt は CreateReport の submitted_at を設定する。
-// monthly_summary の集計対象にするために使用する。
 func WithReportSubmittedAt(t time.Time) ReportOption {
 	return func(m map[string]interface{}) {
 		m["submitted_at"] = t
+	}
+}
+
+// WithReportPeriodStart は CreateReport の period_start を設定する。
+// monthly_summary の集計軸は period_start であるため、集計対象月を制御するために使用する。
+func WithReportPeriodStart(t time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["period_start"] = t
 	}
 }
 

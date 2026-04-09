@@ -559,6 +559,7 @@ func TestGetDashboard_Admin_NoMyDraftCount(t *testing.T) {
 // 集計することを検証する。DSH-019 に対応する。
 //
 // テスト設計:
+//   - 集計軸は period_start（対象期間の開始日）であるため、当月の period_start を持つレポートを作成する
 //   - 同じ月に approved（10000円）と paid（5000円）のレポートを作成する
 //   - API レスポンスの monthly_summary から当月の total_amount を取得する
 //   - total_amount が paid 分の 5000 のみであることをアサートする
@@ -569,15 +570,16 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 	approverID := testutil.MustParseUUID(testutil.UserApproverID)
 	tenantID := testutil.MustParseUUID(testutil.TenantAID)
 
-	// 当月の submitted_at を設定する（monthly_summary の集計対象にするため）。
+	// 当月の1日を period_start として設定する（monthly_summary の集計軸は period_start）。
 	now := time.Now().UTC()
+	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
 
 	// approved ステータスのレポートを作成する（10000円）。
 	// monthly_summary の集計に含まれてはならない。
 	testutil.CreateReport(t, pool, tenantID, approverID,
 		testutil.WithReportStatus(domain.ReportStatusApproved),
 		testutil.WithReportTotalAmount(10000),
-		testutil.WithReportSubmittedAt(now),
+		testutil.WithReportPeriodStart(currentMonthStart),
 		testutil.WithReportTitle("集計対象外の承認済みレポート（10000円）"),
 	)
 
@@ -586,7 +588,7 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 	testutil.CreateReport(t, pool, tenantID, approverID,
 		testutil.WithReportStatus(domain.ReportStatusPaid),
 		testutil.WithReportTotalAmount(5000),
-		testutil.WithReportSubmittedAt(now),
+		testutil.WithReportPeriodStart(currentMonthStart),
 		testutil.WithReportTitle("集計対象の支払済みレポート（5000円）"),
 	)
 
@@ -622,7 +624,7 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 		t.Fatalf("monthly_summary に当月（%s）のエントリが存在しません", currentYearMonth)
 	}
 
-	// 標準フィクスチャの paid レポートは submitted_at が NULL のため集計対象外。
+	// 標準フィクスチャの paid レポートは period_start が 2026-03-01（過去）のため当月集計対象外。
 	// 当月に集計されるのは今回追加した paid レポート（5000円）のみ。
 	wantAmount := 5000
 	if got := *currentMonthAmount; got != wantAmount {

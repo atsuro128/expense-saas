@@ -145,27 +145,27 @@ WHERE tenant_id  = $1
 GROUP BY status;
 
 -- name: MonthlySummaryAll :many
-SELECT to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS year_month,
+SELECT to_char(date_trunc('month', period_start), 'YYYY-MM') AS year_month,
        SUM(total_amount)::int                                 AS total_amount
 FROM expense_reports
 WHERE tenant_id   = $1
   AND status      = 'paid'
   AND deleted_at  IS NULL
-  AND submitted_at >= date_trunc('month', now()) - ($2::int - 1) * INTERVAL '1 month'
-GROUP BY date_trunc('month', submitted_at)
-ORDER BY date_trunc('month', submitted_at) DESC;
+  AND period_start >= date_trunc('month', now()) - ($2::int - 1) * INTERVAL '1 month'
+GROUP BY date_trunc('month', period_start)
+ORDER BY date_trunc('month', period_start) DESC;
 
 -- name: MonthlySummaryByUser :many
-SELECT to_char(date_trunc('month', submitted_at), 'YYYY-MM') AS year_month,
+SELECT to_char(date_trunc('month', period_start), 'YYYY-MM') AS year_month,
        SUM(total_amount)::int                                 AS total_amount
 FROM expense_reports
 WHERE tenant_id   = $1
   AND user_id     = $2
   AND status      = 'paid'
   AND deleted_at  IS NULL
-  AND submitted_at >= date_trunc('month', now()) - ($3::int - 1) * INTERVAL '1 month'
-GROUP BY date_trunc('month', submitted_at)
-ORDER BY date_trunc('month', submitted_at) DESC;
+  AND period_start >= date_trunc('month', now()) - ($3::int - 1) * INTERVAL '1 month'
+GROUP BY date_trunc('month', period_start)
+ORDER BY date_trunc('month', period_start) DESC;
 
 -- name: ListRecentReports :many
 SELECT * FROM expense_reports
