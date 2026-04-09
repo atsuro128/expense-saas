@@ -24,7 +24,7 @@ func NewAttachmentRepo(pool *pgxpool.Pool) domain.AttachmentRepository {
 
 func (r *attachmentRepo) Create(
 	ctx context.Context,
-	tenantID, reportID, itemID uuid.UUID,
+	attachmentID, tenantID, reportID, itemID uuid.UUID,
 	fileName string,
 	fileSize int,
 	mimeType domain.MimeType,
@@ -32,13 +32,14 @@ func (r *attachmentRepo) Create(
 ) (*domain.Attachment, error) {
 	q := queries(ctx, r.pool)
 	row, err := q.CreateAttachment(ctx, sqlcgen.CreateAttachmentParams{
-		ItemID:   itemID,
-		ReportID: reportID,
-		TenantID: tenantID,
-		FileName: fileName,
-		FileSize: int32(fileSize),
-		MimeType: string(mimeType),
-		S3Key:    s3Key,
+		AttachmentID: attachmentID,
+		ItemID:       itemID,
+		ReportID:     reportID,
+		TenantID:     tenantID,
+		FileName:     fileName,
+		FileSize:     int32(fileSize),
+		MimeType:     string(mimeType),
+		S3Key:        s3Key,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("attachmentRepo.Create: %w", err)

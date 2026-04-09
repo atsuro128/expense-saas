@@ -15,6 +15,7 @@ import (
 	"expense-saas/internal/handler"
 	"expense-saas/internal/middleware"
 	appjwt "expense-saas/internal/pkg/jwt"
+	pkgs3 "expense-saas/internal/pkg/s3"
 	"expense-saas/internal/repository/postgres"
 	"expense-saas/internal/service"
 )
@@ -58,7 +59,9 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
-	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
+	// テスト用インメモリ S3 モック（実際のストレージへのアクセスを行わない）。
+	storageClient := pkgs3.NewInMemoryClient()
+	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient)
 	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
 	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
 	categorySvc := service.NewCategoryService(categoryRepo)

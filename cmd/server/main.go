@@ -21,6 +21,7 @@ import (
 	"expense-saas/internal/handler"
 	"expense-saas/internal/middleware"
 	appjwt "expense-saas/internal/pkg/jwt"
+	pkgs3 "expense-saas/internal/pkg/s3"
 	"expense-saas/internal/repository/postgres"
 	"expense-saas/internal/service"
 )
@@ -105,11 +106,18 @@ func main() {
 	// 認証ドメインサービス。
 	hasher := domain.NewArgon2idHasher()
 
+	// S3 クライアント（環境変数から設定を読み込む）。
+	storageClient, err := pkgs3.NewClientFromEnv()
+	if err != nil {
+		slog.Error("S3 クライアントの初期化に失敗しました", "error", err)
+		os.Exit(1)
+	}
+
 	// サービス。
 	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
-	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer)
+	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient)
 	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
 	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
 	categorySvc := service.NewCategoryService(categoryRepo)
@@ -173,7 +181,8 @@ func main() {
 			all.Delete("/api/reports/{id}/items/{itemId}", itemHandler.DeleteItem)
 
 			// 添付ファイル。
-			all.Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
+			all.With(middleware.RateLimitByUser(bgCtx, 10, time.Minute)).
+				Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.GetAttachmentDownload)
 			all.Delete("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.DeleteAttachment)

@@ -1,6 +1,6 @@
 -- name: CreateAttachment :one
-INSERT INTO attachments (item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO attachments (attachment_id, item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING *;
 
 -- name: GetAttachmentByID :one

@@ -12,23 +12,25 @@ import (
 )
 
 const createAttachment = `-- name: CreateAttachment :one
-INSERT INTO attachments (item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO attachments (attachment_id, item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 RETURNING attachment_id, item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key, created_at, deleted_at
 `
 
 type CreateAttachmentParams struct {
-	ItemID   uuid.UUID `json:"item_id"`
-	ReportID uuid.UUID `json:"report_id"`
-	TenantID uuid.UUID `json:"tenant_id"`
-	FileName string    `json:"file_name"`
-	FileSize int32     `json:"file_size"`
-	MimeType string    `json:"mime_type"`
-	S3Key    string    `json:"s3_key"`
+	AttachmentID uuid.UUID `json:"attachment_id"`
+	ItemID       uuid.UUID `json:"item_id"`
+	ReportID     uuid.UUID `json:"report_id"`
+	TenantID     uuid.UUID `json:"tenant_id"`
+	FileName     string    `json:"file_name"`
+	FileSize     int32     `json:"file_size"`
+	MimeType     string    `json:"mime_type"`
+	S3Key        string    `json:"s3_key"`
 }
 
 func (q *Queries) CreateAttachment(ctx context.Context, arg CreateAttachmentParams) (Attachment, error) {
 	row := q.db.QueryRow(ctx, createAttachment,
+		arg.AttachmentID,
 		arg.ItemID,
 		arg.ReportID,
 		arg.TenantID,
