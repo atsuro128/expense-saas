@@ -32,7 +32,12 @@ export default function PasswordResetPage() {
       await mutateAsync({ token, new_password: data.new_password });
       setViewState('complete');
     } catch (err: unknown) {
-      if (err instanceof ApiClientError && err.code === 'INVALID_TOKEN') {
+      // INVALID_TOKEN（無効なトークン）と TOKEN_EXPIRED（期限切れトークン）の両方で
+      // トークン無効画面に遷移する（BE の TOKEN_EXPIRED 対応への防御的対応）。
+      if (
+        err instanceof ApiClientError &&
+        (err.code === 'INVALID_TOKEN' || err.code === 'TOKEN_EXPIRED')
+      ) {
         setViewState('token-invalid');
       } else {
         setApiError(getErrorMessage(err));
