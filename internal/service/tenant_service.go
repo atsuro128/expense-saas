@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"errors"
+	"fmt"
 
 	"expense-saas/internal/domain"
 )
@@ -25,10 +27,39 @@ func NewTenantService(
 	}
 }
 
-func (s *tenantService) GetTenant(_ context.Context, _ domain.Actor) (*domain.TenantInfoDTO, error) {
-	return nil, ErrNotImplemented
+// GetTenant は actor のテナント情報を返す（Admin 専用）。
+func (s *tenantService) GetTenant(ctx context.Context, actor domain.Actor) (*domain.TenantInfoDTO, error) {
+	tenant, err := s.tenantRepo.GetByID(ctx, actor.TenantID)
+	if err != nil {
+		if errors.Is(err, domain.ErrResourceNotFound) {
+			return nil, domain.ErrResourceNotFound
+		}
+		return nil, fmt.Errorf("tenantService.GetTenant: %w", err)
+	}
+	return &domain.TenantInfoDTO{
+		ID:        tenant.TenantID,
+		Name:      tenant.CompanyName,
+		CreatedAt: tenant.CreatedAt,
+	}, nil
 }
 
-func (s *tenantService) ListTenantMembers(_ context.Context, _ domain.Actor) ([]domain.UserSummary, error) {
-	return nil, ErrNotImplemented
+// ListTenantMembers は actor のテナントに所属する全メンバーの UserSummary 一覧を返す。
+func (s *tenantService) ListTenantMembers(ctx context.Context, actor domain.Actor) ([]domain.UserSummary, error) {
+	memberships, err := s.membershipRepo.ListByTenantID(ctx, actor.TenantID)
+	if err != nil {
+		return nil, fmt.Errorf("tenantService.ListTenantMembers: %w", err)
+	}
+
+	summaries := make([]domain.UserSummary, 0, len(memberships))
+	for _, m := range memberships {
+		user, err := s.userRepo.GetByID(ctx, m.UserID)
+		if err != nil {
+			return nil, fmt.Errorf("tenantService.ListTenantMembers: get user %s: %w", m.UserID, err)
+		}
+		summaries = append(summaries, domain.UserSummary{
+			ID:   user.UserID,
+			Name: user.Name,
+		})
+	}
+	return summaries, nil
 }
