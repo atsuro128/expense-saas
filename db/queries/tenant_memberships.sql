@@ -18,3 +18,6 @@ SELECT EXISTS(
     WHERE tenant_id = $1
       AND role = 'approver'
 ) AS has_approver;
+
+-- name: CountMembersByTenantID :one
+SELECT COUNT(*)::int FROM tenant_memberships WHERE tenant_id = $1;

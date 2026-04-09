@@ -343,11 +343,12 @@ func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, 
 	id := uuid.New()
 	now := time.Now().UTC()
 	params := map[string]interface{}{
-		"title":        "Factory Report",
-		"period_start": time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
-		"period_end":   time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC),
-		"status":       string(domain.ReportStatusDraft),
-		"total_amount": 0,
+		"title":         "Factory Report",
+		"period_start":  time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+		"period_end":    time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC),
+		"status":        string(domain.ReportStatusDraft),
+		"total_amount":  0,
+		"submitted_at":  (*time.Time)(nil),
 	}
 	for _, o := range opts {
 		o(params)
@@ -361,11 +362,12 @@ func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, 
 
 	if _, err := conn.Exec(context.Background(),
 		`INSERT INTO expense_reports
-		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, submitted_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
 		id, tenantID, userID,
 		params["title"], params["period_start"], params["period_end"],
 		params["status"], params["total_amount"],
+		params["submitted_at"],
 		now, now,
 	); err != nil {
 		t.Fatalf("testutil: CreateReport: %v", err)
@@ -384,6 +386,36 @@ func WithReportTitle(title string) ReportOption {
 func WithReportStatus(status domain.ReportStatus) ReportOption {
 	return func(m map[string]interface{}) {
 		m["status"] = string(status)
+	}
+}
+
+// WithReportTotalAmount は CreateReport の total_amount を設定する。
+func WithReportTotalAmount(amount int) ReportOption {
+	return func(m map[string]interface{}) {
+		m["total_amount"] = amount
+	}
+}
+
+// WithReportSubmittedAt は CreateReport の submitted_at を設定する。
+func WithReportSubmittedAt(t time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["submitted_at"] = t
+	}
+}
+
+// WithReportPeriodStart は CreateReport の period_start を設定する。
+// monthly_summary の集計軸は period_start であるため、集計対象月を制御するために使用する。
+func WithReportPeriodStart(t time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["period_start"] = t
+	}
+}
+
+// WithReportPeriodEnd は CreateReport の period_end を設定する。
+// period_start と合わせて指定することで CHECK (period_start <= period_end) 制約違反を防ぐ。
+func WithReportPeriodEnd(t time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["period_end"] = t
 	}
 }
 

@@ -11,6 +11,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const countMembersByTenantID = `-- name: CountMembersByTenantID :one
+SELECT COUNT(*)::int FROM tenant_memberships WHERE tenant_id = $1
+`
+
+func (q *Queries) CountMembersByTenantID(ctx context.Context, tenantID uuid.UUID) (int32, error) {
+	row := q.db.QueryRow(ctx, countMembersByTenantID, tenantID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createMembership = `-- name: CreateMembership :one
 INSERT INTO tenant_memberships (tenant_id, user_id, role)
 VALUES ($1, $2, $3)
