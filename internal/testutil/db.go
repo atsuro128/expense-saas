@@ -23,12 +23,12 @@ func SetupTestDB(t *testing.T) *pgxpool.Pool {
 
 	pool, err := pgxpool.New(context.Background(), dbURL)
 	if err != nil {
-		t.Skipf("testutil: DB 接続プールの作成に失敗したため、テストをスキップします: %v", err)
+		t.Fatalf("testutil: DB 接続プールの作成に失敗しました: %v", err)
 	}
 
 	if err := pool.Ping(context.Background()); err != nil {
 		pool.Close()
-		t.Skipf("testutil: DB への疎通確認に失敗したため、テストをスキップします: %v", err)
+		t.Fatalf("testutil: DB への疎通確認に失敗しました: %v", err)
 	}
 
 	t.Cleanup(func() {

@@ -229,7 +229,13 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 	}
 
 	// (c) 失効済みチェック。
+	// 無効化済みトークンでのリフレッシュ試行はトークン再利用を示す。
+	// security.md §2.1 に従い、同一ユーザーの全セッションを無効化する。
 	if storedToken.IsRevoked {
+		// トークン再利用を検知。同一ユーザーの全セッションを無効化する（security.md §2.1）。
+		if err := s.refreshTokenRepo.RevokeAllByUserID(ctx, storedToken.UserID); err != nil {
+			slog.Error("リフレッシュトークン再利用検知: 全セッション無効化に失敗", "user_id", storedToken.UserID, "error", err)
+		}
 		return nil, domain.ErrTokenRevoked
 	}
 
