@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
@@ -549,6 +550,99 @@ func TestGetDashboard_Admin_NoMyDraftCount(t *testing.T) {
 // =============================================================================
 // DSH-018: テナント分離テスト
 // =============================================================================
+
+// =============================================================================
+// DSH-019: monthly_summary 集計精度テスト
+// =============================================================================
+
+// TestGetDashboard_MonthlySummary_OnlyPaidIncluded は monthly_summary が paid ステータスのレポートのみを
+// 集計することを検証する。DSH-019 に対応する。
+//
+// テスト設計:
+//   - 集計軸は period_start（対象期間の開始日）であるため、当月の period_start を持つレポートを作成する
+//   - 同じ月に approved（10000円）と paid（5000円）のレポートを作成する
+//   - API レスポンスの monthly_summary から当月の total_amount を取得する
+//   - total_amount が paid 分の 5000 のみであることをアサートする
+//   - approved の 10000 が含まれていないことを明示的に確認する
+func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
+	srv, pool := setupDashboardTest(t)
+
+	approverID := testutil.MustParseUUID(testutil.UserApproverID)
+	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+
+	// 当月の1日を period_start として設定する（monthly_summary の集計軸は period_start）。
+	now := time.Now().UTC()
+	currentMonthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	// 当月末日を period_end として設定する（CHECK (period_start <= period_end) 制約を満たすため）。
+	currentMonthEnd := currentMonthStart.AddDate(0, 1, -1)
+
+	// approved ステータスのレポートを作成する（10000円）。
+	// monthly_summary の集計に含まれてはならない。
+	testutil.CreateReport(t, pool, tenantID, approverID,
+		testutil.WithReportStatus(domain.ReportStatusApproved),
+		testutil.WithReportTotalAmount(10000),
+		testutil.WithReportPeriodStart(currentMonthStart),
+		testutil.WithReportPeriodEnd(currentMonthEnd),
+		testutil.WithReportTitle("集計対象外の承認済みレポート（10000円）"),
+	)
+
+	// paid ステータスのレポートを作成する（5000円）。
+	// monthly_summary の集計に含まれる必要がある。
+	testutil.CreateReport(t, pool, tenantID, approverID,
+		testutil.WithReportStatus(domain.ReportStatusPaid),
+		testutil.WithReportTotalAmount(5000),
+		testutil.WithReportPeriodStart(currentMonthStart),
+		testutil.WithReportPeriodEnd(currentMonthEnd),
+		testutil.WithReportTitle("集計対象の支払済みレポート（5000円）"),
+	)
+
+	req := srv.AuthRequest(t, http.MethodGet, "/api/dashboard", nil,
+		testutil.UserApproverID, testutil.TenantAID, "approver")
+	rec := srv.Execute(req)
+
+	testutil.AssertStatus(t, rec, http.StatusOK)
+
+	var resp dashboardResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("JSON デコードに失敗しました: %v", err)
+	}
+
+	if resp.Data.MonthlySummary == nil {
+		t.Fatal("monthly_summary が null です")
+	}
+
+	// 当月の年月文字列を取得する。
+	currentYearMonth := now.Format("2006-01")
+
+	// 当月のエントリを monthly_summary から検索する。
+	var currentMonthAmount *int
+	for _, entry := range *resp.Data.MonthlySummary {
+		if entry.YearMonth == currentYearMonth {
+			amount := entry.TotalAmount
+			currentMonthAmount = &amount
+			break
+		}
+	}
+
+	if currentMonthAmount == nil {
+		t.Fatalf("monthly_summary に当月（%s）のエントリが存在しません", currentYearMonth)
+	}
+
+	// 標準フィクスチャの paid レポートは period_start が 2026-03-01（過去）のため当月集計対象外。
+	// 当月に集計されるのは今回追加した paid レポート（5000円）のみ。
+	wantAmount := 5000
+	if got := *currentMonthAmount; got != wantAmount {
+		t.Errorf("monthly_summary[%s].total_amount: got %d, want %d\n"+
+			"（approved の 10000 円が含まれている可能性があります）",
+			currentYearMonth, got, wantAmount)
+	}
+
+	// approved の金額（10000）が含まれていないことを明示的に確認する。
+	// もし approved が混入していれば total_amount は 15000 になる。
+	if got := *currentMonthAmount; got == 15000 {
+		t.Errorf("monthly_summary に approved の金額（10000円）が混入しています: got %d", got)
+	}
+}
 
 // TestGetDashboard_TenantIsolation_CountsExcludeOtherTenant はテナントAのカウントにテナントBのレポートが含まれないことを検証する。
 // DSH-018 に対応する。

@@ -69,3 +69,12 @@ func (r *membershipRepo) HasApprover(ctx context.Context, tenantID uuid.UUID) (b
 	}
 	return has, nil
 }
+
+func (r *membershipRepo) CountByTenantID(ctx context.Context, tenantID uuid.UUID) (int, error) {
+	q := queries(ctx, r.pool)
+	count, err := q.CountMembersByTenantID(ctx, tenantID)
+	if err != nil {
+		return 0, fmt.Errorf("membershipRepo.CountByTenantID: %w", err)
+	}
+	return int(count), nil
+}

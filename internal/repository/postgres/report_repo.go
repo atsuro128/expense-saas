@@ -358,6 +358,24 @@ func (r *reportRepo) ListPending(ctx context.Context, tenantID uuid.UUID, params
 	return result, int(total), nil
 }
 
+func (r *reportRepo) ListRecentReports(ctx context.Context, tenantID, userID uuid.UUID, limit int) ([]domain.ExpenseReport, error) {
+	q := queries(ctx, r.pool)
+	rows, err := q.ListRecentReports(ctx, sqlcgen.ListRecentReportsParams{
+		TenantID: tenantID,
+		UserID:   userID,
+		Limit:    int32(limit),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("reportRepo.ListRecentReports: %w", err)
+	}
+	result := make([]domain.ExpenseReport, len(rows))
+	for i, row := range rows {
+		rpt := reportFromRow(row)
+		result[i] = *rpt
+	}
+	return result, nil
+}
+
 func (r *reportRepo) ListPayable(ctx context.Context, tenantID uuid.UUID, params domain.WorkflowListParams) ([]domain.ExpenseReport, int, error) {
 	q := queries(ctx, r.pool)
 
