@@ -15,6 +15,8 @@ export interface AttachmentUploaderProps {
   onUploadSuccess: () => void;
   /** アップロード中フラグ */
   isUploading: boolean;
+  /** アップロードエラー時のコールバック（省略時は console.error のみ） */
+  onUploadError?: (message: string) => void;
 }
 
 // 許可された MIME タイプ（files.md §3）。
@@ -49,8 +51,10 @@ export default function AttachmentUploader({
   itemId,
   onUploadSuccess,
   isUploading,
+  onUploadError,
 }: AttachmentUploaderProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(isUploading);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ファイルを選択してアップロードを開始する。
@@ -62,26 +66,31 @@ export default function AttachmentUploader({
     }
     setValidationError(null);
     // バリデーション通過後にアップロード API を呼び出す。
-    uploadFile(file);
+    void uploadFile(file);
   };
 
   // API を呼び出してファイルをアップロードする。
-  const uploadFile = (file: File) => {
+  const uploadFile = async (file: File): Promise<void> => {
     const formData = new FormData();
     formData.append('file', file);
-
-    // void でプロミスを扱う（エラーは内部で処理）。
-    void api
-      .post<ApiResponse<Attachment>>(
+    setUploading(true);
+    try {
+      await api.post<ApiResponse<Attachment>>(
         `/api/reports/${reportId}/items/${itemId}/attachments`,
         formData,
-      )
-      .then(() => {
-        onUploadSuccess();
-      })
-      .catch(() => {
-        // API エラーは親コンポーネントが管理するため、ここでは何もしない。
-      });
+      );
+      onUploadSuccess();
+    } catch (err) {
+      // エラーをログに記録し、コールバックで親コンポーネントに通知する。
+      console.error('ファイルのアップロードに失敗しました:', err);
+      const message = 'ファイルのアップロードに失敗しました。もう一度お試しください。';
+      if (onUploadError) {
+        onUploadError(message);
+      }
+    } finally {
+      // アップロード完了（成功・失敗どちらの場合も）フラグをリセットする。
+      setUploading(false);
+    }
   };
 
   // ファイル入力の change イベントハンドラ。
@@ -120,11 +129,11 @@ export default function AttachmentUploader({
           type="file"
           accept={ALLOWED_MIME_TYPES.join(',')}
           data-testid="attachment-file-input"
-          disabled={isUploading}
+          disabled={uploading}
           onChange={handleChange}
         />
         <span data-testid="attachment-upload-button">
-          {isUploading ? 'アップロード中...' : '+ ファイルを追加'}
+          {uploading ? 'アップロード中...' : '+ ファイルを追加'}
         </span>
       </label>
       <div data-testid="attachment-file-types">

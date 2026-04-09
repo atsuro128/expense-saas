@@ -5,6 +5,7 @@
 import type { ReportStatus, ExpenseItemWithAttachments } from '../../api/types';
 import ItemForm from './ItemForm';
 import type { ItemFormValues } from './ItemForm';
+import AttachmentArea from './AttachmentArea';
 
 export type PanelMode = 'add' | 'edit' | 'view';
 
@@ -46,6 +47,7 @@ export interface ItemSlidePanelProps {
 export default function ItemSlidePanel({
   open,
   mode,
+  reportId,
   item,
   isOwner,
   reportStatus,
@@ -116,6 +118,12 @@ export default function ItemSlidePanel({
         apiError={apiError}
         isPending={isPending}
         defaultValues={defaultValues}
+      />
+      {/* 添付ファイル管理領域。追加モードで明細未保存（item=null）の場合は非表示になる。 */}
+      <AttachmentArea
+        reportId={reportId}
+        itemId={item?.id ?? null}
+        canModify={canModify}
       />
     </div>
   );
