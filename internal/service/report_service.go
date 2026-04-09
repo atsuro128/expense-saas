@@ -51,6 +51,10 @@ func (s *reportService) CreateReport(ctx context.Context, actor domain.Actor, pa
 		if err != nil {
 			return nil, err
 		}
+		// UC-M09: 自分の却下レポートのみ再申請できる。他ユーザーのレポートは参照不可。
+		if refReport.UserID != actor.UserID {
+			return nil, domain.ErrForbidden
+		}
 		if refReport.Status != domain.ReportStatusRejected {
 			return nil, domain.ErrInvalidPeriod // VALIDATION_ERROR として扱う
 		}

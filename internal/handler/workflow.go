@@ -117,6 +117,12 @@ func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// reason の最大長チェック（openapi.yaml: maxLength: 1000）。
+	if len(req.Reason) > 1000 {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "reason must be 1000 characters or less")
+		return
+	}
+
 	if req.UpdatedAt == "" {
 		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
 		return
