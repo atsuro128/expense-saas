@@ -6,7 +6,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"expense-saas/internal/domain"
 	"expense-saas/internal/middleware"
 	"expense-saas/internal/service"
 )
@@ -22,28 +21,9 @@ func NewWorkflowHandler(svc service.WorkflowService) *WorkflowHandler {
 }
 
 // ListPendingReports は GET /api/workflow/pending を処理します。
+// 一覧取得（クエリパラメータ・ページネーション含む）は 10-F で実装する。
 func (h *WorkflowHandler) ListPendingReports(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
-	if !ok {
-		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
-		return
-	}
-
-	params := domain.WorkflowListParams{
-		Page:    1,
-		PerPage: 20,
-	}
-
-	reports, pagination, err := h.svc.ListPendingReports(r.Context(), actor, params)
-	if err != nil {
-		respondDomainError(w, err)
-		return
-	}
-
-	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
-		"data":       reports,
-		"pagination": pagination,
-	})
+	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
 // approveReportRequest は POST /api/workflow/{id}/approve のリクエストボディを表します。
@@ -145,28 +125,9 @@ func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
 }
 
 // ListPayableReports は GET /api/workflow/payable を処理します。
+// 一覧取得（クエリパラメータ・ページネーション含む）は 10-F で実装する。
 func (h *WorkflowHandler) ListPayableReports(w http.ResponseWriter, r *http.Request) {
-	actor, ok := actorFromRequest(r)
-	if !ok {
-		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
-		return
-	}
-
-	params := domain.WorkflowListParams{
-		Page:    1,
-		PerPage: 20,
-	}
-
-	reports, pagination, err := h.svc.ListPayableReports(r.Context(), actor, params)
-	if err != nil {
-		respondDomainError(w, err)
-		return
-	}
-
-	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
-		"data":       reports,
-		"pagination": pagination,
-	})
+	middleware.RespondError(w, http.StatusNotImplemented, "NOT_IMPLEMENTED", "Not implemented")
 }
 
 // markAsPaidRequest は POST /api/workflow/{id}/pay のリクエストボディを表します。
