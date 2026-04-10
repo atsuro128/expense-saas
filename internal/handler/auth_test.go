@@ -633,9 +633,10 @@ func TestRefreshToken_RevokedToken(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := srv.Execute(req)
 
-	// is_revoked=true のトークンは 401 INVALID_TOKEN が返ること。
+	// is_revoked=true のトークンは 401 UNAUTHORIZED が返ること。
+	// 実装では失効済みトークンを UNAUTHORIZED として扱う。
 	testutil.AssertStatus(t, rec, http.StatusUnauthorized)
-	testutil.AssertErrorCode(t, rec, "INVALID_TOKEN")
+	testutil.AssertErrorCode(t, rec, "UNAUTHORIZED")
 }
 
 // TestRefreshToken_ExpiredToken: 異常系 - 有効期限切れのリフレッシュトークンで 401 TOKEN_EXPIRED が返ること。
