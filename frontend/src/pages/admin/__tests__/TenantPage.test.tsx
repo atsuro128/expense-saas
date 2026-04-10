@@ -41,7 +41,7 @@ describe('TenantPage', () => {
   // TNT-FE-001: useTenant が成功データを返す場合、TenantInfoCard が描画されること。
   it('TNT-FE-001: useTenant 成功時にテナント情報が表示される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -68,7 +68,7 @@ describe('TenantPage', () => {
   // TNT-FE-002: Approver ロールの場合はダッシュボードにリダイレクトされること。
   it('TNT-FE-002: Approver ロールはダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user2', name: 'Test Approver', email: 'approver@example.com', role: 'approver', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user2', name: 'Test Approver', email: 'approver@example.com', role: 'approver', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -91,7 +91,7 @@ describe('TenantPage', () => {
   // TNT-FE-003: Member ロールの場合はダッシュボードにリダイレクトされること。
   it('TNT-FE-003: Member ロールはダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user3', name: 'Test Member', email: 'member@example.com', role: 'member', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user3', name: 'Test Member', email: 'member@example.com', role: 'member', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -114,7 +114,7 @@ describe('TenantPage', () => {
   // TNT-FE-004: Accounting ロールの場合はダッシュボードにリダイレクトされること。
   it('TNT-FE-004: Accounting ロールはダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user4', name: 'Test Accounting', email: 'accounting@example.com', role: 'accounting', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user4', name: 'Test Accounting', email: 'accounting@example.com', role: 'accounting', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -137,7 +137,7 @@ describe('TenantPage', () => {
   // TNT-FE-005: 403 エラー時はダッシュボードにリダイレクトされること。
   it('TNT-FE-005: 403 エラー時はダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -160,7 +160,7 @@ describe('TenantPage', () => {
   // TNT-FE-006: 500 エラー時は SnackbarContext にエラーメッセージが通知されること。
   it('TNT-FE-006: 500 エラー時は AppToast にエラーメッセージが通知される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -184,7 +184,7 @@ describe('TenantPage', () => {
   // TNT-FE-007: isLoading = true の場合は PageSkeleton が表示されること。
   it('TNT-FE-007: isLoading 中は PageSkeleton（variant="card"）が表示される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user1', name: 'Test Admin', email: 'admin@example.com', role: 'admin', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,

@@ -7,14 +7,15 @@ import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider, useMutation, useQueryClient } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
 
-// テスト用プロバイダーラッパー。
+// テスト用プロバイダーラッパー。各テストで独立した QueryClient インスタンスを生成する。
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { mutations: { retry: false } },
   });
-  return ({ children }: { children: ReactNode }) => (
+  const Wrapper = ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+  return { queryClient, Wrapper };
 }
 
 // テスト用スタブ Hook: fetch を直接呼んで DELETE /api/reports/:id にアクセスする。
@@ -62,7 +63,8 @@ describe('useDeleteReport（スタブ）', () => {
       json: async () => undefined,
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteReportStub(), { wrapper: createWrapper() });
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useDeleteReportStub(), { wrapper: Wrapper });
 
     await act(async () => {
       await result.current.mutateAsync('test-id');
@@ -123,13 +125,17 @@ describe('useDeleteReport（スタブ）', () => {
       }),
     } as unknown as Response);
 
-    const { result } = renderHook(() => useDeleteReportStub(), { wrapper: createWrapper() });
+    const { Wrapper } = createWrapper();
+    const { result } = renderHook(() => useDeleteReportStub(), { wrapper: Wrapper });
 
     await act(async () => {
       await expect(result.current.mutateAsync('submitted-report-id')).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
-    expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_DELETABLE');
+    // React ステート更新が完了するまで待機してからアサートする
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+      expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_DELETABLE');
+    });
   });
 });

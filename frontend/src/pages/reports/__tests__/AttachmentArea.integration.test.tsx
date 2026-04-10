@@ -125,7 +125,6 @@ describe('AttachmentArea 統合テスト', () => {
   });
 
   // ATT-FE-046: アップロード失敗時に AppToast でエラー通知が表示される（統合）。
-  // スタブでは AppToast が未連携のため失敗する（Step 9 の正しい姿）。
   it('ATT-FE-046: INVALID_FILE_TYPE エラー時にエラートーストが表示される', async () => {
     const { Wrapper } = createWrapper();
 
@@ -162,13 +161,18 @@ describe('AttachmentArea 統合テスト', () => {
 
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
-    // スタブでは attachment-uploader が未描画のため失敗する
-    const fileInput = screen.getByTestId('attachment-file-input');
-    const gifFile = createMockFile('animation.gif', 1024, 'image/gif');
-    await userEvent.upload(fileInput, gifFile);
+    // 添付一覧の初期データ取得が完了するまで待機する（空リストの描画を確認）
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-list-empty')).toBeInTheDocument();
+    });
 
-    // エラー時にエラートーストが表示されること
-    // スタブでは AppToast 連携が未実装のため失敗する（Step 9 の正しい姿）
+    const fileInput = screen.getByTestId('attachment-file-input');
+    // JPEG ファイルを選択して API から INVALID_FILE_TYPE エラーを受け取るシナリオを検証する
+    // （userEvent は accept 属性に合わないファイルを拒否するため、許可形式で API エラーを再現する）
+    const jpegFile = createMockFile('test.jpg', 1024, 'image/jpeg');
+    await userEvent.upload(fileInput, jpegFile);
+
+    // API エラー時にエラートーストが表示されること
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
@@ -176,7 +180,6 @@ describe('AttachmentArea 統合テスト', () => {
   });
 
   // ATT-FE-047: 削除成功後に AppToast で成功通知が表示され、一覧が再取得される（統合）。
-  // スタブでは AppToast・invalidateQueries が未連携のため失敗する（Step 9 の正しい姿）。
   it('ATT-FE-047: 削除成功後に成功トーストが表示され、invalidateQueries が呼ばれる', async () => {
     const { queryClient, Wrapper } = createWrapper();
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
@@ -231,12 +234,15 @@ describe('AttachmentArea 統合テスト', () => {
 
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
+    // 添付データ（att-001）が描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
     // 削除ボタンをクリックする
-    // スタブでは attachment-delete-att-001 が未描画のため失敗する
     await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
 
     // 削除成功後にトーストが表示されること
-    // スタブでは AppToast 連携が未実装のため失敗する（Step 9 の正しい姿）
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
@@ -251,7 +257,6 @@ describe('AttachmentArea 統合テスト', () => {
   });
 
   // ATT-FE-048: 削除失敗時に AppToast でエラー通知が表示される（統合）。
-  // スタブでは AppToast が未連携のため失敗する（Step 9 の正しい姿）。
   it('ATT-FE-048: 削除失敗時にエラートーストが表示される', async () => {
     const { Wrapper } = createWrapper();
 
@@ -297,12 +302,15 @@ describe('AttachmentArea 統合テスト', () => {
 
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
+    // 添付データ（att-001）が描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
     // 削除ボタンをクリックする
-    // スタブでは attachment-delete-att-001 が未描画のため失敗する
     await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
 
     // エラー時にエラートーストが表示されること
-    // スタブでは AppToast 連携が未実装のため失敗する（Step 9 の正しい姿）
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
@@ -310,7 +318,6 @@ describe('AttachmentArea 統合テスト', () => {
   });
 
   // ATT-FE-049: 署名付き URL でブラウザがファイルをダウンロードする（統合）。
-  // スタブでは useAttachmentDownload 連携が未実装のため失敗する（Step 9 の正しい姿）。
   it('ATT-FE-049: ファイル名クリックで署名付き URL を取得しダウンロードが開始される', async () => {
     const { Wrapper } = createWrapper();
 
@@ -362,12 +369,15 @@ describe('AttachmentArea 統合テスト', () => {
 
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
+    // 添付データ（att-001）が描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-download-att-001')).toBeInTheDocument();
+    });
+
     // ファイル名（ダウンロードボタン）をクリックする
-    // スタブでは attachment-download-att-001 が未描画のため失敗する
     await userEvent.click(screen.getByTestId('attachment-download-att-001'));
 
     // ダウンロード URL 取得 API が呼ばれること
-    // スタブでは useAttachmentDownload 連携が未実装のため失敗する（Step 9 の正しい姿）
     await waitFor(() => {
       const calls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls;
       const downloadApiCalled = calls.some(([url]) =>

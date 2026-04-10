@@ -134,7 +134,7 @@ describe('AllReportsPage', () => {
   // TNT-FE-016: Admin でレポート2件が表示されること。
   it('TNT-FE-016: Admin でレポート一覧が描画される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: mockAdminUser,
+      data: { data: mockAdminUser },
       isLoading: false,
       isError: false,
       error: null,
@@ -169,7 +169,7 @@ describe('AllReportsPage', () => {
   // TNT-FE-017: Accounting でレポート一覧が描画されること。
   it('TNT-FE-017: Accounting でレポート一覧が描画される（Admin と同一の画面構成）', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: mockAccountingUser,
+      data: { data: mockAccountingUser },
       isLoading: false,
       isError: false,
       error: null,
@@ -202,7 +202,7 @@ describe('AllReportsPage', () => {
   // TNT-FE-018: Approver ロールはダッシュボードにリダイレクトされること。
   it('TNT-FE-018: Approver ロールはダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user2', name: 'Test Approver', email: 'approver@example.com', role: 'approver', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user2', name: 'Test Approver', email: 'approver@example.com', role: 'approver', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -232,7 +232,7 @@ describe('AllReportsPage', () => {
   // TNT-FE-019: Member ロールはダッシュボードにリダイレクトされること。
   it('TNT-FE-019: Member ロールはダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: { id: 'user3', name: 'Test Member', email: 'member@example.com', role: 'member', tenant: { id: 'tenant1', name: 'Test Company A' } },
+      data: { data: { id: 'user3', name: 'Test Member', email: 'member@example.com', role: 'member', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
       isError: false,
       error: null,
@@ -262,7 +262,7 @@ describe('AllReportsPage', () => {
   // TNT-FE-020: 403 エラー時はダッシュボードにリダイレクトされること。
   it('TNT-FE-020: 403 エラー時はダッシュボードにリダイレクトされる', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: mockAdminUser,
+      data: { data: mockAdminUser },
       isLoading: false,
       isError: false,
       error: null,
@@ -292,7 +292,7 @@ describe('AllReportsPage', () => {
   // TNT-FE-021: 500 エラー時は SnackbarContext にエラーメッセージが通知されること。
   it('TNT-FE-021: 500 エラー時は AppToast にエラーメッセージが通知される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: mockAdminUser,
+      data: { data: mockAdminUser },
       isLoading: false,
       isError: false,
       error: null,
@@ -324,7 +324,7 @@ describe('AllReportsPage', () => {
     const user = userEvent.setup();
 
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: mockAdminUser,
+      data: { data: mockAdminUser },
       isLoading: false,
       isError: false,
       error: null,
@@ -365,7 +365,7 @@ describe('AllReportsPage', () => {
     const user = userEvent.setup();
 
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
-      data: mockAdminUser,
+      data: { data: mockAdminUser },
       isLoading: false,
       isError: false,
       error: null,
