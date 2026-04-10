@@ -41,6 +41,22 @@ func setupReportTest(t *testing.T) (*testutil.TestServer, *pgxpool.Pool) {
 	return srv, pool
 }
 
+// getReportUpdatedAt は指定した経費レポートの updated_at を DB から取得して RFC3339Nano 形式で返す。
+// PostgreSQL の timestamp with time zone を Go の time.Time として受け取り、
+// ハンドラが期待する RFC3339Nano 形式にフォーマットする。
+// workflow_handler_test.go（integration タグ付き）からも参照される。
+func getReportUpdatedAt(t *testing.T, pool *pgxpool.Pool, reportID string) string {
+	t.Helper()
+	var updatedAt time.Time
+	err := pool.QueryRow(context.Background(),
+		"SELECT updated_at FROM expense_reports WHERE report_id = $1",
+		testutil.MustParseUUID(reportID),
+	).Scan(&updatedAt)
+	if err != nil {
+		t.Fatalf("getReportUpdatedAt: %v", err)
+	}
+	return updatedAt.UTC().Format(time.RFC3339Nano)
+}
 
 // =============================================================================
 // 1. GET /api/reports — 自分のレポート一覧（RPT-001〜RPT-007）
@@ -565,14 +581,15 @@ func TestGetReport_Unauthorized(t *testing.T) {
 
 // RPT-035: 所有者が draft レポートを更新できる。
 func TestUpdateReport_Success(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID
 	body := jsonBody(t, map[string]string{
 		"title":        "更新タイトル",
 		"period_start": "2026-03-01",
 		"period_end":   "2026-03-31",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -584,14 +601,15 @@ func TestUpdateReport_Success(t *testing.T) {
 
 // RPT-036: 非所有者（Approver）が draft を更新しようとする → 403（RBC-010）。
 func TestUpdateReport_NotOwner_Forbidden(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID
 	body := jsonBody(t, map[string]string{
 		"title":        "更新タイトル",
 		"period_start": "2026-03-01",
 		"period_end":   "2026-03-31",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -603,14 +621,15 @@ func TestUpdateReport_NotOwner_Forbidden(t *testing.T) {
 
 // RPT-037: submitted 状態のレポートを更新しようとする → 422（REPORT_NOT_EDITABLE）。
 func TestUpdateReport_NotDraft_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportSubmittedID
 	body := jsonBody(t, map[string]string{
 		"title":        "更新タイトル",
 		"period_start": "2026-03-01",
 		"period_end":   "2026-03-31",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportSubmittedID),
 	})
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -622,14 +641,15 @@ func TestUpdateReport_NotDraft_Unprocessable(t *testing.T) {
 
 // RPT-038: Admin であっても他者の draft は更新不可 → 403（RBC-014）。
 func TestUpdateReport_Admin_NotOwner_Forbidden(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID
 	body := jsonBody(t, map[string]string{
 		"title":        "Admin 更新",
 		"period_start": "2026-03-01",
 		"period_end":   "2026-03-31",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserAdminID, testutil.TenantAID, "admin")
@@ -680,14 +700,15 @@ func TestUpdateReport_NotFound(t *testing.T) {
 
 // RPT-041: 認証トークンなし → 401。
 func TestUpdateReport_Unauthorized(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID
 	body := jsonBody(t, map[string]string{
 		"title":        "テスト",
 		"period_start": "2026-03-01",
 		"period_end":   "2026-03-31",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ（認証チェックより先に楽観ロックが走る場合に備える）。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPut, url, body)
 	req.Header.Set("Content-Type", "application/json")
@@ -782,11 +803,12 @@ func TestDeleteReport_Unauthorized(t *testing.T) {
 
 // RPT-053: 正常系 — draft レポートを提出 → 200、status=submitted。
 func TestSubmitReport_Success(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/submit"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -798,11 +820,12 @@ func TestSubmitReport_Success(t *testing.T) {
 
 // RPT-054: 非所有者（Approver）が提出しようとする → 403。
 func TestSubmitReport_NotOwner_Forbidden(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/submit"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -814,11 +837,12 @@ func TestSubmitReport_NotOwner_Forbidden(t *testing.T) {
 
 // RPT-055: submitted 状態のレポートを再提出 → 422 INVALID_STATE_TRANSITION（X4）。
 func TestSubmitReport_NotDraft_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportSubmittedID + "/submit"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportSubmittedID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -830,11 +854,12 @@ func TestSubmitReport_NotDraft_Unprocessable(t *testing.T) {
 
 // RPT-056: 明細 0 件のレポートを提出 → 422 EMPTY_REPORT_SUBMISSION（RPT-014）。
 func TestSubmitReport_EmptyReport_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftEmptyID + "/submit"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftEmptyID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -876,7 +901,8 @@ func TestSubmitReport_NoApproverInTenant_Unprocessable(t *testing.T) {
 
 	url := fmt.Sprintf("/api/reports/%s/submit", reportID)
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, reportID.String()),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		memberUserID.String(), noApproverTenantID.String(), "member")
@@ -920,11 +946,12 @@ func TestSubmitReport_NotFound(t *testing.T) {
 
 // RPT-060: 認証トークンなし → 401。
 func TestSubmitReport_Unauthorized(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/submit"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ（認証チェックより先に楽観ロックが走る場合に備える）。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, url, body)
 	req.Header.Set("Content-Type", "application/json")
@@ -937,13 +964,14 @@ func TestSubmitReport_Unauthorized(t *testing.T) {
 // 実際の approve エンドポイントは /api/workflow/{id}/approve（Approver 専用）。
 // draft 状態のレポートに approve を試みると InvalidStateTransition を返すことをハンドラで検証。
 func TestSubmitReport_X1_DirectApprove_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	// approve エンドポイント（workflow）に draft レポートを渡す
 	url := "/api/workflow/" + testutil.ReportDraftID + "/approve"
 	body := jsonBody(t, map[string]interface{}{
-		"comment":    nil,
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		"comment": nil,
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -955,12 +983,13 @@ func TestSubmitReport_X1_DirectApprove_Unprocessable(t *testing.T) {
 
 // RPT-062: X2 — draft → rejected は禁止（直接 reject 操作）。
 func TestSubmitReport_X2_DirectReject_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/workflow/" + testutil.ReportDraftID + "/reject"
 	body := jsonBody(t, map[string]string{
-		"reason":     "テスト却下",
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		"reason": "テスト却下",
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -972,11 +1001,12 @@ func TestSubmitReport_X2_DirectReject_Unprocessable(t *testing.T) {
 
 // RPT-063: X3 — draft → paid は禁止（直接 pay 操作）。
 func TestSubmitReport_X3_DirectPay_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/workflow/" + testutil.ReportDraftID + "/pay"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportDraftID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
@@ -989,11 +1019,12 @@ func TestSubmitReport_X3_DirectPay_Unprocessable(t *testing.T) {
 // RPT-064: X4 — submitted → draft に戻す操作は禁止。
 // submit エンドポイントで submitted 状態のレポートを再度 submit → InvalidStateTransition。
 func TestSubmitReport_X4_RevertToDraft_Unprocessable(t *testing.T) {
-	srv, _ := setupReportTest(t)
+	srv, pool := setupReportTest(t)
 
 	url := "/api/reports/" + testutil.ReportSubmittedID + "/submit"
 	body := jsonBody(t, map[string]string{
-		"updated_at": time.Now().UTC().Format(time.RFC3339),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getReportUpdatedAt(t, pool, testutil.ReportSubmittedID),
 	})
 	req := srv.AuthRequest(t, http.MethodPost, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")

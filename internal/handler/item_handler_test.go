@@ -129,6 +129,37 @@ func setupItemTest(t *testing.T) (*testutil.TestServer, *pgxpool.Pool) {
 	return srv, pool
 }
 
+// getItemUpdatedAt は指定した経費項目の updated_at を DB から取得して RFC3339Nano 形式で返す。
+// PostgreSQL の timestamp with time zone を Go の time.Time として受け取り、
+// ハンドラが期待する RFC3339Nano 形式にフォーマットする。
+func getItemUpdatedAt(t *testing.T, pool *pgxpool.Pool, itemID string) string {
+	t.Helper()
+	var updatedAt time.Time
+	err := pool.QueryRow(context.Background(),
+		"SELECT updated_at FROM expense_items WHERE item_id = $1",
+		testutil.MustParseUUID(itemID),
+	).Scan(&updatedAt)
+	if err != nil {
+		t.Fatalf("getItemUpdatedAt: %v", err)
+	}
+	return updatedAt.UTC().Format(time.RFC3339Nano)
+}
+
+// getItemUpdatedAtTime は指定した経費項目の updated_at を DB から time.Time として取得する。
+// validUpdateItemBody など time.Time を受け取る関数に渡す際に使用する。
+func getItemUpdatedAtTime(t *testing.T, pool *pgxpool.Pool, itemID string) time.Time {
+	t.Helper()
+	var updatedAt time.Time
+	err := pool.QueryRow(context.Background(),
+		"SELECT updated_at FROM expense_items WHERE item_id = $1",
+		testutil.MustParseUUID(itemID),
+	).Scan(&updatedAt)
+	if err != nil {
+		t.Fatalf("getItemUpdatedAtTime: %v", err)
+	}
+	return updatedAt.UTC()
+}
+
 // getTransportationCategoryID はテスト DB から transportation カテゴリの UUID を取得する。
 func getTransportationCategoryID(t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
@@ -716,7 +747,8 @@ func TestUpdateItem_Success(t *testing.T) {
 	srv, pool := setupItemTest(t)
 	catID := getTransportationCategoryID(t, pool)
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, testutil.ItemDraftID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -738,7 +770,8 @@ func TestUpdateItem_TotalAmountRecalculated(t *testing.T) {
 		"amount":       2000,
 		"category_id":  catID,
 		"description":  "更新後交通費",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 	})
 	body := strings.NewReader(string(b))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
@@ -761,7 +794,8 @@ func TestUpdateItem_ByApprover(t *testing.T) {
 	reportID := testutil.CreateReport(t, pool, tenantID, approverID)
 	itemID := testutil.CreateItem(t, pool, tenantID, reportID, testutil.MustParseUUID(catID))
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", reportID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -782,7 +816,8 @@ func TestUpdateItem_ByAccounting(t *testing.T) {
 	reportID := testutil.CreateReport(t, pool, tenantID, accountingID)
 	itemID := testutil.CreateItem(t, pool, tenantID, reportID, testutil.MustParseUUID(catID))
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", reportID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
@@ -803,7 +838,8 @@ func TestUpdateItem_ByAdmin(t *testing.T) {
 	reportID := testutil.CreateReport(t, pool, tenantID, adminID)
 	itemID := testutil.CreateItem(t, pool, tenantID, reportID, testutil.MustParseUUID(catID))
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", reportID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserAdminID, testutil.TenantAID, "admin")
@@ -828,7 +864,8 @@ func TestUpdateItem_AmountZero(t *testing.T) {
 		"amount":       0,
 		"category_id":  catID,
 		"description":  "テスト",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 	})
 	body := strings.NewReader(string(b))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
@@ -851,7 +888,8 @@ func TestUpdateItem_AmountNegative(t *testing.T) {
 		"amount":       -1,
 		"category_id":  catID,
 		"description":  "テスト",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 	})
 	body := strings.NewReader(string(b))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
@@ -896,7 +934,8 @@ func TestUpdateItem_MissingDescription(t *testing.T) {
 		"expense_date": "2026-03-11",
 		"amount":       1500,
 		"category_id":  catID,
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 		// description を省略
 	})
 	body := strings.NewReader(string(b))
@@ -920,7 +959,8 @@ func TestUpdateItem_EmptyDescription(t *testing.T) {
 		"amount":       1500,
 		"category_id":  catID,
 		"description":  "",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 	})
 	body := strings.NewReader(string(b))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
@@ -944,7 +984,8 @@ func TestUpdateItem_DescriptionTooLong(t *testing.T) {
 		"amount":       1500,
 		"category_id":  catID,
 		"description":  tooLong,
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 	})
 	body := strings.NewReader(string(b))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
@@ -967,7 +1008,8 @@ func TestUpdateItem_InvalidExpenseDateFormat(t *testing.T) {
 		"amount":       1500,
 		"category_id":  catID,
 		"description":  "テスト",
-		"updated_at":   time.Now().UTC().Format(time.RFC3339Nano),
+		// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+		"updated_at": getItemUpdatedAt(t, pool, testutil.ItemDraftID),
 	})
 	body := strings.NewReader(string(b))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
@@ -1018,7 +1060,8 @@ func TestUpdateItem_Unauthorized(t *testing.T) {
 	srv, pool := setupItemTest(t)
 	catID := getTransportationCategoryID(t, pool)
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ（認証チェックより先に楽観ロックが走る場合に備える）。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, testutil.ItemDraftID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
 	req, _ := http.NewRequestWithContext(context.Background(), http.MethodPut, path, body)
 	req.Header.Set("Content-Type", "application/json")
@@ -1038,7 +1081,8 @@ func TestUpdateItem_ForbiddenByNonOwner(t *testing.T) {
 	catID := getTransportationCategoryID(t, pool)
 
 	// ReportDraftID は UserMember の所有。UserApprover は同テナントの別ユーザー。
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, testutil.ItemDraftID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -1055,7 +1099,8 @@ func TestUpdateItem_ForbiddenByAdminNonOwner(t *testing.T) {
 	catID := getTransportationCategoryID(t, pool)
 
 	// ReportDraftID は UserMember の所有。Admin（UserAdminID）は別ユーザー。
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, testutil.ItemDraftID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserAdminID, testutil.TenantAID, "admin")
@@ -1114,7 +1159,8 @@ func TestUpdateItem_ItemBelongsToDifferentReport(t *testing.T) {
 	otherItemID := testutil.CreateItem(t, pool, tenantID, anotherReportID, catUUID)
 
 	// ReportDraftID に対して、別レポートに属する明細（otherItemID）を更新しようとする。
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, otherItemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, otherItemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -1135,7 +1181,8 @@ func TestUpdateItem_ReportSubmitted_Rejected(t *testing.T) {
 	catID := getTransportationCategoryID(t, pool)
 
 	itemID := setupItemForNonDraftReport(t, pool, testutil.ReportSubmittedID, catID)
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportSubmittedID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -1152,7 +1199,8 @@ func TestUpdateItem_ReportApproved_Rejected(t *testing.T) {
 	catID := getTransportationCategoryID(t, pool)
 
 	itemID := setupItemForNonDraftReport(t, pool, testutil.ReportApprovedID, catID)
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportApprovedID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -1169,7 +1217,8 @@ func TestUpdateItem_ReportRejected_Rejected(t *testing.T) {
 	catID := getTransportationCategoryID(t, pool)
 
 	itemID := setupItemForNonDraftReport(t, pool, testutil.ReportRejectedID, catID)
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportRejectedID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -1186,7 +1235,8 @@ func TestUpdateItem_ReportPaid_Rejected(t *testing.T) {
 	catID := getTransportationCategoryID(t, pool)
 
 	itemID := setupItemForNonDraftReport(t, pool, testutil.ReportPaidID, catID)
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロックによる誤 409 を防ぐ。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportPaidID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -1640,7 +1690,8 @@ func TestUpdateItem_RBACAllRolesAllowed_Member(t *testing.T) {
 	srv, pool := setupItemTest(t)
 	catID := getTransportationCategoryID(t, pool)
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, testutil.ItemDraftID))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", testutil.ReportDraftID, testutil.ItemDraftID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -1661,7 +1712,8 @@ func TestUpdateItem_RBACAllRolesAllowed_Approver(t *testing.T) {
 	reportID := testutil.CreateReport(t, pool, tenantID, approverID)
 	itemID := testutil.CreateItem(t, pool, tenantID, reportID, testutil.MustParseUUID(catID))
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", reportID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserApproverID, testutil.TenantAID, "approver")
@@ -1682,7 +1734,8 @@ func TestUpdateItem_RBACAllRolesAllowed_Accounting(t *testing.T) {
 	reportID := testutil.CreateReport(t, pool, tenantID, accountingID)
 	itemID := testutil.CreateItem(t, pool, tenantID, reportID, testutil.MustParseUUID(catID))
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", reportID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
@@ -1703,7 +1756,8 @@ func TestUpdateItem_RBACAllRolesAllowed_Admin(t *testing.T) {
 	reportID := testutil.CreateReport(t, pool, tenantID, adminID)
 	itemID := testutil.CreateItem(t, pool, tenantID, reportID, testutil.MustParseUUID(catID))
 
-	body := validUpdateItemBody(t, catID, time.Now().UTC())
+	// DB から実際の updated_at を取得して楽観ロック一致を保証する。
+	body := validUpdateItemBody(t, catID, getItemUpdatedAtTime(t, pool, itemID.String()))
 	path := fmt.Sprintf("/api/reports/%s/items/%s", reportID, itemID)
 	req := srv.AuthRequest(t, http.MethodPut, path, body,
 		testutil.UserAdminID, testutil.TenantAID, "admin")
