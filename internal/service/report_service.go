@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
@@ -201,20 +200,14 @@ func (s *reportService) UpdateReport(ctx context.Context, actor domain.Actor, re
 	// Report.UpdatedAt には DB の値が入っており、params.UpdatedAt はクライアントから送られた値。
 	// これらが一致しない場合は競合とみなす。
 	if !report.UpdatedAt.Equal(params.UpdatedAt) {
-		slog.Error("DEBUG optimistic lock mismatch",
-			"db_updated_at", report.UpdatedAt.Format(time.RFC3339Nano),
-			"db_unix_nano", report.UpdatedAt.UnixNano(),
-			"param_updated_at", params.UpdatedAt.Format(time.RFC3339Nano),
-			"param_unix_nano", params.UpdatedAt.UnixNano(),
-		)
 		return nil, domain.ErrConflict
 	}
 
 	// フィールドを更新する。
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	report.Title = params.Title
 	report.PeriodStart = params.PeriodStart
 	report.PeriodEnd = params.PeriodEnd
-	report.UpdatedAt = time.Now().UTC()
 
 	if err := s.reportRepo.Update(ctx, report); err != nil {
 		return nil, err
@@ -278,7 +271,7 @@ func (s *reportService) SubmitReport(ctx context.Context, actor domain.Actor, re
 	}
 
 	// DB に状態変更を保存する。
-	report.UpdatedAt = time.Now().UTC()
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	if err := s.reportRepo.UpdateStatus(ctx, report); err != nil {
 		return nil, err
 	}
