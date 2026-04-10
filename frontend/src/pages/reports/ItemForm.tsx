@@ -111,25 +111,23 @@ export default function ItemForm({
 
       {/* 支出日 */}
       <AppTextField
-        name="expenseDate"
+        {...register('expenseDate')}
         label="日付"
         type="date"
         InputLabelProps={{ shrink: true }}
         inputProps={{ readOnly: isView, 'aria-label': '日付' }}
         disabled={isPending && !isView}
         errorMessage={errors.expenseDate?.message}
-        {...register('expenseDate')}
       />
 
       {/* 金額 */}
       <AppTextField
-        name="amount"
+        {...register('amount', { valueAsNumber: true })}
         label="金額"
         type="number"
         inputProps={{ readOnly: isView, 'aria-label': '金額' }}
         disabled={isPending && !isView}
         errorMessage={errors.amount?.message}
-        {...register('amount', { valueAsNumber: true })}
       />
 
       {/* カテゴリ */}
@@ -152,14 +150,13 @@ export default function ItemForm({
 
       {/* 摘要 */}
       <AppTextField
-        name="description"
+        {...register('description')}
         label="摘要"
         multiline
         rows={3}
         inputProps={{ readOnly: isView, 'aria-label': '摘要' }}
         disabled={isPending && !isView}
         errorMessage={errors.description?.message}
-        {...register('description')}
       />
 
       {/* アクションボタン */}

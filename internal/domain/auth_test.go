@@ -405,6 +405,7 @@ func TestVerifyAccessToken_Expired(t *testing.T) {
 		},
 	}
 	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = "expense-saas-key-1"
 	signed, err := tok.SignedString(priv)
 	if err != nil {
 		t.Fatalf("トークン署名に失敗しました: %v", err)
@@ -578,6 +579,7 @@ func TestVerifyRefreshToken_Expired(t *testing.T) {
 		},
 	}
 	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = "expense-saas-key-1"
 	signed, err := tok.SignedString(priv)
 	if err != nil {
 		t.Fatalf("トークン署名に失敗しました: %v", err)
