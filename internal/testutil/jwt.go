@@ -97,6 +97,7 @@ func GenerateTestRefreshToken(t *testing.T, jti, userID string, expiry time.Time
 	}
 
 	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "expense-saas-key-1"
 	signed, err := token.SignedString(kp.PrivateKey)
 	if err != nil {
 		t.Fatalf("testutil: failed to sign refresh JWT: %v", err)
