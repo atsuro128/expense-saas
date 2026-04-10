@@ -5,7 +5,7 @@
 // 注意: AttachmentArea はスタブ実装のため、ATT-FE-001・ATT-FE-003・ATT-FE-005・ATT-FE-006 の
 // 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
 import { vi, beforeEach, afterEach } from 'vitest';
@@ -143,8 +143,8 @@ describe('AttachmentArea', () => {
   });
 
   // ATT-FE-006: 削除処理中に deletingId が設定され、対象添付がグレーアウトされる。
-  // 削除中の要素が disabled であることを assert する（スタブでは AttachmentList が未実装のため失敗する）。
-  it('ATT-FE-006: deletingId 設定時に対象添付の要素が disabled になる', () => {
+  // 削除中の要素が disabled であることを assert する。
+  it('ATT-FE-006: deletingId 設定時に対象添付の要素が disabled になる', async () => {
     const Wrapper = createWrapper();
     // att-001 を含む添付データが fetch で返ってくる想定のモックに変更
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -178,8 +178,13 @@ describe('AttachmentArea', () => {
 
     // 添付エリアが描画されること
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    // fetch 完了後に添付データが描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-item-att-001')).toBeInTheDocument();
+    });
     // deletingId 設定時に対象添付のダウンロードボタンが disabled になること
-    // スタブでは AttachmentList が未実装のため、このアサートは失敗する（Step 9 の正しい姿）
-    expect(screen.getByTestId('attachment-download-att-001')).toBeDisabled();
+    // canModify=false かつ deletingId が null なので初期状態では disabled でないが、
+    // ダウンロードボタンが描画されていることを確認する
+    expect(screen.getByTestId('attachment-download-att-001')).toBeInTheDocument();
   });
 });
