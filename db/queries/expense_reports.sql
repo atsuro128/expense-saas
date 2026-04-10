@@ -92,7 +92,7 @@ WHERE tenant_id = $1
 -- name: ListPendingReports :many
 SELECT er.report_id, er.tenant_id, er.user_id, er.title, er.period_start, er.period_end, er.status, er.total_amount, er.reference_report_id, er.submitted_by, er.submitted_at, er.approved_by, er.approved_at, er.approval_comment, er.rejected_by, er.rejected_at, er.rejection_reason, er.paid_by, er.paid_at, er.created_at, er.updated_at, er.deleted_at
 FROM expense_reports er
-JOIN users u ON er.user_id = u.id
+JOIN users u ON er.user_id = u.user_id
 WHERE er.tenant_id  = $1
   AND er.status     = 'submitted'
   AND er.deleted_at IS NULL
@@ -103,7 +103,7 @@ LIMIT $2 OFFSET $3;
 -- name: CountPendingReports :one
 SELECT COUNT(*)::int
 FROM expense_reports er
-JOIN users u ON er.user_id = u.id
+JOIN users u ON er.user_id = u.user_id
 WHERE er.tenant_id  = $1
   AND er.status     = 'submitted'
   AND er.deleted_at IS NULL
@@ -112,7 +112,7 @@ WHERE er.tenant_id  = $1
 -- name: ListPayableReports :many
 SELECT er.report_id, er.tenant_id, er.user_id, er.title, er.period_start, er.period_end, er.status, er.total_amount, er.reference_report_id, er.submitted_by, er.submitted_at, er.approved_by, er.approved_at, er.approval_comment, er.rejected_by, er.rejected_at, er.rejection_reason, er.paid_by, er.paid_at, er.created_at, er.updated_at, er.deleted_at
 FROM expense_reports er
-JOIN users u ON er.user_id = u.id
+JOIN users u ON er.user_id = u.user_id
 WHERE er.tenant_id  = $1
   AND er.status     = 'approved'
   AND er.deleted_at IS NULL
@@ -123,7 +123,7 @@ LIMIT $2 OFFSET $3;
 -- name: CountPayableReports :one
 SELECT COUNT(*)::int
 FROM expense_reports er
-JOIN users u ON er.user_id = u.id
+JOIN users u ON er.user_id = u.user_id
 WHERE er.tenant_id  = $1
   AND er.status     = 'approved'
   AND er.deleted_at IS NULL
