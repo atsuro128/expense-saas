@@ -33,9 +33,13 @@ export function useUploadAttachment() {
         formData,
       );
     },
-    onSuccess: (_data, { reportId }) => {
+    onSuccess: (_data, { reportId, itemId }) => {
       // レポート詳細のキャッシュを無効化して添付一覧を再取得する。
       void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+      // 添付一覧キャッシュを無効化して再取得する。
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', reportId, 'items', itemId, 'attachments'],
+      });
     },
   });
 }

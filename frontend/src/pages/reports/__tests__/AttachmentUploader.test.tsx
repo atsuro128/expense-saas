@@ -1,18 +1,34 @@
 // AttachmentUploader コンポーネントのユニットテスト。
 // report-detail.md §AttachmentUploader の Props 仕様に基づくテスト。
 // ATT-FE-016〜028 に対応する。
-//
-// 注意: ATT-FE-018〜027 はスタブコンポーネントのため失敗する。
-// 機能実装後に通過することを意図している（Step 9 の正しい姿）。
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach, afterEach } from 'vitest';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import AttachmentUploader from '../AttachmentUploader';
 
 // テスト用ファイルオブジェクト生成ヘルパー。
 function createMockFile(name: string, size: number, type: string): File {
   const buffer = new ArrayBuffer(size);
   return new File([buffer], name, { type });
+}
+
+/** テスト用の QueryClient を生成するヘルパー。リトライを無効化してテストを安定させる。 */
+function createTestQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+}
+
+/** AttachmentUploader を QueryClientProvider でラップして描画するヘルパー。 */
+function renderWithQueryClient(ui: React.ReactElement) {
+  const queryClient = createTestQueryClient();
+  return render(
+    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>,
+  );
 }
 
 describe('AttachmentUploader', () => {
@@ -27,40 +43,69 @@ describe('AttachmentUploader', () => {
     vi.restoreAllMocks();
   });
 
-  // ATT-FE-016: isUploading=false のとき「+ ファイルを追加」ボタンが表示される。
-  it('ATT-FE-016: isUploading=false のとき「+ ファイルを追加」テキストが表示される', () => {
+  // ATT-FE-016: isPending=false のとき「+ ファイルを追加」ボタンが表示される。
+  it('ATT-FE-016: アップロード中でないとき「+ ファイルを追加」テキストが表示される', () => {
     const onUploadSuccess = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
     expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('+ ファイルを追加');
   });
 
-  // ATT-FE-017: isUploading=true のときアップロード中状態のテキストが表示される。
-  it('ATT-FE-017: isUploading=true のとき「アップロード中...」テキストが表示される', () => {
+  // ATT-FE-017: アップロード中のとき「アップロード中...」テキストが表示される（Hook の isPending に基づく）。
+  it('ATT-FE-017: アップロード中のとき「アップロード中...」テキストが表示される', async () => {
     const onUploadSuccess = vi.fn();
+    // fetch を遅延させてアップロード中状態を再現する。
+    let resolveFetch!: () => void;
+    globalThis.fetch = vi.fn().mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = () =>
+          resolve({
+            ok: true,
+            status: 201,
+            headers: { get: () => null },
+            json: async () => ({
+              data: {
+                id: 'att-new',
+                item_id: 'item-001',
+                file_name: 'receipt.jpg',
+                file_size: 1024,
+                mime_type: 'image/jpeg',
+                created_at: '2026-04-01T00:00:00Z',
+              },
+            }),
+          } as unknown as Response);
+      }),
+    );
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={true}
       />,
     );
 
-    expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // アップロード中は「アップロード中...」テキストが表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
+    });
+
+    // fetch の解決を待つ。
+    resolveFetch();
   });
 
   // ATT-FE-018: JPEG ファイルを選択するとクライアントサイドバリデーションを通過し、mutate が呼ばれる。
-  // スタブコンポーネントでは mutate 呼出が未実装のため失敗する。
   it('ATT-FE-018: JPEG ファイルを選択すると useUploadAttachment の mutate が呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
     // アップロード API モック
@@ -80,12 +125,11 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -96,12 +140,12 @@ describe('AttachmentUploader', () => {
     fireEvent.change(fileInput, { target: { files: [jpegFile] } });
 
     // JPEG は許可形式のため mutate が呼ばれ、最終的に fetch（アップロードAPI）が呼ばれること
-    // スタブでは fetch が呼ばれないため失敗する（Step 9 の正しい姿）
-    expect(globalThis.fetch).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
   });
 
   // ATT-FE-019: PNG ファイルを選択するとクライアントサイドバリデーションを通過し、mutate が呼ばれる。
-  // スタブコンポーネントでは mutate 呼出が未実装のため失敗する。
   it('ATT-FE-019: PNG ファイルを選択すると useUploadAttachment の mutate が呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -120,12 +164,11 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -134,12 +177,13 @@ describe('AttachmentUploader', () => {
 
     fireEvent.change(fileInput, { target: { files: [pngFile] } });
 
-    // PNG は許可形式のため mutate が呼ばれること（スタブでは失敗する）
-    expect(globalThis.fetch).toHaveBeenCalled();
+    // PNG は許可形式のため mutate が呼ばれること
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
   });
 
   // ATT-FE-020: PDF ファイルを選択するとクライアントサイドバリデーションを通過し、mutate が呼ばれる。
-  // スタブコンポーネントでは mutate 呼出が未実装のため失敗する。
   it('ATT-FE-020: PDF ファイルを選択すると useUploadAttachment の mutate が呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -158,12 +202,11 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -172,21 +215,21 @@ describe('AttachmentUploader', () => {
 
     fireEvent.change(fileInput, { target: { files: [pdfFile] } });
 
-    // PDF は許可形式のため mutate が呼ばれること（スタブでは失敗する）
-    expect(globalThis.fetch).toHaveBeenCalled();
+    // PDF は許可形式のため mutate が呼ばれること
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
   });
 
   // ATT-FE-021: GIF ファイルを選択するとバリデーションエラーメッセージが表示される。
-  // スタブコンポーネントではバリデーションエラー表示が未実装のため失敗する。
   it('ATT-FE-021: GIF ファイルを選択するとバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -196,21 +239,18 @@ describe('AttachmentUploader', () => {
     fireEvent.change(fileInput, { target: { files: [gifFile] } });
 
     // GIF は許可リスト外のためバリデーションエラーメッセージが表示されること
-    // スタブではエラー表示が未実装のため失敗する（Step 9 の正しい姿）
     expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
   // ATT-FE-022: テキストファイルを選択するとバリデーションエラーメッセージが表示される。
-  // スタブコンポーネントではバリデーションエラー表示が未実装のため失敗する。
   it('ATT-FE-022: TXT ファイルを選択するとバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -220,21 +260,18 @@ describe('AttachmentUploader', () => {
     fireEvent.change(fileInput, { target: { files: [txtFile] } });
 
     // テキストファイルは許可リスト外のためバリデーションエラーメッセージが表示されること
-    // スタブではエラー表示が未実装のため失敗する（Step 9 の正しい姿）
     expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
   // ATT-FE-023: 5MB + 1B のファイルを選択するとバリデーションエラーが表示される。
-  // スタブコンポーネントではバリデーションエラー表示が未実装のため失敗する。
   it('ATT-FE-023: 5MB 超過ファイルを選択するとバリデーションエラーが表示される（境界値）', () => {
     const onUploadSuccess = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -247,12 +284,10 @@ describe('AttachmentUploader', () => {
     fireEvent.change(fileInput, { target: { files: [tooLargeFile] } });
 
     // サイズ超過のためバリデーションエラーメッセージが表示されること
-    // スタブではエラー表示が未実装のため失敗する（Step 9 の正しい姿）
     expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
   // ATT-FE-024: 5MB ちょうどのファイルは許可される（境界値）。
-  // スタブコンポーネントでは mutate 呼出が未実装のため、fetch 呼出チェックは失敗する。
   it('ATT-FE-024: 5MB ちょうどのファイルはバリデーション通過し mutate が呼ばれる（境界値）', async () => {
     const onUploadSuccess = vi.fn();
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -271,12 +306,11 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -289,14 +323,14 @@ describe('AttachmentUploader', () => {
     fireEvent.change(fileInput, { target: { files: [exactlyMaxFile] } });
 
     // ちょうど 5MB はバリデーション通過のため mutate が呼ばれ fetch が実行されること
-    // スタブでは fetch が呼ばれないため失敗する（Step 9 の正しい姿）
-    expect(globalThis.fetch).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
     // バリデーションエラーが表示されないこと
     expect(screen.queryByTestId('attachment-validation-error')).toBeNull();
   });
 
   // ATT-FE-025: ドラッグ&ドロップで有効なファイルを受け付け、mutate が呼ばれる。
-  // スタブコンポーネントではドロップ処理・mutate 呼出が未実装のため失敗する。
   it('ATT-FE-025: ドロップゾーンへの JPEG ドラッグ&ドロップで mutate が呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -315,12 +349,11 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -336,21 +369,20 @@ describe('AttachmentUploader', () => {
     });
 
     // JPEG は許可形式のため drop 後に mutate が呼ばれ fetch が実行されること
-    // スタブではドロップ処理が未実装のため失敗する（Step 9 の正しい姿）
-    expect(globalThis.fetch).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
   });
 
   // ATT-FE-026: ドラッグ&ドロップで無効なファイル（GIF）を受け付けるとエラーが表示される。
-  // スタブコンポーネントではドロップ処理・エラー表示が未実装のため失敗する。
   it('ATT-FE-026: ドロップゾーンへの GIF ドロップでバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -366,12 +398,10 @@ describe('AttachmentUploader', () => {
     });
 
     // GIF は許可リスト外のためバリデーションエラーが表示されること
-    // スタブではドロップ処理が未実装のため失敗する（Step 9 の正しい姿）
     expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
   });
 
   // ATT-FE-027: アップロード成功後に onUploadSuccess コールバックが呼ばれる。
-  // スタブコンポーネントでは onUploadSuccess が呼ばれないため失敗する。
   it('ATT-FE-027: アップロード成功後に onUploadSuccess コールバックが呼ばれる', async () => {
     const onUploadSuccess = vi.fn();
     // アップロード成功モック
@@ -391,12 +421,11 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="rpt-1"
         itemId="item-1"
         onUploadSuccess={onUploadSuccess}
-        isUploading={false}
       />,
     );
 
@@ -405,27 +434,57 @@ describe('AttachmentUploader', () => {
     fireEvent.change(fileInput, { target: { files: [jpegFile] } });
 
     // アップロード成功後に onUploadSuccess が呼ばれること
-    // スタブでは onUploadSuccess が呼ばれないため失敗する（Step 9 の正しい姿）
     await waitFor(() => {
       expect(onUploadSuccess).toHaveBeenCalledTimes(1);
     });
   });
 
-  // ATT-FE-028: isUploading=true のときファイル入力と「+ ファイルを追加」ボタンが disabled になる。
-  it('ATT-FE-028: isUploading=true のときファイル入力が disabled になる', () => {
+  // ATT-FE-028: アップロード中のときファイル入力と「+ ファイルを追加」ボタンが disabled になる。
+  // Hook の isPending が true の間は disabled になること（ATT-FE-017 でカバー済み）。
+  it('ATT-FE-028: アップロード中のときファイル入力が disabled になる', async () => {
     const onUploadSuccess = vi.fn();
+    // fetch を遅延させてアップロード中状態を維持する。
+    let resolveFetch!: () => void;
+    globalThis.fetch = vi.fn().mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = () =>
+          resolve({
+            ok: true,
+            status: 201,
+            headers: { get: () => null },
+            json: async () => ({
+              data: {
+                id: 'att-new',
+                item_id: 'item-001',
+                file_name: 'receipt.jpg',
+                file_size: 1024,
+                mime_type: 'image/jpeg',
+                created_at: '2026-04-01T00:00:00Z',
+              },
+            }),
+          } as unknown as Response);
+      }),
+    );
 
-    render(
+    renderWithQueryClient(
       <AttachmentUploader
         reportId="report-001"
         itemId="item-001"
         onUploadSuccess={onUploadSuccess}
-        isUploading={true}
       />,
     );
 
     const fileInput = screen.getByTestId('attachment-file-input');
-    expect(fileInput).toBeDisabled();
-    expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // アップロード中は input が disabled になること。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-file-input')).toBeDisabled();
+      expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
+    });
+
+    // fetch の解決を待つ。
+    resolveFetch();
   });
 });

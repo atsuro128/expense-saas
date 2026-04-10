@@ -4,7 +4,6 @@
 // report-detail.md §AttachmentArea に対応する。
 
 import { useState } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
 import AttachmentList from './AttachmentList';
 import AttachmentUploader from './AttachmentUploader';
 import AppToast from '../../components/ui/AppToast';
@@ -35,8 +34,6 @@ function AttachmentAreaContent({
   itemId: string;
   canModify: boolean;
 }) {
-  const queryClient = useQueryClient();
-  const [isUploading, setIsUploading] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     open: boolean;
@@ -55,14 +52,8 @@ function AttachmentAreaContent({
     setToast({ open: true, severity, message });
   };
 
-  // アップロード成功コールバック。
+  // アップロード成功コールバック。キャッシュの無効化は useUploadAttachment Hook が担当する。
   const handleUploadSuccess = () => {
-    setIsUploading(false);
-    // キャッシュを無効化して添付一覧を再取得する。
-    void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
-    void queryClient.invalidateQueries({
-      queryKey: ['reports', reportId, 'items', itemId, 'attachments'],
-    });
     showToast('success', 'ファイルをアップロードしました');
   };
 
@@ -117,7 +108,6 @@ function AttachmentAreaContent({
           reportId={reportId}
           itemId={itemId}
           onUploadSuccess={handleUploadSuccess}
-          isUploading={isUploading}
           onUploadError={(message) => showToast('error', message)}
         />
       )}
