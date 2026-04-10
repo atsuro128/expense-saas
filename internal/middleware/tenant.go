@@ -24,7 +24,7 @@ func TenantContext(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 			conn, err := pool.Acquire(ctx)
 			if err != nil {
 				slog.Error("failed to acquire database connection", "error", err)
-				RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+				RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "Internal server error")
 				return
 			}
 
@@ -45,13 +45,13 @@ func TenantContext(pool *pgxpool.Pool) func(http.Handler) http.Handler {
 
 			if _, err = conn.Exec(ctx, "BEGIN"); err != nil {
 				slog.Error("failed to begin transaction", "error", err)
-				RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+				RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "Internal server error")
 				return
 			}
 
 			if _, err = conn.Exec(ctx, "SELECT set_config('app.current_tenant', $1, true)", tenantID); err != nil {
 				slog.Error("failed to set tenant context", "error", err)
-				RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "Internal server error")
+				RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "Internal server error")
 				return
 			}
 

@@ -85,13 +85,7 @@ func (h *AuthHandler) Signup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(details) > 0 {
-		middleware.RespondJSON(w, http.StatusUnprocessableEntity, middleware.ErrorResponse{
-			Error: middleware.ErrorBody{
-				Code:    "VALIDATION_ERROR",
-				Message: "入力値に誤りがあります",
-				Details: details,
-			},
-		})
+		middleware.RespondValidationError(w, "入力値に誤りがあります", details)
 		return
 	}
 
@@ -237,13 +231,7 @@ func (h *AuthHandler) RequestPasswordReset(w http.ResponseWriter, r *http.Reques
 	}
 
 	if len(details) > 0 {
-		middleware.RespondJSON(w, http.StatusUnprocessableEntity, middleware.ErrorResponse{
-			Error: middleware.ErrorBody{
-				Code:    "VALIDATION_ERROR",
-				Message: "入力値に誤りがあります",
-				Details: details,
-			},
-		})
+		middleware.RespondValidationError(w, "入力値に誤りがあります", details)
 		return
 	}
 
@@ -289,13 +277,7 @@ func (h *AuthHandler) ExecutePasswordReset(w http.ResponseWriter, r *http.Reques
 	}
 
 	if len(details) > 0 {
-		middleware.RespondJSON(w, http.StatusUnprocessableEntity, middleware.ErrorResponse{
-			Error: middleware.ErrorBody{
-				Code:    "VALIDATION_ERROR",
-				Message: "入力値に誤りがあります",
-				Details: details,
-			},
-		})
+		middleware.RespondValidationError(w, "入力値に誤りがあります", details)
 		return
 	}
 

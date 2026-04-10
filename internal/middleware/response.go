@@ -42,3 +42,15 @@ func RespondError(w http.ResponseWriter, status int, code, message string) {
 		},
 	})
 }
+
+// RespondValidationError はフィールドレベルのバリデーションエラーレスポンスを書き込みます。
+// details にはフィールドごとのエラー情報を渡します。
+func RespondValidationError(w http.ResponseWriter, message string, details []ValidationError) {
+	RespondJSON(w, http.StatusUnprocessableEntity, ErrorResponse{
+		Error: ErrorBody{
+			Code:    "VALIDATION_ERROR",
+			Message: message,
+			Details: details,
+		},
+	})
+}
