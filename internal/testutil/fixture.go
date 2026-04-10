@@ -13,21 +13,21 @@ import (
 
 // テストフィクスチャ用の固定 UUID（test_strategy.md §4 参照）。
 const (
-	TenantAID       = "aaaaaaaa-0001-0001-0001-000000000001"
-	TenantBID       = "bbbbbbbb-0002-0002-0002-000000000002"
-	UserAdminID     = "aaaaaaaa-1111-1111-1111-000000000001"
-	UserApproverID  = "aaaaaaaa-2222-2222-2222-000000000002"
-	UserMemberID    = "aaaaaaaa-3333-3333-3333-000000000003"
+	TenantAID        = "aaaaaaaa-0001-0001-0001-000000000001"
+	TenantBID        = "bbbbbbbb-0002-0002-0002-000000000002"
+	UserAdminID      = "aaaaaaaa-1111-1111-1111-000000000001"
+	UserApproverID   = "aaaaaaaa-2222-2222-2222-000000000002"
+	UserMemberID     = "aaaaaaaa-3333-3333-3333-000000000003"
 	UserAccountingID = "aaaaaaaa-4444-4444-4444-000000000004"
-	UserMemberBID   = "bbbbbbbb-3333-3333-3333-000000000003"
+	UserMemberBID    = "bbbbbbbb-3333-3333-3333-000000000003"
 
 	// レポートフィクスチャ UUID（テナント A）。
-	ReportDraftID        = "cccccccc-0001-0001-0001-000000000001"
-	ReportDraftEmptyID   = "cccccccc-0001-0001-0001-000000000002"
-	ReportSubmittedID    = "cccccccc-0002-0002-0002-000000000002"
-	ReportApprovedID     = "cccccccc-0003-0003-0003-000000000003"
-	ReportRejectedID     = "cccccccc-0004-0004-0004-000000000004"
-	ReportPaidID         = "cccccccc-0005-0005-0005-000000000005"
+	ReportDraftID      = "cccccccc-0001-0001-0001-000000000001"
+	ReportDraftEmptyID = "cccccccc-0001-0001-0001-000000000002"
+	ReportSubmittedID  = "cccccccc-0002-0002-0002-000000000002"
+	ReportApprovedID   = "cccccccc-0003-0003-0003-000000000003"
+	ReportRejectedID   = "cccccccc-0004-0004-0004-000000000004"
+	ReportPaidID       = "cccccccc-0005-0005-0005-000000000005"
 
 	// レポートフィクスチャ UUID（テナント B）。
 	ReportTenantBDraftID     = "eeeeeeee-0001-0001-0001-000000000001"
@@ -36,12 +36,22 @@ const (
 
 	// 経費項目フィクスチャ UUID。
 	ItemDraftID = "dddddddd-0001-0001-0001-000000000001"
-
-	// testPasswordHash は "TestPass1!" の Argon2id ハッシュ。パラメータ: m=65536, t=3, p=4, keyLen=32, saltLen=16。
-	// 形式: $argon2id$v=19$m=65536,t=3,p=4$<salt_base64>$<hash_base64>
-	// テスト実行時のコストを避けるため事前計算済み。
-	testPasswordHash = "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHRzYWx0c2FsdA$YB/V08KjuKzuFdPLBiaPq7OE5PSVT2yNSGGDgxPOO6E"
 )
+
+// testPasswordHash は "TestPass1!" の Argon2id ハッシュ。
+// テスト起動時（init）に domain.Argon2idHasher で動的生成する。
+var testPasswordHash string
+
+func init() {
+	// "TestPass1!" のハッシュをテスト起動時に 1 回だけ生成する。
+	// 固定値では Argon2id の検証で不一致が生じるため動的生成を採用。
+	hasher := domain.NewArgon2idHasher()
+	hash, err := hasher.HashPassword("TestPass1!")
+	if err != nil {
+		panic("testutil: failed to hash test password: " + err.Error())
+	}
+	testPasswordHash = hash
+}
 
 // SeedFixtures は標準テストフィクスチャをすべてテストデータベースに挿入する。
 // RLS をバイパスするため、オーナーロールの直接コネクションを使用する。
