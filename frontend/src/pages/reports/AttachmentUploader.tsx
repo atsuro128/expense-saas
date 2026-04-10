@@ -3,8 +3,7 @@
 // report-detail.md §AttachmentUploader に対応する。
 
 import { useState, useRef } from 'react';
-import { api } from '../../api/client';
-import type { ApiResponse, Attachment } from '../../api/types';
+import { useUploadAttachment } from '../../hooks/useUploadAttachment';
 
 export interface AttachmentUploaderProps {
   /** レポート ID */
@@ -13,8 +12,6 @@ export interface AttachmentUploaderProps {
   itemId: string;
   /** アップロード成功時のコールバック */
   onUploadSuccess: () => void;
-  /** アップロード中フラグ */
-  isUploading: boolean;
   /** アップロードエラー時のコールバック（省略時は console.error のみ） */
   onUploadError?: (message: string) => void;
 }
@@ -44,18 +41,19 @@ function validateFile(file: File): string | null {
 /**
  * AttachmentUploader は「+ ファイルを追加」ボタンとファイルアップロード機能を提供する。
  * ファイル形式（JPEG, PNG, PDF）とサイズ（5MB）のクライアントサイドバリデーションを行う。
- * バリデーション通過後に API を呼び出してファイルをアップロードする。
+ * バリデーション通過後に useUploadAttachment Hook を通じて API を呼び出してファイルをアップロードする。
  */
 export default function AttachmentUploader({
   reportId,
   itemId,
   onUploadSuccess,
-  isUploading,
   onUploadError,
 }: AttachmentUploaderProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
-  const [uploading, setUploading] = useState(isUploading);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // useUploadAttachment Hook からミューテーション関数とアップロード中フラグを取得する。
+  const { mutate, isPending } = useUploadAttachment();
 
   // ファイルを選択してアップロードを開始する。
   const handleFile = (file: File) => {
@@ -65,32 +63,21 @@ export default function AttachmentUploader({
       return;
     }
     setValidationError(null);
-    // バリデーション通過後にアップロード API を呼び出す。
-    void uploadFile(file);
-  };
-
-  // API を呼び出してファイルをアップロードする。
-  const uploadFile = async (file: File): Promise<void> => {
-    const formData = new FormData();
-    formData.append('file', file);
-    setUploading(true);
-    try {
-      await api.post<ApiResponse<Attachment>>(
-        `/api/reports/${reportId}/items/${itemId}/attachments`,
-        formData,
-      );
-      onUploadSuccess();
-    } catch (err) {
-      // エラーをログに記録し、コールバックで親コンポーネントに通知する。
-      console.error('ファイルのアップロードに失敗しました:', err);
-      const message = 'ファイルのアップロードに失敗しました。もう一度お試しください。';
-      if (onUploadError) {
-        onUploadError(message);
-      }
-    } finally {
-      // アップロード完了（成功・失敗どちらの場合も）フラグをリセットする。
-      setUploading(false);
-    }
+    // バリデーション通過後に Hook 経由でアップロード API を呼び出す。
+    mutate(
+      { reportId, itemId, file },
+      {
+        onSuccess: () => onUploadSuccess(),
+        onError: (err) => {
+          // エラーをログに記録し、コールバックで親コンポーネントに通知する。
+          console.error('ファイルのアップロードに失敗しました:', err);
+          const message = 'ファイルのアップロードに失敗しました。もう一度お試しください。';
+          if (onUploadError) {
+            onUploadError(message);
+          }
+        },
+      },
+    );
   };
 
   // ファイル入力の change イベントハンドラ。
@@ -129,11 +116,11 @@ export default function AttachmentUploader({
           type="file"
           accept={ALLOWED_MIME_TYPES.join(',')}
           data-testid="attachment-file-input"
-          disabled={uploading}
+          disabled={isPending}
           onChange={handleChange}
         />
         <span data-testid="attachment-upload-button">
-          {uploading ? 'アップロード中...' : '+ ファイルを追加'}
+          {isPending ? 'アップロード中...' : '+ ファイルを追加'}
         </span>
       </label>
       <div data-testid="attachment-file-types">

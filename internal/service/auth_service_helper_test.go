@@ -28,7 +28,7 @@ func buildAuthService(t *testing.T, pool *pgxpool.Pool) service.AuthService {
 	kp := testutil.GenerateTestKeyPair(t)
 	hasher := domain.NewArgon2idHasher()
 	tokenGen := domain.NewJWTGenerator(kp.PrivateKey)
-	tokenVerifier := domain.NewJWTVerifier(kp.PublicKey)
+	tokenVerifier := domain.NewJWTVerifier(kp.PublicKey, "expense-saas-key-1")
 
 	return service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 }

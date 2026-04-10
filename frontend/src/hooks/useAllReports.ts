@@ -43,7 +43,7 @@ export function useAllReports(params: AllReportsParams = {}) {
   const url = `/api/reports/all?${queryString}`;
 
   return useQuery({
-    queryKey: ['allReports', page, per_page, status, from, to, submitter_id],
+    queryKey: ['reports', 'all', { page, per_page, status, from, to, submitter_id }],
     queryFn: async () => {
       return api.get<ApiListResponse<AllReportRow>>(url);
     },

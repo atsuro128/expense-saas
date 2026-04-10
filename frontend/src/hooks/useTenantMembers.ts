@@ -13,7 +13,7 @@ import type { ApiResponse, UserSummary } from '../api/types';
  */
 export function useTenantMembers() {
   return useQuery({
-    queryKey: ['tenantMembers'],
+    queryKey: ['tenant', 'members'],
     queryFn: async () => {
       return api.get<ApiResponse<UserSummary[]>>('/api/tenant/members');
     },

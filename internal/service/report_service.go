@@ -204,10 +204,10 @@ func (s *reportService) UpdateReport(ctx context.Context, actor domain.Actor, re
 	}
 
 	// フィールドを更新する。
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	report.Title = params.Title
 	report.PeriodStart = params.PeriodStart
 	report.PeriodEnd = params.PeriodEnd
-	report.UpdatedAt = time.Now().UTC()
 
 	if err := s.reportRepo.Update(ctx, report); err != nil {
 		return nil, err
@@ -271,7 +271,7 @@ func (s *reportService) SubmitReport(ctx context.Context, actor domain.Actor, re
 	}
 
 	// DB に状態変更を保存する。
-	report.UpdatedAt = time.Now().UTC()
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	if err := s.reportRepo.UpdateStatus(ctx, report); err != nil {
 		return nil, err
 	}

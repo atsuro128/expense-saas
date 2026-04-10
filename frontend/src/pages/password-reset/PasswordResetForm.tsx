@@ -3,9 +3,9 @@
 // 送信時に onSubmit コールバックを呼び出す。
 // confirm_password は API に送信せず、フロントエンドのみのバリデーション用。
 
-import TextField from '@mui/material/TextField';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import AppTextField from '../../components/ui/AppTextField';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
 import { passwordResetSchema, type PasswordResetSchemaInput } from './passwordResetSchema';
@@ -51,26 +51,24 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
   return (
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <TextField
+      <AppTextField
         {...register('new_password')}
+        name="new_password"
         id="new_password"
         label="新しいパスワード"
         type="password"
-        fullWidth
         disabled={isPending}
-        error={!!errors.new_password}
-        helperText={errors.new_password?.message}
+        errorMessage={errors.new_password?.message}
         sx={{ mb: 2 }}
       />
-      <TextField
+      <AppTextField
         {...register('confirm_password')}
+        name="confirm_password"
         id="confirm_password"
         label="確認用パスワード"
         type="password"
-        fullWidth
         disabled={isPending}
-        error={!!errors.confirm_password}
-        helperText={errors.confirm_password?.message}
+        errorMessage={errors.confirm_password?.message}
         sx={{ mb: 2 }}
       />
       <SubmitButton label="パスワードを変更する" loading={isPending} />

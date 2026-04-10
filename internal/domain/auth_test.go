@@ -347,8 +347,9 @@ func TestGenerateRefreshToken_Expiry(t *testing.T) {
 // --- VerifyAccessToken テスト用ヘルパー ---
 
 // newVerifier は JWTGenerator に対応する JWTVerifier を生成するテスト用ヘルパー。
+// kid は JWTGenerator が発行するトークンと一致する値を使用する。
 func newVerifier(priv *rsa.PrivateKey) *domain.JWTVerifier {
-	return domain.NewJWTVerifier(&priv.PublicKey)
+	return domain.NewJWTVerifier(&priv.PublicKey, "expense-saas-key-1")
 }
 
 // AUTH-014: 有効なアクセストークンの検証が成功すること。
@@ -404,6 +405,7 @@ func TestVerifyAccessToken_Expired(t *testing.T) {
 		},
 	}
 	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = "expense-saas-key-1"
 	signed, err := tok.SignedString(priv)
 	if err != nil {
 		t.Fatalf("トークン署名に失敗しました: %v", err)
@@ -577,6 +579,7 @@ func TestVerifyRefreshToken_Expired(t *testing.T) {
 		},
 	}
 	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = "expense-saas-key-1"
 	signed, err := tok.SignedString(priv)
 	if err != nil {
 		t.Fatalf("トークン署名に失敗しました: %v", err)

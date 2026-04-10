@@ -100,7 +100,10 @@ describe('useCreateReport（スタブ）', () => {
       '/api/reports',
       expect.objectContaining({ method: 'POST' }),
     );
-    expect(result.current.data).toEqual(mockCreatedReport);
+    // React ステート更新が完了するまで待機してからアサートする
+    await waitFor(() => {
+      expect(result.current.data).toEqual(mockCreatedReport);
+    });
   });
 
   // RPT-FE-047: reference_report_id を含むリクエストが POST /api/reports に送信される。
@@ -194,6 +197,9 @@ describe('useCreateReport（スタブ）', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
+    // React ステート更新が完了するまで待機してからアサートする
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+    });
   });
 });

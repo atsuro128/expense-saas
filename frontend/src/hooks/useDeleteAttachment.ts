@@ -29,7 +29,7 @@ export function useDeleteAttachment() {
       );
     },
     onSuccess: (_data, { reportId }) => {
-      // レポート詳細のキャッシュを無効化して添付一覧を再取得する。
+      // レポート詳細のキャッシュを無効化する（items 配列に添付一覧が含まれるため個別 invalidation は不要）。
       void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
     },
   });

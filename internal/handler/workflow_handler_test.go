@@ -119,24 +119,9 @@ func workflowJSONBody(t *testing.T, v interface{}) *bytes.Buffer {
 	return bytes.NewBuffer(b)
 }
 
-// getReportUpdatedAt はフィクスチャレポートの updated_at を DB から取得する。
-func getReportUpdatedAt(t *testing.T, pool *pgxpool.Pool, reportID string) string {
-	t.Helper()
-	var updatedAt string
-	conn, err := pool.Acquire(context.Background())
-	if err != nil {
-		t.Fatalf("getReportUpdatedAt: acquire connection: %v", err)
-	}
-	defer conn.Release()
-
-	if err := conn.QueryRow(context.Background(),
-		"SELECT updated_at::text FROM expense_reports WHERE report_id = $1",
-		testutil.MustParseUUID(reportID),
-	).Scan(&updatedAt); err != nil {
-		t.Fatalf("getReportUpdatedAt: query: %v", err)
-	}
-	return updatedAt
-}
+// getReportUpdatedAt は report_handler_test.go で定義されたヘルパー関数を使用する。
+// このコメントは workflow_handler_test.go から getReportUpdatedAt を削除したことを示す。
+// 関数定義は report_handler_test.go（ビルドタグなし）に移動済み。
 
 // =============================================================================
 // 1. GET /api/workflow/pending — 承認待ちレポート一覧（WFL-001〜WFL-009）

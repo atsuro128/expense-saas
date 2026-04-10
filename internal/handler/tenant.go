@@ -34,7 +34,7 @@ func (h *TenantHandler) GetTenant(w http.ResponseWriter, r *http.Request) {
 			middleware.RespondError(w, http.StatusNotFound, "RESOURCE_NOT_FOUND", "tenant not found")
 			return
 		}
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "internal server error")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 		return
 	}
 
@@ -54,7 +54,7 @@ func (h *TenantHandler) ListTenantMembers(w http.ResponseWriter, r *http.Request
 
 	members, err := h.svc.ListTenantMembers(r.Context(), actor)
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "internal server error")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 		return
 	}
 

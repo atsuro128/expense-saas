@@ -2,7 +2,7 @@
 // POST /api/auth/signup を呼び出し、認証トークンを返す。
 // 成功時に AuthStore にトークンを保存する（onSuccess コールバック）。
 
-import { useMutation } from '@tanstack/react-query';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
 import type { ApiResponse, AuthTokens } from '../api/types';
 import { setTokens } from '../stores/auth';
@@ -20,6 +20,8 @@ export interface SignupParams {
  * 未実装スタブ: API クライアントの動作確認用。
  */
 export function useSignup() {
+  const queryClient = useQueryClient();
+
   return useMutation({
     mutationFn: async (params: SignupParams): Promise<AuthTokens> => {
       const res = await api.post<ApiResponse<AuthTokens>>('/api/auth/signup', params);
@@ -28,6 +30,8 @@ export function useSignup() {
     onSuccess: (data) => {
       // サインアップ成功時にトークンを AuthStore に保存する。
       setTokens(data.access_token, data.refresh_token);
+      // アカウント切り替え時に前ユーザーのキャッシュが残らないよう無効化する。
+      void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
     },
   });
 }
