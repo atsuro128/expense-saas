@@ -21,13 +21,15 @@ type Claims struct {
 	jwt.RegisteredClaims
 }
 
-// Verifier は JWT RS256 トークンの検証に使用する RSA 公開鍵を保持する。
+// Verifier は JWT RS256 トークンの検証に使用する RSA 公開鍵と kid を保持する。
 type Verifier struct {
 	publicKey *rsa.PublicKey
+	kid       string
 }
 
 // NewVerifier は PEM ファイルから RSA 公開鍵を読み込み、Verifier を返す。
-func NewVerifier(publicKeyPath string) (*Verifier, error) {
+// kid には発行者が設定した鍵識別子を渡す（security.md §2.1 JWT検証フロー step [3]）。
+func NewVerifier(publicKeyPath string, kid string) (*Verifier, error) {
 	data, err := os.ReadFile(publicKeyPath)
 	if err != nil {
 		return nil, fmt.Errorf("read public key file: %w", err)
@@ -48,13 +50,14 @@ func NewVerifier(publicKeyPath string) (*Verifier, error) {
 		return nil, errors.New("public key is not an RSA key")
 	}
 
-	return &Verifier{publicKey: rsaPub}, nil
+	return &Verifier{publicKey: rsaPub, kid: kid}, nil
 }
 
 // NewVerifierFromKey は RSA 公開鍵から直接 Verifier を生成する。
 // ファイルからの読み込みが難しいテスト用途を想定している。
-func NewVerifierFromKey(publicKey *rsa.PublicKey) *Verifier {
-	return &Verifier{publicKey: publicKey}
+// kid には発行者が設定した鍵識別子を渡す（security.md §2.1 JWT検証フロー step [3]）。
+func NewVerifierFromKey(publicKey *rsa.PublicKey, kid string) *Verifier {
+	return &Verifier{publicKey: publicKey, kid: kid}
 }
 
 // Verify は JWT トークン文字列を解析・検証する。
@@ -68,6 +71,11 @@ func (v *Verifier) Verify(tokenString string) (*Claims, error) {
 		}
 		if t.Method.Alg() != jwt.SigningMethodRS256.Alg() {
 			return nil, fmt.Errorf("unexpected algorithm: %v", t.Method.Alg())
+		}
+		// kid 検証（security.md §2.1 JWT検証フロー step [3]）
+		kidHeader, ok := t.Header["kid"].(string)
+		if !ok || kidHeader != v.kid {
+			return nil, fmt.Errorf("unexpected kid: %v", t.Header["kid"])
 		}
 		return v.publicKey, nil
 	}, jwt.WithIssuedAt(), jwt.WithIssuer("expense-saas"), jwt.WithExpirationRequired())

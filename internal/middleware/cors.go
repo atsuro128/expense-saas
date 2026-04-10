@@ -9,11 +9,9 @@ import (
 
 // Cors は指定された許可オリジンで設定された CORS middleware を返します。
 // allowedOrigins はカンマ区切りのオリジン文字列です。
+// allowedOrigins が空の場合はフォールバックを設定せず、全オリジンを拒否します（安全側フォールバック）。
 func Cors(allowedOrigins string) func(http.Handler) http.Handler {
 	origins := splitTrimmed(allowedOrigins)
-	if len(origins) == 0 {
-		origins = []string{"http://localhost:5173"}
-	}
 
 	return cors.Handler(cors.Options{
 		AllowedOrigins: origins,

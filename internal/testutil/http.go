@@ -34,7 +34,7 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	t.Helper()
 
 	kp := GenerateTestKeyPair(t)
-	verifier := appjwt.NewVerifierFromKey(kp.PublicKey)
+	verifier := appjwt.NewVerifierFromKey(kp.PublicKey, "expense-saas-key-1")
 
 	// repository 層。
 	tenantRepo := postgres.NewTenantRepo(pool)

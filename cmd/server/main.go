@@ -72,7 +72,8 @@ func main() {
 	slog.Info("JWT private key loaded", "path", cfg.JWTPrivateKeyPath)
 
 	// 公開鍵から appjwt.Verifier（middleware.Auth 用）を初期化する。
-	verifier, err := appjwt.NewVerifier(cfg.JWTPublicKeyPath)
+	// kid は domain.JWTGenerator が発行するトークンに設定する値と一致させる。
+	verifier, err := appjwt.NewVerifier(cfg.JWTPublicKeyPath, "expense-saas-key-1")
 	if err != nil {
 		slog.Error("failed to initialize JWT verifier", "error", err, "path", cfg.JWTPublicKeyPath)
 		os.Exit(1)
