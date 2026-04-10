@@ -7,6 +7,16 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],
     globals: true,
+    // devcontainer (WSL2) のリソース枯渇を防ぐためワーカー数を制限する。
+    // CI (GitHub Actions) では制限なしで実行される。
+    ...(!process.env.CI && {
+      pool: 'threads',
+      poolOptions: {
+        threads: {
+          maxThreads: 2,
+        },
+      },
+    }),
     // @mui/x-date-pickers の ESM モジュールをインライン変換する。
     // jsdom 環境では ESM ディレクトリインポートが解決できないため、vitest に変換させる。
     server: {
