@@ -1532,7 +1532,8 @@ func TestAuth_AuthEndpointsPubliclyAccessible(t *testing.T) {
 		{http.MethodPost, "/api/auth/login", map[string]string{
 			"email": "test-admin@example.com", "password": "TestPass1!",
 		}},
-		{http.MethodPost, "/api/auth/logout", map[string]string{"refresh_token": "dummy.refresh.token"}},
+		// 無効トークンを送ると業務ロジックの 401 になりミドルウェア不要の検証と区別できないため空ボディにする。
+		{http.MethodPost, "/api/auth/logout", map[string]string{}},
 		{http.MethodPost, "/api/auth/password-reset", map[string]string{"email": "test@example.com"}},
 	}
 
