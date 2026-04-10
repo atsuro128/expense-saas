@@ -2,9 +2,9 @@
 // React Hook Form + Zod (signupSchema) でクライアントサイドバリデーションを行い、
 // 送信時に onSubmit コールバックを呼び出す。
 
-import TextField from '@mui/material/TextField';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import AppTextField from '../../components/ui/AppTextField';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
 import { signupSchema, type SignupInput } from './signupSchema';
@@ -44,48 +44,44 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
   return (
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <TextField
+      <AppTextField
         {...register('company_name')}
+        name="company_name"
         id="company_name"
         label="会社名"
         type="text"
-        fullWidth
         disabled={isPending}
-        error={!!errors.company_name}
-        helperText={errors.company_name?.message}
+        errorMessage={errors.company_name?.message}
         sx={{ mb: 2 }}
       />
-      <TextField
+      <AppTextField
         {...register('user_name')}
+        name="user_name"
         id="user_name"
         label="ユーザー名"
         type="text"
-        fullWidth
         disabled={isPending}
-        error={!!errors.user_name}
-        helperText={errors.user_name?.message}
+        errorMessage={errors.user_name?.message}
         sx={{ mb: 2 }}
       />
-      <TextField
+      <AppTextField
         {...register('email')}
+        name="email"
         id="email"
         label="メールアドレス"
         type="email"
-        fullWidth
         disabled={isPending}
-        error={!!errors.email}
-        helperText={errors.email?.message}
+        errorMessage={errors.email?.message}
         sx={{ mb: 2 }}
       />
-      <TextField
+      <AppTextField
         {...register('password')}
+        name="password"
         id="password"
         label="パスワード"
         type="password"
-        fullWidth
         disabled={isPending}
-        error={!!errors.password}
-        helperText={errors.password?.message}
+        errorMessage={errors.password?.message}
         sx={{ mb: 2 }}
       />
       <SubmitButton label="新規登録" loading={isPending} />
