@@ -207,7 +207,7 @@ func (h *AuthHandler) GetMe(w http.ResponseWriter, r *http.Request) {
 
 	profile, err := h.svc.GetMe(r.Context(), actor)
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "内部エラーが発生しました")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "internal server error")
 		return
 	}
 
@@ -248,7 +248,7 @@ func (h *AuthHandler) RequestPasswordReset(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.svc.RequestPasswordReset(r.Context(), req.Email); err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "内部エラーが発生しました")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "internal server error")
 		return
 	}
 
@@ -335,6 +335,6 @@ func (h *AuthHandler) handleAuthError(w http.ResponseWriter, err error, isPasswo
 	case errors.Is(err, domain.ErrTokenRevoked):
 		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "トークンは既に無効化されています")
 	default:
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "内部エラーが発生しました")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "internal server error")
 	}
 }

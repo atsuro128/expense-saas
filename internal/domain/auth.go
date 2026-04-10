@@ -150,11 +150,13 @@ func (g *JWTGenerator) GenerateRefreshToken(userID uuid.UUID) (string, error) {
 // JWTVerifier は RSA 公開鍵を保持し、JWT トークンを検証する実装。
 type JWTVerifier struct {
 	publicKey *rsa.PublicKey
+	// kid は JWT ヘッダーの key ID。検証時に一致を確認する（security.md §2.1）。
+	kid string
 }
 
-// NewJWTVerifier は指定した RSA 公開鍵から JWTVerifier を生成する。
-func NewJWTVerifier(publicKey *rsa.PublicKey) *JWTVerifier {
-	return &JWTVerifier{publicKey: publicKey}
+// NewJWTVerifier は指定した RSA 公開鍵と kid から JWTVerifier を生成する。
+func NewJWTVerifier(publicKey *rsa.PublicKey, kid string) *JWTVerifier {
+	return &JWTVerifier{publicKey: publicKey, kid: kid}
 }
 
 // parseToken は JWT 文字列を解析する内部ヘルパー。RS256 以外のアルゴリズムは拒否する。
@@ -169,6 +171,11 @@ func (v *JWTVerifier) parseToken(tokenString string) (*gojwt.Token, *jwtClaims, 
 				return nil, ErrInvalidToken
 			}
 			if t.Method.Alg() != gojwt.SigningMethodRS256.Alg() {
+				return nil, ErrInvalidToken
+			}
+			// kid 検証（security.md §2.1 JWT検証フロー step [3]）。
+			kidHeader, ok := t.Header["kid"].(string)
+			if !ok || kidHeader != v.kid {
 				return nil, ErrInvalidToken
 			}
 			return v.publicKey, nil

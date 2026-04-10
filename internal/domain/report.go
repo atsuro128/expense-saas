@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -77,7 +78,7 @@ func (r *ExpenseReport) Reject(actorID uuid.UUID, reason string) error {
 	if actorID == r.UserID {
 		return ErrSelfApprovalNotAllowed
 	}
-	if reason == "" {
+	if strings.TrimSpace(reason) == "" {
 		return ErrMissingRejectionReason
 	}
 

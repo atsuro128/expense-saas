@@ -81,8 +81,9 @@ func main() {
 	slog.Info("JWT verifier initialized", "path", cfg.JWTPublicKeyPath)
 
 	// 公開鍵から domain.JWTVerifier（service 層の TokenVerifier）を初期化する。
+	// kid は JWTGenerator が発行するトークンの kid と一致させる（security.md §2.1）。
 	rsaPubKey := loadRSAPublicKey(cfg.JWTPublicKeyPath)
-	tokenVerifier := domain.NewJWTVerifier(rsaPubKey)
+	tokenVerifier := domain.NewJWTVerifier(rsaPubKey, "expense-saas-key-1")
 
 	// 6. バックグラウンド goroutine 用のコンテキストを生成する（レートリミッタのクリーンアップ等）。
 	bgCtx, bgCancel := context.WithCancel(context.Background())
@@ -149,7 +150,9 @@ func main() {
 		pub.Get("/health", handler.NewHealthHandler(pool))
 
 		pub.Post("/api/auth/signup", authHandler.Signup)
-		pub.Post("/api/auth/login", authHandler.Login)
+		// ログイン専用レートリミット（security.md §3.3: 5 req/min/IP）。
+		// 公開ルート全体の 20 req/min より厳しい制限を個別に適用する。
+		pub.With(middleware.RateLimitByIP(bgCtx, 5, time.Minute)).Post("/api/auth/login", authHandler.Login)
 		pub.Post("/api/auth/refresh", authHandler.RefreshToken)
 		pub.Post("/api/auth/logout", authHandler.Logout)
 		pub.Post("/api/auth/password-reset", authHandler.RequestPasswordReset)
