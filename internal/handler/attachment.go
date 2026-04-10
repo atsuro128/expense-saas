@@ -130,7 +130,7 @@ func (h *AttachmentHandler) UploadAttachment(w http.ResponseWriter, r *http.Requ
 	// ファイル内容を読み込む（ファイルサイズチェックを含む）。
 	content, err := io.ReadAll(io.LimitReader(file, attachmentFileSizeLimit+1))
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_SERVER_ERROR", "failed to read file")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "failed to read file")
 		return
 	}
 
