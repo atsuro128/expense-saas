@@ -185,6 +185,7 @@ describe('ItemForm', () => {
 
   // ITM-FE-037: 全フィールドに有効値入力して保存 → onSubmit が呼ばれる。
   it('ITM-FE-037: 全フィールドに有効値入力して保存すると onSubmit が呼ばれる', async () => {
+    const user = userEvent.setup();
     const onSubmit = vi.fn();
     render(
       <ItemForm mode="add" {...defaultProps} onSubmit={onSubmit} />,
@@ -192,15 +193,18 @@ describe('ItemForm', () => {
 
     // 全フィールド入力（ITM-FE-037）。バリデーションを通過させるため全フィールドに有効値を入力する。
     const dateInput = screen.getByLabelText(/日付/);
-    await userEvent.type(dateInput, '2026-03-10');
+    await user.type(dateInput, '2026-03-10');
     const amountInput = screen.getByLabelText(/金額/);
-    await userEvent.type(amountInput, '1000');
+    await user.type(amountInput, '1000');
+    // MUI Select: ラベル「カテゴリ」に紐づく combobox をクリックして選択肢を開き「交通費」を選択する。
     const categorySelect = screen.getByLabelText(/カテゴリ/);
-    await userEvent.selectOptions(categorySelect, 'cat-001');
+    await user.click(categorySelect);
+    const option = await screen.findByRole('option', { name: '交通費' });
+    await user.click(option);
     const descInput = screen.getByLabelText(/摘要/);
-    await userEvent.type(descInput, 'タクシー代');
+    await user.type(descInput, 'タクシー代');
     const saveButton = screen.getByRole('button', { name: /^保存する$/ });
-    await userEvent.click(saveButton);
+    await user.click(saveButton);
 
     // onSubmit が ItemFormValues 型のデータで呼ばれる。
     expect(onSubmit).toHaveBeenCalled();
@@ -240,6 +244,7 @@ describe('ItemForm', () => {
 
   // ITM-FE-040: mode='add' で「保存して続けて追加」ボタン押下 → onSaveAndContinue が呼ばれる。
   it('ITM-FE-040: mode=add で「保存して続けて追加」押下すると onSaveAndContinue が呼ばれる', async () => {
+    const user = userEvent.setup();
     const onSaveAndContinue = vi.fn();
     render(
       <ItemForm mode="add" {...defaultProps} onSaveAndContinue={onSaveAndContinue} />,
@@ -247,15 +252,18 @@ describe('ItemForm', () => {
 
     // 「保存して続けて追加」ボタン押下（ITM-FE-040）。バリデーションを通過させるため全フィールドに有効値を入力する。
     const dateInput = screen.getByLabelText(/日付/);
-    await userEvent.type(dateInput, '2026-03-10');
+    await user.type(dateInput, '2026-03-10');
     const amountInput = screen.getByLabelText(/金額/);
-    await userEvent.type(amountInput, '1000');
+    await user.type(amountInput, '1000');
+    // MUI Select: ラベル「カテゴリ」に紐づく combobox をクリックして選択肢を開き「交通費」を選択する。
     const categorySelect = screen.getByLabelText(/カテゴリ/);
-    await userEvent.selectOptions(categorySelect, 'cat-001');
+    await user.click(categorySelect);
+    const option = await screen.findByRole('option', { name: '交通費' });
+    await user.click(option);
     const descInput = screen.getByLabelText(/摘要/);
-    await userEvent.type(descInput, 'タクシー代');
+    await user.type(descInput, 'タクシー代');
     const button = screen.getByRole('button', { name: /保存して続けて追加/ });
-    await userEvent.click(button);
+    await user.click(button);
 
     expect(onSaveAndContinue).toHaveBeenCalled();
   });
@@ -325,9 +333,11 @@ describe('ItemForm', () => {
       <ItemForm mode="add" {...defaultProps} onSubmit={onSubmit} isPending={true} />,
     );
 
-    // 保存ボタン押下（disabled のため）（ITM-FE-046）。スタブ実装のため現在は失敗する。
+    // MUI Button は disabled 時に pointer-events: none を設定するため、
+    // pointerEventsCheck: 0 でクリックを強制し、disabled ボタンが onSubmit を呼ばないことを検証する。
+    const user = userEvent.setup({ pointerEventsCheck: 0 });
     const saveButton = screen.getByRole('button', { name: /保存/ });
-    await userEvent.click(saveButton);
+    await user.click(saveButton);
 
     expect(onSubmit).not.toHaveBeenCalled();
   });

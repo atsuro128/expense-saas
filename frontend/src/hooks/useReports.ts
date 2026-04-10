@@ -98,7 +98,7 @@ export interface UpdateReportInput {
 
 /**
  * useUpdateReport: PUT /api/reports/:id — レポート更新 Hook。
- * 成功時: ['reports', 'detail', id]・['reports', 'mine']・['dashboard'] のキャッシュを無効化する。
+ * 成功時: ['reports', 'detail', id]・['reports', 'mine'] のキャッシュを無効化する。
  */
 export function useUpdateReport(): UseMutationResult<ExpenseReportDetail, Error, UpdateReportInput> {
   const queryClient = useQueryClient();
@@ -115,10 +115,9 @@ export function useUpdateReport(): UseMutationResult<ExpenseReportDetail, Error,
       return res.data;
     },
     onSuccess: (_data, variables) => {
-      // レポート詳細・一覧・ダッシュボードのクエリキャッシュを無効化する。
+      // レポート詳細・一覧のクエリキャッシュを無効化する。
       void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', variables.id] });
       void queryClient.invalidateQueries({ queryKey: ['reports', 'mine'] });
-      void queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     },
   });
 }

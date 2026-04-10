@@ -17,7 +17,7 @@ export interface DeleteAttachmentParams {
 
 /**
  * useDeleteAttachment は DELETE /api/reports/{reportId}/items/{itemId}/attachments/{attId} を呼び出すミューテーション Hook。
- * 成功後にレポート詳細と添付ファイル一覧のキャッシュを無効化して再取得する。
+ * 成功後にレポート詳細のキャッシュを無効化して添付一覧を再取得する。
  */
 export function useDeleteAttachment() {
   const queryClient = useQueryClient();
@@ -28,11 +28,9 @@ export function useDeleteAttachment() {
         `/api/reports/${reportId}/items/${itemId}/attachments/${attId}`,
       );
     },
-    onSuccess: (_data, { reportId, itemId }) => {
-      // レポート詳細のキャッシュを無効化する。
+    onSuccess: (_data, { reportId }) => {
+      // レポート詳細のキャッシュを無効化する（items 配列に添付一覧が含まれるため個別 invalidation は不要）。
       void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
-      // 添付ファイル一覧のキャッシュを無効化して再取得する。
-      void queryClient.invalidateQueries({ queryKey: ['reports', reportId, 'items', itemId, 'attachments'] });
     },
   });
 }

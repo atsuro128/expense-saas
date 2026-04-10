@@ -14,6 +14,7 @@ import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
+import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AppToast from '../components/ui/AppToast';
 import AppPagination from '../components/ui/AppPagination';
@@ -198,21 +199,25 @@ export default function ReportListPage() {
         </FormControl>
 
         {/* 開始日フィルタ */}
-        <input
-          data-testid="report-list-filter-from"
+        <TextField
           type="date"
+          size="small"
+          label="開始日"
+          InputLabelProps={{ shrink: true }}
+          inputProps={{ 'data-testid': 'report-list-filter-from', 'aria-label': '開始日' }}
           value={from}
           onChange={(e) => handleFromChange(e.target.value)}
-          aria-label="開始日"
         />
 
         {/* 終了日フィルタ */}
-        <input
-          data-testid="report-list-filter-to"
+        <TextField
           type="date"
+          size="small"
+          label="終了日"
+          InputLabelProps={{ shrink: true }}
+          inputProps={{ 'data-testid': 'report-list-filter-to', 'aria-label': '終了日' }}
           value={to}
           onChange={(e) => handleToChange(e.target.value)}
-          aria-label="終了日"
         />
       </Box>
 
