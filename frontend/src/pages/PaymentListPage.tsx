@@ -154,14 +154,13 @@ export default function PaymentListPage() {
       {/* フィルタ */}
       <div>
         <TextField
-          data-testid="payable-filter-applicant-name"
           type="text"
           size="small"
           value={applicantNameInput}
           onChange={(e) => handleApplicantNameChange(e.target.value)}
           placeholder="申請者名で絞り込み"
           label="申請者名"
-          aria-label="申請者名フィルタ"
+          inputProps={{ 'data-testid': 'payable-filter-applicant-name', 'aria-label': '申請者名フィルタ' }}
         />
         <FilterResetButton onReset={handleFilterReset} isFiltered={isFiltered} />
       </div>
