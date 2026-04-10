@@ -2,6 +2,12 @@
 // 明細データをテーブル形式で表示する。
 // SCR-RPT-004 §5 に対応する。
 
+import Button from '@mui/material/Button';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import type { ExpenseItemWithAttachments } from '../../api/types';
 
 export interface ItemTableProps {
@@ -24,37 +30,38 @@ export interface ItemTableProps {
  */
 export default function ItemTable({ items, canEditItems, onItemClick, onEditItem, onDeleteItem }: ItemTableProps) {
   return (
-    <table data-testid="item-table">
-      <thead>
-        <tr>
-          <th>日付</th>
-          <th>金額</th>
-          <th>カテゴリ</th>
-          <th>摘要</th>
-          <th>添付数</th>
-          {canEditItems && <th>操作</th>}
-        </tr>
-      </thead>
-      <tbody>
+    <Table size="small" data-testid="item-table">
+      <TableHead>
+        <TableRow>
+          <TableCell>日付</TableCell>
+          <TableCell>金額</TableCell>
+          <TableCell>カテゴリ</TableCell>
+          <TableCell>摘要</TableCell>
+          <TableCell>添付数</TableCell>
+          {canEditItems && <TableCell>操作</TableCell>}
+        </TableRow>
+      </TableHead>
+      <TableBody>
         {items.map((item) => (
-          <tr
+          <TableRow
             key={item.id}
             data-testid={`item-row-${item.id}`}
             onClick={() => onItemClick(item.id)}
             style={{ cursor: 'pointer' }}
           >
-            <td>
+            <TableCell>
               {/* ISO 日付文字列を YYYY/MM/DD 形式に変換する */}
               {new Date(item.expense_date).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })}
-            </td>
-            <td>¥{item.amount.toLocaleString()}</td>
-            <td>{item.category.name_ja}</td>
-            <td>{item.description}</td>
-            <td>{item.attachments.length}</td>
+            </TableCell>
+            <TableCell>¥{item.amount.toLocaleString()}</TableCell>
+            <TableCell>{item.category.name_ja}</TableCell>
+            <TableCell>{item.description}</TableCell>
+            <TableCell>{item.attachments.length}</TableCell>
             {canEditItems && (
-              <td>
-                <button
-                  type="button"
+              <TableCell>
+                <Button
+                  size="small"
+                  variant="text"
                   onClick={(e) => {
                     // 行クリックが発火しないようにイベント伝播を停止する。
                     e.stopPropagation();
@@ -62,9 +69,11 @@ export default function ItemTable({ items, canEditItems, onItemClick, onEditItem
                   }}
                 >
                   編集
-                </button>
-                <button
-                  type="button"
+                </Button>
+                <Button
+                  size="small"
+                  variant="text"
+                  color="error"
                   onClick={(e) => {
                     // 行クリックが発火しないようにイベント伝播を停止する。
                     e.stopPropagation();
@@ -72,12 +81,12 @@ export default function ItemTable({ items, canEditItems, onItemClick, onEditItem
                   }}
                 >
                   削除
-                </button>
-              </td>
+                </Button>
+              </TableCell>
             )}
-          </tr>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }

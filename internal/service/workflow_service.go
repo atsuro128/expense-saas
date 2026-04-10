@@ -108,7 +108,7 @@ func (s *workflowService) ApproveReport(ctx context.Context, actor domain.Actor,
 		return nil, err
 	}
 
-	report.UpdatedAt = time.Now().UTC()
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	if err := s.reportRepo.UpdateStatus(ctx, report); err != nil {
 		return nil, err
 	}
@@ -138,7 +138,7 @@ func (s *workflowService) RejectReport(ctx context.Context, actor domain.Actor, 
 		return nil, err
 	}
 
-	report.UpdatedAt = time.Now().UTC()
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	if err := s.reportRepo.UpdateStatus(ctx, report); err != nil {
 		return nil, err
 	}
@@ -222,7 +222,7 @@ func (s *workflowService) MarkReportAsPaid(ctx context.Context, actor domain.Act
 		return nil, err
 	}
 
-	report.UpdatedAt = time.Now().UTC()
+	// updated_at は SQL 側で now() に設定され、RETURNING で反映されるため、ここでは変更しない。
 	if err := s.reportRepo.UpdateStatus(ctx, report); err != nil {
 		return nil, err
 	}

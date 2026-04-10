@@ -2,11 +2,15 @@
 // 明細の入力フォーム。React Hook Form + Zod でバリデーションを行う。
 // SCR-RPT-004 §6 に対応する。
 
-import { useForm } from 'react-hook-form';
+import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
+import Button from '@mui/material/Button';
 import type { PanelMode } from './ItemSlidePanel';
 import FormAlert from '../../components/ui/FormAlert';
+import AppTextField from '../../components/ui/AppTextField';
+import AppSelect from '../../components/ui/AppSelect';
+import SubmitButton from '../../components/ui/SubmitButton';
 
 export interface ItemFormValues {
   /** 支出日（YYYY-MM-DD 形式） */
@@ -79,6 +83,7 @@ export default function ItemForm({
 
   const {
     register,
+    control,
     handleSubmit,
     formState: { errors },
   } = useForm<ItemFormValues>({
@@ -105,80 +110,77 @@ export default function ItemForm({
       <FormAlert message={apiError} />
 
       {/* 支出日 */}
-      <div>
-        <label htmlFor="item-form-date">日付</label>
-        <input
-          id="item-form-date"
-          type="date"
-          readOnly={isView}
-          disabled={isPending && !isView}
-          {...register('expenseDate')}
-          aria-label="日付"
-        />
-        {errors.expenseDate && <span role="alert">{errors.expenseDate.message}</span>}
-      </div>
+      <AppTextField
+        {...register('expenseDate')}
+        label="日付"
+        type="date"
+        InputLabelProps={{ shrink: true }}
+        inputProps={{ readOnly: isView, 'aria-label': '日付' }}
+        disabled={isPending && !isView}
+        errorMessage={errors.expenseDate?.message}
+      />
 
       {/* 金額 */}
-      <div>
-        <label htmlFor="item-form-amount">金額</label>
-        <input
-          id="item-form-amount"
-          type="number"
-          readOnly={isView}
-          disabled={isPending && !isView}
-          {...register('amount', { valueAsNumber: true })}
-          aria-label="金額"
-        />
-        {errors.amount && <span role="alert">{errors.amount.message}</span>}
-      </div>
+      <AppTextField
+        {...register('amount', { valueAsNumber: true })}
+        label="金額"
+        type="number"
+        inputProps={{ readOnly: isView, 'aria-label': '金額' }}
+        disabled={isPending && !isView}
+        errorMessage={errors.amount?.message}
+      />
 
       {/* カテゴリ */}
-      <div>
-        <label htmlFor="item-form-category">カテゴリ</label>
-        <select
-          id="item-form-category"
-          disabled={isView || (isPending && !isView)}
-          {...register('categoryId')}
-          aria-label="カテゴリ"
-        >
-          <option value="">カテゴリを選択</option>
-          {categories.map((cat) => (
-            <option key={cat.value} value={cat.value}>
-              {cat.label}
-            </option>
-          ))}
-        </select>
-        {errors.categoryId && <span role="alert">{errors.categoryId.message}</span>}
-      </div>
+      <Controller
+        name="categoryId"
+        control={control}
+        render={({ field }) => (
+          <AppSelect
+            name="categoryId"
+            label="カテゴリ"
+            options={categories}
+            value={field.value}
+            onChange={field.onChange}
+            placeholder="カテゴリを選択"
+            errorMessage={errors.categoryId?.message}
+            disabled={isView || (isPending && !isView)}
+          />
+        )}
+      />
 
       {/* 摘要 */}
-      <div>
-        <label htmlFor="item-form-desc">摘要</label>
-        <textarea
-          id="item-form-desc"
-          readOnly={isView}
-          disabled={isPending && !isView}
-          {...register('description')}
-          aria-label="摘要"
-        />
-        {errors.description && <span role="alert">{errors.description.message}</span>}
-      </div>
+      <AppTextField
+        {...register('description')}
+        label="摘要"
+        multiline
+        rows={3}
+        inputProps={{ readOnly: isView, 'aria-label': '摘要' }}
+        disabled={isPending && !isView}
+        errorMessage={errors.description?.message}
+      />
 
       {/* アクションボタン */}
       {!isView && (
-        <div>
-          <button type="submit" disabled={isPending}>
-            保存する
-          </button>
+        <>
+          <SubmitButton label="保存する" loading={isPending} />
           {isAdd && onSaveAndContinue && (
-            <button type="button" onClick={handleSaveAndContinue} disabled={isPending}>
+            <Button
+              type="button"
+              variant="outlined"
+              onClick={handleSaveAndContinue}
+              disabled={isPending}
+            >
               保存して続けて追加
-            </button>
+            </Button>
           )}
-          <button type="button" onClick={onCancel}>
+          <Button
+            type="button"
+            variant="text"
+            onClick={onCancel}
+          >
             キャンセル
-          </button>
-        </div>
+          </Button>
+        </>
       )}
     </form>
   );

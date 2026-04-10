@@ -4,6 +4,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import TextField from '@mui/material/TextField';
 import AppToast from '../components/ui/AppToast';
 import PageSkeleton from '../components/ui/PageSkeleton';
 import FilterResetButton from '../components/ui/FilterResetButton';
@@ -152,13 +153,14 @@ export default function PaymentListPage() {
 
       {/* フィルタ */}
       <div>
-        <input
-          data-testid="payable-filter-applicant-name"
+        <TextField
           type="text"
+          size="small"
           value={applicantNameInput}
           onChange={(e) => handleApplicantNameChange(e.target.value)}
           placeholder="申請者名で絞り込み"
-          aria-label="申請者名フィルタ"
+          label="申請者名"
+          inputProps={{ 'data-testid': 'payable-filter-applicant-name', 'aria-label': '申請者名フィルタ' }}
         />
         <FilterResetButton onReset={handleFilterReset} isFiltered={isFiltered} />
       </div>

@@ -2,6 +2,7 @@
 // 所有者が実行できる操作（編集・提出・削除・再申請）を表示する。
 // SCR-RPT-004 に対応する。
 
+import Button from '@mui/material/Button';
 import type { ReportStatus } from '../../api/types';
 
 export interface OwnerActionsProps {
@@ -34,11 +35,11 @@ export default function OwnerActions({
 
     return (
       <div>
-        <button type="button" onClick={onEdit} disabled={isEditDisabled}>
+        <Button variant="outlined" onClick={onEdit} disabled={isEditDisabled}>
           編集
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="contained"
           onClick={onSubmitReport}
           disabled={isSubmitDisabled}
           title={itemCount === 0 ? '明細を追加してください' : undefined}
@@ -51,10 +52,10 @@ export default function OwnerActions({
           ) : (
             '提出'
           )}
-        </button>
-        <button type="button" onClick={onDelete} disabled={isDeleteDisabled}>
+        </Button>
+        <Button variant="outlined" color="error" onClick={onDelete} disabled={isDeleteDisabled}>
           削除
-        </button>
+        </Button>
       </div>
     );
   }
@@ -62,9 +63,9 @@ export default function OwnerActions({
   if (status === 'rejected') {
     return (
       <div>
-        <button type="button" onClick={onResubmit}>
+        <Button variant="contained" onClick={onResubmit}>
           再申請
-        </button>
+        </Button>
       </div>
     );
   }

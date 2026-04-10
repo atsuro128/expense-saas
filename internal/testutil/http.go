@@ -34,7 +34,7 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	t.Helper()
 
 	kp := GenerateTestKeyPair(t)
-	verifier := appjwt.NewVerifierFromKey(kp.PublicKey)
+	verifier := appjwt.NewVerifierFromKey(kp.PublicKey, "expense-saas-key-1")
 
 	// repository 層。
 	tenantRepo := postgres.NewTenantRepo(pool)
@@ -53,7 +53,7 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	// 認証ドメインサービス（Argon2id + JWT）。
 	hasher := domain.NewArgon2idHasher()
 	tokenGen := domain.NewJWTGenerator(kp.PrivateKey)
-	tokenVerifier := domain.NewJWTVerifier(kp.PublicKey)
+	tokenVerifier := domain.NewJWTVerifier(kp.PublicKey, "expense-saas-key-1")
 
 	// service 層。
 	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)

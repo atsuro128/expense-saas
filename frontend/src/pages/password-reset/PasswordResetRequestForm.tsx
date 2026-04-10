@@ -2,9 +2,9 @@
 // React Hook Form + Zod (passwordResetRequestSchema) でバリデーションを行い、
 // 送信時に onSubmit コールバックを呼び出す。
 
-import TextField from '@mui/material/TextField';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import AppTextField from '../../components/ui/AppTextField';
 import FormAlert from '../../components/ui/FormAlert';
 import SubmitButton from '../../components/ui/SubmitButton';
 import {
@@ -51,15 +51,14 @@ export default function PasswordResetRequestForm({
   return (
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
-      <TextField
+      <AppTextField
         {...register('email')}
+        name="email"
         id="email"
         label="メールアドレス"
         type="email"
-        fullWidth
         disabled={isPending}
-        error={!!errors.email}
-        helperText={errors.email?.message}
+        errorMessage={errors.email?.message}
         sx={{ mb: 2 }}
       />
       <SubmitButton label="送信" loading={isPending} />

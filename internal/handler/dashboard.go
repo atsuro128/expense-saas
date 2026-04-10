@@ -28,7 +28,7 @@ func (h *DashboardHandler) GetDashboard(w http.ResponseWriter, r *http.Request) 
 
 	data, err := h.svc.GetDashboard(r.Context(), actor)
 	if err != nil {
-		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "ダッシュボードデータの取得に失敗しました")
+		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 		return
 	}
 

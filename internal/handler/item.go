@@ -143,13 +143,7 @@ func (h *ItemHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(details) > 0 {
-		middleware.RespondJSON(w, http.StatusUnprocessableEntity, middleware.ErrorResponse{
-			Error: middleware.ErrorBody{
-				Code:    "VALIDATION_ERROR",
-				Message: "入力パラメータに誤りがあります",
-				Details: details,
-			},
-		})
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -293,13 +287,7 @@ func (h *ItemHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if len(details) > 0 {
-		middleware.RespondJSON(w, http.StatusUnprocessableEntity, middleware.ErrorResponse{
-			Error: middleware.ErrorBody{
-				Code:    "VALIDATION_ERROR",
-				Message: "入力パラメータに誤りがあります",
-				Details: details,
-			},
-		})
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 

@@ -2,6 +2,8 @@ package testutil
 
 import (
 	"errors"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/golang-migrate/migrate/v4"
@@ -14,7 +16,15 @@ import (
 func RunMigrations(t *testing.T, dbURL string) {
 	t.Helper()
 
-	m, err := migrate.New("file://db/migrations", dbURL)
+	// テストの実行ディレクトリに依存しないパス解決
+	_, thisFile, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("testutil: runtime.Caller failed")
+	}
+	root := filepath.Join(filepath.Dir(thisFile), "..", "..")
+	source := "file://" + filepath.Join(root, "db", "migrations")
+
+	m, err := migrate.New(source, dbURL)
 	if err != nil {
 		t.Fatalf("testutil: failed to create migrator: %v", err)
 	}

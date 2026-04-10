@@ -66,7 +66,9 @@ func GenerateTestToken(t *testing.T, userID, tenantID, role string) string {
 		},
 	}
 
+	// kid を設定して Verifier の kid 検証と一致させる（security.md §2.1）。
 	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "expense-saas-key-1"
 	signed, err := token.SignedString(kp.PrivateKey)
 	if err != nil {
 		t.Fatalf("testutil: failed to sign test JWT: %v", err)
@@ -95,6 +97,7 @@ func GenerateTestRefreshToken(t *testing.T, jti, userID string, expiry time.Time
 	}
 
 	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "expense-saas-key-1"
 	signed, err := token.SignedString(kp.PrivateKey)
 	if err != nil {
 		t.Fatalf("testutil: failed to sign refresh JWT: %v", err)
@@ -106,7 +109,7 @@ func GenerateTestRefreshToken(t *testing.T, jti, userID string, expiry time.Time
 func TestVerifier(t *testing.T) *appjwt.Verifier {
 	t.Helper()
 	kp := GenerateTestKeyPair(t)
-	return appjwt.NewVerifierFromKey(kp.PublicKey)
+	return appjwt.NewVerifierFromKey(kp.PublicKey, "expense-saas-key-1")
 }
 
 // GenerateExpiredTestToken は有効期限切れの RS256 署名済みアクセストークンを生成する。
@@ -130,7 +133,9 @@ func GenerateExpiredTestToken(t *testing.T, userID, tenantID, role string) strin
 		},
 	}
 
+	// kid を設定して Verifier の kid 検証と一致させる（security.md §2.1）。
 	token := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	token.Header["kid"] = "expense-saas-key-1"
 	signed, err := token.SignedString(kp.PrivateKey)
 	if err != nil {
 		t.Fatalf("testutil: failed to sign expired test JWT: %v", err)

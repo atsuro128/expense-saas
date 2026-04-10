@@ -175,7 +175,9 @@ describe('useUpdateReport（スタブ）', () => {
       ).rejects.toThrow();
     });
 
-    expect(result.current.isError).toBe(true);
-    expect((result.current.error as { code?: string })?.code).toBe('CONFLICT');
+    await waitFor(() => {
+      expect(result.current.isError).toBe(true);
+      expect((result.current.error as { code?: string })?.code).toBe('CONFLICT');
+    });
   });
 });
