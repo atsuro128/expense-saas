@@ -1,6 +1,8 @@
 // レポート作成ボタンコンポーネント（スタブ）。
 // SCR-RPT-001 に対応する。
 
+import Button from '@mui/material/Button';
+
 export interface CreateReportButtonProps {
   /** ボタン押下時のコールバック */
   onClick: () => void;
@@ -11,8 +13,8 @@ export interface CreateReportButtonProps {
  */
 export default function CreateReportButton({ onClick }: CreateReportButtonProps) {
   return (
-    <button type="button" onClick={onClick}>
+    <Button variant="contained" onClick={onClick}>
       + レポート作成
-    </button>
+    </Button>
   );
 }
