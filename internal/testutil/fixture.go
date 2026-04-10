@@ -45,7 +45,6 @@ const (
 
 // SeedFixtures は標準テストフィクスチャをすべてテストデータベースに挿入する。
 // RLS をバイパスするため、オーナーロールの直接コネクションを使用する。
-// マイグレーションで挿入済みのグローバルカテゴリシードはここでは再挿入しない。
 func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
@@ -136,7 +135,21 @@ func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 		}
 	}
 
-	// 経費項目フィクスチャで使用する交通費カテゴリ ID をマイグレーションシードから取得する。
+	// CleanupTables の TRUNCATE CASCADE でグローバルカテゴリが削除されるため、毎回再投入する。
+	if _, err := conn.Exec(ctx, `
+		INSERT INTO categories (category_id, tenant_id, code, name_ja, sort_order, is_active) VALUES
+			(gen_random_uuid(), NULL, 'transportation', '交通費', 1, true),
+			(gen_random_uuid(), NULL, 'accommodation', '宿泊費', 2, true),
+			(gen_random_uuid(), NULL, 'food', '飲食費', 3, true),
+			(gen_random_uuid(), NULL, 'supplies', '消耗品費', 4, true),
+			(gen_random_uuid(), NULL, 'communication', '通信費', 5, true),
+			(gen_random_uuid(), NULL, 'other', 'その他', 6, true)
+		ON CONFLICT (code) WHERE tenant_id IS NULL DO NOTHING
+	`); err != nil {
+		t.Fatalf("testutil: SeedFixtures: insert global categories: %v", err)
+	}
+
+	// 経費項目フィクスチャで使用する交通費カテゴリ ID を取得する。
 	var transportCategoryID uuid.UUID
 	if err := conn.QueryRow(ctx,
 		`SELECT category_id FROM categories WHERE code = 'transportation' AND tenant_id IS NULL`,
