@@ -52,7 +52,7 @@ vi.mock('../../components/ui/AppDataGrid', () => ({
       return <div data-testid="app-data-grid">{props.emptyMessage}</div>;
     }
     return (
-      <table data-testid="pending-report-table">
+      <table data-testid="pending-report-table" data-column-count={props.columns.length}>
         <tbody>
           {props.rows.map((row) => (
             <tr
@@ -439,6 +439,8 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     // 申請者名・タイトルが表示されること。
     expect(screen.getByText('田中太郎')).toBeInTheDocument();
     expect(screen.getByText('4月交通費')).toBeInTheDocument();
+    // 遷移アイコン列を含む5カラムであること。
+    expect(screen.getByTestId('pending-report-table')).toHaveAttribute('data-column-count', '5');
   });
 
   // WFL-FE-017: is_own_report=true のレポートに「自分」ラベルが表示される。
