@@ -35,7 +35,7 @@ const COLUMNS: GridColDef[] = [
   },
   {
     field: 'total_amount',
-    headerName: '金額',
+    headerName: '合計金額',
     flex: 1,
     // 金額を ¥ プレフィックス付きで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,

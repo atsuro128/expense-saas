@@ -45,7 +45,7 @@ const COLUMNS: GridColDef[] = [
     headerName: '合計金額',
     flex: 1,
     // 金額を 3 桁カンマ区切りで表示する。
-    valueFormatter: (value: number) => value.toLocaleString(),
+    valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
   {
     field: 'status',
