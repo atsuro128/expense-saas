@@ -4,51 +4,50 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import Button from '@mui/material/Button';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
+import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import TextField from '@mui/material/TextField';
+import AppDataGrid from '../components/ui/AppDataGrid';
+import AppPagination from '../components/ui/AppPagination';
 import AppToast from '../components/ui/AppToast';
 import PageSkeleton from '../components/ui/PageSkeleton';
 import FilterResetButton from '../components/ui/FilterResetButton';
 import SelfLabel from '../components/ui/SelfLabel';
 import { usePendingReports } from '../hooks/useReports';
 
-/**
- * 簡易ページネーションコンポーネント（data-testid 付きボタン）。
- */
-function SimplePagination({
-  currentPage,
-  totalPages,
-  onPageChange,
-}: {
-  currentPage: number;
-  totalPages: number;
-  onPageChange: (page: number) => void;
-}) {
-  if (totalPages <= 1) return null;
-
-  return (
-    <div data-testid="app-pagination">
-      {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-        <Button
-          key={page}
-          variant={page === currentPage ? 'contained' : 'outlined'}
-          size="small"
-          data-testid={`pagination-page-${page}`}
-          onClick={() => onPageChange(page)}
-          disabled={page === currentPage}
-          aria-current={page === currentPage ? 'page' : undefined}
-        >
-          {page}
-        </Button>
-      ))}
-    </div>
-  );
-}
+/** テーブルのカラム定義。openapi.yaml の PendingReport フィールドに準拠する。 */
+const COLUMNS: GridColDef[] = [
+  {
+    field: 'submitter_name',
+    headerName: '申請者名',
+    flex: 1,
+    // 申請者名と「自分」ラベルを並べて表示する。
+    renderCell: (params) => (
+      <>
+        {params.row.submitter_name as string}
+        <SelfLabel isOwnReport={params.row.is_own_report as boolean} />
+      </>
+    ),
+  },
+  {
+    field: 'title',
+    headerName: 'タイトル',
+    flex: 2,
+  },
+  {
+    field: 'total_amount',
+    headerName: '金額',
+    flex: 1,
+    // 金額を ¥ プレフィックス付きで表示する。
+    valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
+  },
+  {
+    field: 'submitted_at',
+    headerName: '提出日',
+    flex: 1,
+    valueFormatter: (value: string | null) =>
+      value ? new Date(value).toLocaleDateString('ja-JP') : '-',
+  },
+];
 
 /**
  * ApprovalListPage は承認待ちレポートの一覧を表示する画面。
@@ -69,7 +68,7 @@ export default function ApprovalListPage() {
   // デバウンスされたフィルタ値（300ms 後に URL に反映）。
   const [debouncedApplicantName, setDebouncedApplicantName] = useState(applicantNameParam);
 
-  // toastの表示状態。
+  // トーストの表示状態。
   const [toastOpen, setToastOpen] = useState(false);
 
   // 入力値のデバウンス処理（300ms 遅延）。
@@ -142,6 +141,17 @@ export default function ApprovalListPage() {
   const totalCount = pagination?.total_count ?? 0;
   const totalPages = pagination?.total_pages ?? 1;
 
+  // AppDataGrid の rows に変換する。submitter_name をフラット化する。
+  const rows = reports.map((report) => ({
+    ...report,
+    submitter_name: report.submitter?.name ?? '',
+  })) as readonly Record<string, unknown>[];
+
+  // 空状態メッセージをフィルタ有無で切り替える。
+  const emptyMessage = isFiltered
+    ? '条件に一致するレポートはありません。'
+    : '承認待ちのレポートはありません。';
+
   // ローディング中はスケルトンを表示する。
   if (isLoading) {
     return (
@@ -172,57 +182,28 @@ export default function ApprovalListPage() {
         <FilterResetButton onReset={handleFilterReset} isFiltered={isFiltered} />
       </div>
 
-      {/* 空状態 */}
-      {!isLoading && reports.length === 0 && (
-        <div>
-          {isFiltered ? (
-            <p>条件に一致するレポートはありません。</p>
-          ) : (
-            <p>承認待ちのレポートはありません。</p>
-          )}
-        </div>
+      {/* 件数表示（データがある場合のみ） */}
+      {reports.length > 0 && (
+        <p>{totalCount} 件の承認待ちレポート</p>
       )}
 
-      {/* テーブル */}
-      {!isLoading && reports.length > 0 && (
-        <>
-          <p>{totalCount} 件の承認待ちレポート</p>
-          <Table data-testid="pending-report-table">
-            <TableHead>
-              <TableRow>
-                <TableCell>申請者</TableCell>
-                <TableCell>タイトル</TableCell>
-                <TableCell>金額</TableCell>
-                <TableCell>提出日</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {reports.map((report) => (
-                <TableRow
-                  key={report.id}
-                  data-testid={`pending-report-row-${report.id}`}
-                  onClick={() => void navigate(`/reports/${report.id}`)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <TableCell>
-                    {report.submitter?.name ?? ''}
-                    <SelfLabel isOwnReport={report.is_own_report ?? false} />
-                  </TableCell>
-                  <TableCell>{report.title}</TableCell>
-                  <TableCell>{report.total_amount.toLocaleString()}</TableCell>
-                  <TableCell>{report.submitted_at ?? ''}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          {/* ページネーション */}
-          <SimplePagination
-            currentPage={page}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-          />
-        </>
-      )}
+      {/* データグリッド（emptyMessage で空状態も表示） */}
+      <AppDataGrid
+        columns={COLUMNS}
+        rows={rows}
+        loading={false}
+        hideFooterPagination
+        emptyMessage={emptyMessage}
+        onRowClick={(params: GridRowParams) => void navigate(`/reports/${(params.row as { id: string }).id}`)}
+        sx={{ cursor: 'pointer' }}
+      />
+
+      {/* ページネーション */}
+      <AppPagination
+        currentPage={page}
+        totalPages={totalPages}
+        onPageChange={handlePageChange}
+      />
 
       {/* エラートースト */}
       <AppToast
