@@ -17,7 +17,7 @@ import (
 )
 
 type authService struct {
-	pool             *pgxpool.Pool
+	ownerPool        *pgxpool.Pool
 	userRepo         domain.UserRepository
 	tenantRepo       domain.TenantRepository
 	membershipRepo   domain.MembershipRepository
@@ -37,8 +37,10 @@ var dummyHash = func() string {
 }()
 
 // NewAuthService は AuthService を生成して返す。
+// ownerPool は expense_owner ロール用の DB pool で、RLS が設定されていないため
+// テナント未確定の認証操作（signup / login / refresh / logout / password-reset）に使用する。
 func NewAuthService(
-	pool *pgxpool.Pool,
+	ownerPool *pgxpool.Pool,
 	userRepo domain.UserRepository,
 	tenantRepo domain.TenantRepository,
 	membershipRepo domain.MembershipRepository,
@@ -49,7 +51,7 @@ func NewAuthService(
 	tokenVerifier domain.TokenVerifier,
 ) AuthService {
 	return &authService{
-		pool:             pool,
+		ownerPool:        ownerPool,
 		userRepo:         userRepo,
 		tenantRepo:       tenantRepo,
 		membershipRepo:   membershipRepo,
@@ -83,7 +85,8 @@ func (s *authService) Signup(ctx context.Context, params SignupParams) (*domain.
 	}
 
 	// (c) トランザクション開始（db_schema.md §3.5 集約境界準拠）。
-	tx, err := s.pool.Begin(ctx)
+	// ownerPool を使用して RLS の影響を受けずにテナント横断操作を実行する。
+	tx, err := s.ownerPool.Begin(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Signup: begin transaction: %w", err)
 	}
@@ -143,8 +146,8 @@ func (s *authService) Signup(ctx context.Context, params SignupParams) (*domain.
 }
 
 // Login はメールアドレスとパスワードでユーザーを認証し、認証トークンを返す。
-// (a) GetByEmail, (b) VerifyPassword, (c) GetByUserID(membership),
-// (d) トークン生成・保存, (e) AuthResult 返却。
+// (a) GetByEmail, (b) VerifyPassword, (c) ownerPool からコネクション取得・SetConn,
+// (d) GetByUserID(membership), (e) トークン生成・保存, (f) AuthResult 返却。
 func (s *authService) Login(ctx context.Context, email, password string) (*domain.AuthResult, error) {
 	// (a) メールでユーザーを取得する。存在しない場合は INVALID_CREDENTIALS（SEC-011）。
 	user, err := s.userRepo.GetByEmail(ctx, email)
@@ -167,7 +170,16 @@ func (s *authService) Login(ctx context.Context, email, password string) (*domai
 		return nil, domain.ErrInvalidCredentials
 	}
 
-	// (c) メンバーシップを取得してテナントとロールを確定する。
+	// (c) ownerPool から接続を取得してコンテキストに注入する。
+	// これにより後続リポジトリ操作が RLS の影響を受けない owner 接続を使用する。
+	conn, err := s.ownerPool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authService.Login: acquire connection: %w", err)
+	}
+	defer conn.Release()
+	ctx = middleware.SetConn(ctx, conn)
+
+	// (d) メンバーシップを取得してテナントとロールを確定する。
 	membership, err := s.membershipRepo.GetByUserID(ctx, user.UserID)
 	if err != nil {
 		if errors.Is(err, domain.ErrResourceNotFound) {
@@ -182,7 +194,7 @@ func (s *authService) Login(ctx context.Context, email, password string) (*domai
 		return nil, fmt.Errorf("authService.Login: get tenant: %w", err)
 	}
 
-	// (d) トークン生成・保存。
+	// (e) トークン生成・保存。
 	accessToken, err := s.tokenGen.GenerateAccessToken(user.UserID, tenant.TenantID, membership.Role)
 	if err != nil {
 		return nil, fmt.Errorf("authService.Login: generate access token: %w", err)
@@ -204,14 +216,15 @@ func (s *authService) Login(ctx context.Context, email, password string) (*domai
 		return nil, fmt.Errorf("authService.Login: save refresh token: %w", err)
 	}
 
-	// (e) AuthResult 返却。
+	// (f) AuthResult 返却。
 	result := buildAuthResult(user, tenant, membership.Role, accessToken, refreshToken)
 	return result, nil
 }
 
 // RefreshToken は有効なリフレッシュトークンを使って新しいトークンペアを発行する。
-// (a) VerifyRefreshToken, (b) GetByJTI, (c) is_revoked チェック,
-// (d) 旧トークン revoke, (e) 最新ロール・テナント取得, (f) 新トークン生成・保存。
+// (a) VerifyRefreshToken, (b) ownerPool からコネクション取得・SetConn,
+// (c) GetByJTI, (d) is_revoked チェック,
+// (e) 旧トークン revoke, (f) 最新ロール・テナント取得, (g) 新トークン生成・保存。
 func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthResult, error) {
 	// (a) トークン検証。
 	rtClaims, err := s.tokenVerifier.VerifyRefreshToken(refreshToken)
@@ -219,7 +232,15 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, err // ErrTokenExpired or ErrInvalidToken をそのまま返す。
 	}
 
-	// (b) DB で JTI を検索する。
+	// (b) ownerPool から接続を取得してコンテキストに注入する。
+	conn, err := s.ownerPool.Acquire(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("authService.RefreshToken: acquire connection: %w", err)
+	}
+	defer conn.Release()
+	ctx = middleware.SetConn(ctx, conn)
+
+	// (c) DB で JTI を検索する。
 	storedToken, err := s.refreshTokenRepo.GetByJTI(ctx, rtClaims.JTI)
 	if err != nil {
 		if errors.Is(err, domain.ErrResourceNotFound) {
@@ -228,7 +249,7 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, fmt.Errorf("authService.RefreshToken: get refresh token: %w", err)
 	}
 
-	// (c) 失効済みチェック。
+	// (d) 失効済みチェック。
 	// 無効化済みトークンでのリフレッシュ試行はトークン再利用を示す。
 	// security.md §2.1 に従い、同一ユーザーの全セッションを無効化する。
 	if storedToken.IsRevoked {
@@ -239,12 +260,12 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, domain.ErrTokenRevoked
 	}
 
-	// (d) 旧トークンを revoke する（トークンローテーション）。
+	// (e) 旧トークンを revoke する（トークンローテーション）。
 	if err := s.refreshTokenRepo.Revoke(ctx, rtClaims.JTI); err != nil {
 		return nil, fmt.Errorf("authService.RefreshToken: revoke old token: %w", err)
 	}
 
-	// (e) 最新のロール・テナント情報を取得する。
+	// (f) 最新のロール・テナント情報を取得する。
 	membership, err := s.membershipRepo.GetByUserID(ctx, rtClaims.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("authService.RefreshToken: get membership: %w", err)
@@ -260,7 +281,7 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 		return nil, fmt.Errorf("authService.RefreshToken: get user: %w", err)
 	}
 
-	// (f) 新トークン生成・保存。
+	// (g) 新トークン生成・保存。
 	newAccessToken, err := s.tokenGen.GenerateAccessToken(user.UserID, tenant.TenantID, membership.Role)
 	if err != nil {
 		return nil, fmt.Errorf("authService.RefreshToken: generate access token: %w", err)
@@ -287,7 +308,8 @@ func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*d
 }
 
 // Logout は指定されたリフレッシュトークンを無効化する。
-// (a) VerifyRefreshToken, (b) GetByJTI, (c) is_revoked チェック, (d) Revoke。
+// (a) VerifyRefreshToken, (b) ownerPool からコネクション取得・SetConn,
+// (c) GetByJTI, (d) is_revoked チェック, (e) Revoke。
 func (s *authService) Logout(ctx context.Context, refreshToken string) error {
 	// (a) トークン検証。
 	rtClaims, err := s.tokenVerifier.VerifyRefreshToken(refreshToken)
@@ -295,7 +317,15 @@ func (s *authService) Logout(ctx context.Context, refreshToken string) error {
 		return err // ErrTokenExpired or ErrInvalidToken をそのまま返す。
 	}
 
-	// (b) DB で JTI を検索する。
+	// (b) ownerPool から接続を取得してコンテキストに注入する。
+	conn, err := s.ownerPool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("authService.Logout: acquire connection: %w", err)
+	}
+	defer conn.Release()
+	ctx = middleware.SetConn(ctx, conn)
+
+	// (c) DB で JTI を検索する。
 	storedToken, err := s.refreshTokenRepo.GetByJTI(ctx, rtClaims.JTI)
 	if err != nil {
 		if errors.Is(err, domain.ErrResourceNotFound) {
@@ -304,12 +334,12 @@ func (s *authService) Logout(ctx context.Context, refreshToken string) error {
 		return fmt.Errorf("authService.Logout: get refresh token: %w", err)
 	}
 
-	// (c) 失効済みチェック。
+	// (d) 失効済みチェック。
 	if storedToken.IsRevoked {
 		return domain.ErrTokenRevoked
 	}
 
-	// (d) Revoke。
+	// (e) Revoke。
 	if err := s.refreshTokenRepo.Revoke(ctx, rtClaims.JTI); err != nil {
 		return fmt.Errorf("authService.Logout: revoke token: %w", err)
 	}
@@ -347,10 +377,19 @@ func (s *authService) GetMe(ctx context.Context, actor domain.Actor) (*domain.Us
 
 // RequestPasswordReset はパスワードリセットトークンを生成して DB に保存する。
 // MVP ではメール送信はログ出力で代替する。
-// (a) GetByEmail（存在しなければ成功返却），(b) ランダムトークン生成,
-// (c) SHA-256 ハッシュ化→保存, (d) ログ出力。
+// (a) ownerPool からコネクション取得・SetConn,
+// (b) GetByEmail（存在しなければ成功返却），(c) ランダムトークン生成,
+// (d) SHA-256 ハッシュ化→保存, (e) ログ出力。
 func (s *authService) RequestPasswordReset(ctx context.Context, email string) error {
-	// (a) ユーザーを取得する。存在しない場合は情報漏洩防止のため何もせず成功返却（SEC-011）。
+	// (a) ownerPool から接続を取得してコンテキストに注入する。
+	conn, err := s.ownerPool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("authService.RequestPasswordReset: acquire connection: %w", err)
+	}
+	defer conn.Release()
+	ctx = middleware.SetConn(ctx, conn)
+
+	// (b) ユーザーを取得する。存在しない場合は情報漏洩防止のため何もせず成功返却（SEC-011）。
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
 		if errors.Is(err, domain.ErrResourceNotFound) {
@@ -360,21 +399,21 @@ func (s *authService) RequestPasswordReset(ctx context.Context, email string) er
 		return fmt.Errorf("authService.RequestPasswordReset: get user by email: %w", err)
 	}
 
-	// (b) ランダム 32 バイト → hex エンコード（64 文字トークン）。
+	// (c) ランダム 32 バイト → hex エンコード（64 文字トークン）。
 	rawBytes := make([]byte, 32)
 	if _, err := rand.Read(rawBytes); err != nil {
 		return fmt.Errorf("authService.RequestPasswordReset: generate token: %w", err)
 	}
 	tokenValue := hex.EncodeToString(rawBytes)
 
-	// (c) SHA-256 ハッシュ化して DB に保存する。有効期限: 1 時間。
+	// (d) SHA-256 ハッシュ化して DB に保存する。有効期限: 1 時間。
 	tokenHash := sha256Hex(tokenValue)
 	expiresAt := time.Now().Add(1 * time.Hour)
 	if _, err := s.passwordRepo.Create(ctx, user.UserID, tokenHash, expiresAt); err != nil {
 		return fmt.Errorf("authService.RequestPasswordReset: save token: %w", err)
 	}
 
-	// (d) MVP: メール送信はログ出力で代替する。
+	// (e) MVP: メール送信はログ出力で代替する。
 	slog.Info("パスワードリセットトークンを生成しました", "email", email, "token", tokenValue)
 
 	return nil
@@ -383,7 +422,8 @@ func (s *authService) RequestPasswordReset(ctx context.Context, email string) er
 // ExecutePasswordReset はトークンを検証してパスワードを更新する。
 // (a) 入力トークンの SHA-256 ハッシュ化, (b) GetByTokenHash,
 // (c) UsedAt 非nil → ErrInvalidToken, (d) ExpiresAt < now → ErrTokenExpired,
-// (e) 新パスワードハッシュ化, (f) UpdatePassword, (g) MarkUsed, (h) RevokeAllByUserID。
+// (e) 新パスワードハッシュ化, (f) ownerPool でトランザクション開始,
+// (g) UpdatePassword, (h) MarkUsed, (i) RevokeAllByUserID, (j) コミット。
 func (s *authService) ExecutePasswordReset(ctx context.Context, token, newPassword string) error {
 	// (a) 入力トークンを SHA-256 でハッシュ化する。
 	tokenHash := sha256Hex(token)
@@ -412,25 +452,39 @@ func (s *authService) ExecutePasswordReset(ctx context.Context, token, newPasswo
 		return domain.ErrTokenExpired
 	}
 
-	// (e) 新パスワードハッシュ化。
+	// (e) 新パスワードハッシュ化（トランザクション外で実行して計算コストを分離する）。
 	newHash, err := s.hasher.HashPassword(newPassword)
 	if err != nil {
 		return fmt.Errorf("authService.ExecutePasswordReset: hash password: %w", err)
 	}
 
-	// (f) パスワード更新。
-	if err := s.userRepo.UpdatePassword(ctx, storedToken.UserID, newHash); err != nil {
+	// (f) ownerPool でトランザクション開始（複数書き込みを原子化する）。
+	tx, err := s.ownerPool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("authService.ExecutePasswordReset: begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	txCtx := middleware.SetTx(ctx, tx)
+
+	// (g) パスワード更新。
+	if err := s.userRepo.UpdatePassword(txCtx, storedToken.UserID, newHash); err != nil {
 		return fmt.Errorf("authService.ExecutePasswordReset: update password: %w", err)
 	}
 
-	// (g) トークンを使用済みとしてマーク。
-	if err := s.passwordRepo.MarkUsed(ctx, storedToken.ID); err != nil {
+	// (h) トークンを使用済みとしてマーク。
+	if err := s.passwordRepo.MarkUsed(txCtx, storedToken.ID); err != nil {
 		return fmt.Errorf("authService.ExecutePasswordReset: mark used: %w", err)
 	}
 
-	// (h) ユーザーの全リフレッシュトークンを失効させる（security.md §2.3）。
-	if err := s.refreshTokenRepo.RevokeAllByUserID(ctx, storedToken.UserID); err != nil {
+	// (i) ユーザーの全リフレッシュトークンを失効させる（security.md §2.3）。
+	if err := s.refreshTokenRepo.RevokeAllByUserID(txCtx, storedToken.UserID); err != nil {
 		return fmt.Errorf("authService.ExecutePasswordReset: revoke all tokens: %w", err)
+	}
+
+	// (j) コミット。
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("authService.ExecutePasswordReset: commit transaction: %w", err)
 	}
 
 	return nil

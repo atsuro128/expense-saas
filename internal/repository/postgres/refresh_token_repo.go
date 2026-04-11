@@ -59,10 +59,11 @@ func (r *refreshTokenRepo) Revoke(ctx context.Context, jti uuid.UUID) error {
 
 // RevokeAllByUserID は指定ユーザーの全リフレッシュトークンを失効済みにする。
 // パスワードリセット後の強制ログアウトに使用する（security.md §2.3）。
+// コンテキストに tx/conn が注入されている場合はそちらを優先して使用する。
 func (r *refreshTokenRepo) RevokeAllByUserID(ctx context.Context, userID uuid.UUID) error {
-	// sqlcgen に対応クエリがないため pool を直接使用する。
-	conn := r.pool
-	_, err := conn.Exec(ctx,
+	// sqlcgen に対応クエリがないため execer 経由で raw SQL を実行する。
+	db := execer(ctx, r.pool)
+	_, err := db.Exec(ctx,
 		`UPDATE refresh_tokens SET is_revoked = true WHERE user_id = $1 AND is_revoked = false`,
 		userID,
 	)
