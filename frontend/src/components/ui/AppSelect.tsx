@@ -1,6 +1,7 @@
 // Select ラッパーコンポーネント。
 // size="small" と fullWidth をデフォルト化し、空選択肢のプレースホルダーを統一する。
 
+import type { HTMLAttributes } from 'react';
 import FormControl from '@mui/material/FormControl';
 import FormHelperText from '@mui/material/FormHelperText';
 import InputLabel from '@mui/material/InputLabel';
@@ -35,6 +36,18 @@ export interface AppSelectProps {
   required?: boolean;
   /** 無効化 */
   disabled?: boolean;
+  /**
+   * FormControl の fullWidth を制御する。
+   * デフォルト true（後方互換性維持）。
+   * フィルタ等、幅を制限したい場合は false を指定する。
+   */
+  fullWidth?: boolean;
+  /**
+   * MUI Select の SelectDisplayProps。
+   * data-testid 等のカスタムデータ属性を display div に設定したい場合に使用する。
+   * HTMLAttributes に加えてカスタムデータ属性（data-*）を受け付ける。
+   */
+  selectDisplayProps?: HTMLAttributes<HTMLDivElement> & { [key: string]: unknown };
 }
 
 /**
@@ -52,6 +65,8 @@ export default function AppSelect({
   errorMessage,
   required = false,
   disabled = false,
+  fullWidth = true,
+  selectDisplayProps,
 }: AppSelectProps) {
   const labelId = `${name}-label`;
 
@@ -62,7 +77,7 @@ export default function AppSelect({
   return (
     <FormControl
       size="small"
-      fullWidth
+      fullWidth={fullWidth}
       error={!!errorMessage}
       required={required}
       disabled={disabled}
@@ -75,7 +90,8 @@ export default function AppSelect({
         value={value}
         label={label}
         onChange={handleChange}
-        displayEmpty={!!placeholder}
+        displayEmpty
+        SelectDisplayProps={selectDisplayProps}
       >
         {/* 未選択時のプレースホルダー */}
         {placeholder && (
