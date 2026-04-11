@@ -57,9 +57,28 @@ func main() {
 	}
 	defer pool.Close()
 
+	// 3b. オーナーロール用データベースの接続プールを作成する。
+	// 認証系エンドポイントはテナント未確定のため RLS が適用されない expense_owner ロールで接続する。
+	ownerPoolCfg, err := pgxpool.ParseConfig(cfg.DatabaseURL)
+	if err != nil {
+		slog.Error("failed to parse owner database URL", "error", err)
+		os.Exit(1)
+	}
+	ownerPoolCfg.MaxConns = 5
+	ownerPool, err := pgxpool.NewWithConfig(context.Background(), ownerPoolCfg)
+	if err != nil {
+		slog.Error("failed to create owner database connection pool", "error", err)
+		os.Exit(1)
+	}
+	defer ownerPool.Close()
+
 	// 4. データベースへの疎通確認を行う。
 	if err := pool.Ping(context.Background()); err != nil {
 		slog.Error("failed to ping database", "error", err)
+		os.Exit(1)
+	}
+	if err := ownerPool.Ping(context.Background()); err != nil {
+		slog.Error("failed to ping owner database", "error", err)
 		os.Exit(1)
 	}
 	slog.Info("database connection established")
@@ -116,7 +135,7 @@ func main() {
 	}
 
 	// サービス。
-	authSvc := service.NewAuthService(pool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
+	authSvc := service.NewAuthService(ownerPool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient)
