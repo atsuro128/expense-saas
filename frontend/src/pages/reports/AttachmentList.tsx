@@ -2,6 +2,7 @@
 // 添付ファイル一覧を表示し、ダウンロードと削除操作を提供する。
 // report-detail.md §AttachmentList に対応する。
 
+import Button from '@mui/material/Button';
 import type { Attachment } from '../../api/types';
 
 export interface AttachmentListProps {
@@ -38,26 +39,29 @@ export default function AttachmentList({
         <ul>
           {attachments.map((att) => (
             <li key={att.id} data-testid={`attachment-item-${att.id}`}>
-              <button
-                type="button"
+              <Button
+                variant="text"
+                size="small"
                 onClick={() => onDownload(att.id)}
                 disabled={deletingId === att.id}
                 data-testid={`attachment-download-${att.id}`}
               >
                 {att.file_name}
-              </button>
+              </Button>
               <span data-testid={`attachment-size-${att.id}`}>
                 {att.file_size}
               </span>
               {canDelete && (
-                <button
-                  type="button"
+                <Button
+                  variant="text"
+                  size="small"
+                  color="error"
                   onClick={() => onDelete(att.id)}
                   disabled={deletingId === att.id}
                   data-testid={`attachment-delete-${att.id}`}
                 >
                   削除
-                </button>
+                </Button>
               )}
             </li>
           ))}

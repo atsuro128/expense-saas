@@ -1,6 +1,12 @@
 // レポート一覧テーブルコンポーネント（スタブ）。
 // SCR-RPT-001 に対応する。
 
+import Button from '@mui/material/Button';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import type { ReportStatus } from '../../api/types';
 
 export interface ReportListItem {
@@ -35,44 +41,44 @@ export default function ReportListTable({
       <div data-testid="empty-state">
         <p>経費レポートはまだありません。レポートを作成して経費精算を始めましょう。</p>
         {onCreateReport && (
-          <button type="button" onClick={onCreateReport}>
+          <Button variant="contained" onClick={onCreateReport}>
             レポートを作成
-          </button>
+          </Button>
         )}
       </div>
     );
   }
 
   return (
-    <table data-loading={loading}>
-      <thead>
-        <tr>
-          <th>タイトル</th>
-          <th>対象期間</th>
-          <th>合計金額</th>
-          <th>ステータス</th>
-          <th>作成日</th>
-        </tr>
-      </thead>
-      <tbody>
+    <Table data-loading={loading}>
+      <TableHead>
+        <TableRow>
+          <TableCell>タイトル</TableCell>
+          <TableCell>対象期間</TableCell>
+          <TableCell>合計金額</TableCell>
+          <TableCell>ステータス</TableCell>
+          <TableCell>作成日</TableCell>
+        </TableRow>
+      </TableHead>
+      <TableBody>
         {reports.map((r) => (
-          <tr
+          <TableRow
             key={r.id}
             onClick={() => onRowClick?.(r.id)}
             style={{ cursor: 'pointer' }}
           >
-            <td>{r.title}</td>
-            <td>
+            <TableCell>{r.title}</TableCell>
+            <TableCell>
               {r.periodStart} 〜 {r.periodEnd}
-            </td>
-            <td>{r.totalAmount.toLocaleString()}</td>
-            <td>
+            </TableCell>
+            <TableCell>{r.totalAmount.toLocaleString()}</TableCell>
+            <TableCell>
               <span data-status={r.status}>{r.status}</span>
-            </td>
-            <td>{r.createdAt}</td>
-          </tr>
+            </TableCell>
+            <TableCell>{r.createdAt}</TableCell>
+          </TableRow>
         ))}
-      </tbody>
-    </table>
+      </TableBody>
+    </Table>
   );
 }

@@ -4,6 +4,12 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import Button from '@mui/material/Button';
+import Table from '@mui/material/Table';
+import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import AppToast from '../components/ui/AppToast';
 import PageSkeleton from '../components/ui/PageSkeleton';
@@ -28,16 +34,17 @@ function SimplePagination({
   return (
     <div data-testid="app-pagination">
       {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-        <button
+        <Button
           key={page}
-          type="button"
+          variant={page === currentPage ? 'contained' : 'outlined'}
+          size="small"
           data-testid={`pagination-page-${page}`}
           onClick={() => onPageChange(page)}
           disabled={page === currentPage}
           aria-current={page === currentPage ? 'page' : undefined}
         >
           {page}
-        </button>
+        </Button>
       ))}
     </div>
   );
@@ -180,34 +187,34 @@ export default function PaymentListPage() {
       {!isLoading && reports.length > 0 && (
         <>
           <p>{totalCount} 件の支払待ちレポート</p>
-          <table data-testid="payable-report-table">
-            <thead>
-              <tr>
-                <th>申請者</th>
-                <th>タイトル</th>
-                <th>金額</th>
-                <th data-testid="payable-table-header-approved-at">承認日</th>
-              </tr>
-            </thead>
-            <tbody>
+          <Table data-testid="payable-report-table">
+            <TableHead>
+              <TableRow>
+                <TableCell>申請者</TableCell>
+                <TableCell>タイトル</TableCell>
+                <TableCell>金額</TableCell>
+                <TableCell data-testid="payable-table-header-approved-at">承認日</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
               {reports.map((report) => (
-                <tr
+                <TableRow
                   key={report.id}
                   data-testid={`payable-report-row-${report.id}`}
                   onClick={() => void navigate(`/reports/${report.id}`)}
                   style={{ cursor: 'pointer' }}
                 >
-                  <td>
+                  <TableCell>
                     {report.submitter?.name ?? ''}
                     <SelfLabel isOwnReport={report.is_own_report ?? false} />
-                  </td>
-                  <td>{report.title}</td>
-                  <td>{report.total_amount.toLocaleString()}</td>
-                  <td>{report.approved_at ?? ''}</td>
-                </tr>
+                  </TableCell>
+                  <TableCell>{report.title}</TableCell>
+                  <TableCell>{report.total_amount.toLocaleString()}</TableCell>
+                  <TableCell>{report.approved_at ?? ''}</TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
+            </TableBody>
+          </Table>
           {/* ページネーション */}
           <SimplePagination
             currentPage={page}
