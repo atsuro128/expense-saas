@@ -4,7 +4,7 @@
 
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { ApiResponse, AuthTokens } from '../api/types';
+import type { ApiResponse, AuthTokens, AuthUser } from '../api/types';
 import { setTokens } from '../stores/auth';
 
 /** サインアップ入力パラメータ。 */
@@ -32,6 +32,11 @@ export function useSignup() {
       setTokens(data.access_token, data.refresh_token);
       // アカウント切り替え時に前ユーザーのキャッシュが残らないよう無効化する。
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
+      // ダッシュボード遷移時にキャッシュを温めてローディングスケルトンを回避する。
+      void queryClient.prefetchQuery({
+        queryKey: ['auth', 'me'],
+        queryFn: () => api.get<ApiResponse<AuthUser>>('/api/auth/me'),
+      });
     },
   });
 }
