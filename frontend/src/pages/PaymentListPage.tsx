@@ -6,6 +6,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import TextField from '@mui/material/TextField';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AppDataGrid from '../components/ui/AppDataGrid';
 import AppPagination from '../components/ui/AppPagination';
 import AppToast from '../components/ui/AppToast';
@@ -46,6 +47,15 @@ const COLUMNS: GridColDef[] = [
     flex: 1,
     valueFormatter: (value: string | null) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
+  },
+  {
+    // 詳細ページへの遷移を示すアイコン列。
+    field: 'navigate',
+    headerName: '',
+    width: 48,
+    sortable: false,
+    disableColumnMenu: true,
+    renderCell: () => <ChevronRightIcon fontSize="small" color="action" />,
   },
 ];
 
