@@ -428,7 +428,16 @@ func (s *authService) ExecutePasswordReset(ctx context.Context, token, newPasswo
 	// (a) 入力トークンを SHA-256 でハッシュ化する。
 	tokenHash := sha256Hex(token)
 
-	// (b) DB でトークンを検索する。
+	// (b) ownerPool でコネクション取得（password_reset_tokens は expense_owner 専用接続で扱う）。
+	conn, err := s.ownerPool.Acquire(ctx)
+	if err != nil {
+		return fmt.Errorf("authService.ExecutePasswordReset: acquire owner conn: %w", err)
+	}
+	defer conn.Release()
+
+	ctx = middleware.SetConn(ctx, conn)
+
+	// (c) DB でトークンを検索する。
 	// GetByTokenHash は used_at IS NULL AND expires_at > now() の条件で検索するため、
 	// 期限切れ・使用済みのトークンはここで ErrResourceNotFound が返る場合がある。
 	storedToken, err := s.passwordRepo.GetByTokenHash(ctx, tokenHash)
@@ -442,23 +451,23 @@ func (s *authService) ExecutePasswordReset(ctx context.Context, token, newPasswo
 		return fmt.Errorf("authService.ExecutePasswordReset: get token: %w", err)
 	}
 
-	// (c) 使用済みチェック。
+	// (d) 使用済みチェック。
 	if storedToken.UsedAt != nil {
 		return domain.ErrInvalidToken
 	}
 
-	// (d) 有効期限チェック。
+	// (e) 有効期限チェック。
 	if time.Now().After(storedToken.ExpiresAt) {
 		return domain.ErrTokenExpired
 	}
 
-	// (e) 新パスワードハッシュ化（トランザクション外で実行して計算コストを分離する）。
+	// (f) 新パスワードハッシュ化（トランザクション外で実行して計算コストを分離する）。
 	newHash, err := s.hasher.HashPassword(newPassword)
 	if err != nil {
 		return fmt.Errorf("authService.ExecutePasswordReset: hash password: %w", err)
 	}
 
-	// (f) ownerPool でトランザクション開始（複数書き込みを原子化する）。
+	// (g) ownerPool でトランザクション開始（複数書き込みを原子化する）。
 	tx, err := s.ownerPool.Begin(ctx)
 	if err != nil {
 		return fmt.Errorf("authService.ExecutePasswordReset: begin transaction: %w", err)

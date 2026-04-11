@@ -77,6 +77,10 @@ func main() {
 		slog.Error("failed to ping database", "error", err)
 		os.Exit(1)
 	}
+	if err := ownerPool.Ping(context.Background()); err != nil {
+		slog.Error("failed to ping owner database", "error", err)
+		os.Exit(1)
+	}
 	slog.Info("database connection established")
 
 	// 5. JWT 鍵ファイルの読み込みと JWT コンポーネントの初期化。
