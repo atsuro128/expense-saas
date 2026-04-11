@@ -10,24 +10,24 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
 import ReportEditPage from '../ReportEditPage';
 
-// useReport / useUpdateReport / useAuth Hook をモックする。
+// useReport / useUpdateReport / useCurrentUser Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
 vi.mock('../../hooks/useReports', () => ({
   useReport: vi.fn(),
   useUpdateReport: vi.fn(),
 }));
 
-vi.mock('../../hooks/useAuth', () => ({
-  useAuth: vi.fn(),
+vi.mock('../../hooks/useCurrentUser', () => ({
+  useCurrentUser: vi.fn(),
 }));
 
 // vi.mock 後に import することでモック済みの関数参照を取得する。
 import { useReport, useUpdateReport } from '../../hooks/useReports';
-import { useAuth } from '../../hooks/useAuth';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseUpdateReport = vi.mocked(useUpdateReport);
-const mockUseAuth = vi.mocked(useAuth);
+const mockUseCurrentUser = vi.mocked(useCurrentUser);
 
 // テスト用の既存レポートデータ（draft 状態、Test Member 所有）。
 const mockDraftReport = {
@@ -87,7 +87,7 @@ describe('ReportEditPage', () => {
   it('RPT-FE-050: useReport が既存データを返すと ReportForm に defaultValues がプリフィルされる', async () => {
     // 現在のユーザーを所有者として設定する。
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が既存レポートデータを返すようにモックする。
     // スタブ実装では useReport が未実装のため失敗する。
@@ -114,7 +114,7 @@ describe('ReportEditPage', () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReport }, isLoading: false, isError: false, error: null } as any);
@@ -168,7 +168,7 @@ describe('ReportEditPage', () => {
   // （report-edit.md §ReportEditPage: レポートが存在しない場合は一覧にリダイレクト）
   it('RPT-FE-052: useReport が 404 を返すと /reports にリダイレクトされトーストが表示される', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が 404 エラーを返すようにモックする。
     const notFoundError = Object.assign(new Error('Not Found'), { status: 404, code: 'RESOURCE_NOT_FOUND' });
@@ -202,7 +202,7 @@ describe('ReportEditPage', () => {
     // 現在のユーザーは所有者ではない（別ユーザー ID）。
     const otherUser = { ...mockCurrentUser, id: 'other-user-id', name: '別ユーザー', email: 'other@example.com' };
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: otherUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: otherUser }, isLoading: false } as any);
 
     // レポートの submitter.id は 'current-user-id'（現在のユーザーとは異なる）。
     mockUseReport.mockReturnValue({
@@ -231,7 +231,7 @@ describe('ReportEditPage', () => {
   // （report-edit.md §ReportEditPage: draft でない場合は詳細画面にリダイレクト）
   it('RPT-FE-054: draft でないレポートは /reports/:id にリダイレクトされトーストが表示される', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が status="submitted" のレポートを返すようにモックする。
     mockUseReport.mockReturnValue({
@@ -264,7 +264,7 @@ describe('ReportEditPage', () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReport }, isLoading: false, isError: false, error: null } as any);
@@ -302,7 +302,7 @@ describe('ReportEditPage', () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReport }, isLoading: false, isError: false, error: null } as any);
@@ -328,7 +328,7 @@ describe('ReportEditPage', () => {
   // （report-edit.md コンポーネントツリー: データ読み込み中は PageSkeleton 表示）
   it('RPT-FE-057: useReport isLoading=true のとき PageSkeleton（variant=form）が表示される', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport がローディング中の状態を返すようにモックする。
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

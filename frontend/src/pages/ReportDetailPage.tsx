@@ -12,7 +12,7 @@ import PageSkeleton from '../components/ui/PageSkeleton';
 import ConfirmDialog from '../components/ui/ConfirmDialog';
 import AppToast from '../components/ui/AppToast';
 import { useReport, useSubmitReport, useDeleteReport } from '../hooks/useReports';
-import { useAuth } from '../hooks/useAuth';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 import { useApproveReport } from '../hooks/useApproveReport';
 import { useRejectReport } from '../hooks/useRejectReport';
 import { useMarkAsPaid } from '../hooks/useMarkAsPaid';
@@ -54,7 +54,8 @@ export default function ReportDetailPage() {
   const queryClient = useQueryClient();
 
   // 現在のユーザー情報を取得する。
-  const { user } = useAuth();
+  const { data: currentUserResponse } = useCurrentUser();
+  const user = currentUserResponse?.data ?? null;
 
   // ダイアログ表示状態。
   const [dialogAction, setDialogAction] = useState<DialogAction>(null);

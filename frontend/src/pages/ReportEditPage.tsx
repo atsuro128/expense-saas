@@ -10,7 +10,7 @@ import ReportForm from '../components/report/ReportForm';
 import type { ReportFormValues } from '../components/report/ReportForm';
 import PageSkeleton from '../components/ui/PageSkeleton';
 import { useReport, useUpdateReport } from '../hooks/useReports';
-import { useAuth } from '../hooks/useAuth';
+import { useCurrentUser } from '../hooks/useCurrentUser';
 
 /**
  * BodyToast はページコンポーネントのライフサイクルに依存せず
@@ -46,7 +46,8 @@ export default function ReportEditPage() {
   const navigate = useNavigate();
 
   // 現在のユーザー情報を取得する。
-  const { user } = useAuth();
+  const { data: currentUserResponse } = useCurrentUser();
+  const user = currentUserResponse?.data ?? null;
 
   // API エラーメッセージ状態（409 Conflict 等）。
   const [apiError, setApiError] = useState<string | null>(null);
