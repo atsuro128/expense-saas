@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
 import ReportDetailPage from '../ReportDetailPage';
 
-// useReport / useSubmitReport / useDeleteReport / useAuth Hook をモックする。
+// useReport / useSubmitReport / useDeleteReport / useCurrentUser Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
 vi.mock('../../hooks/useReports', () => ({
   useReport: vi.fn(),
@@ -18,18 +18,18 @@ vi.mock('../../hooks/useReports', () => ({
   useDeleteReport: vi.fn(),
 }));
 
-vi.mock('../../hooks/useAuth', () => ({
-  useAuth: vi.fn(),
+vi.mock('../../hooks/useCurrentUser', () => ({
+  useCurrentUser: vi.fn(),
 }));
 
 // vi.mock 後に import することでモック済みの関数参照を取得する。
 import { useReport, useSubmitReport, useDeleteReport } from '../../hooks/useReports';
-import { useAuth } from '../../hooks/useAuth';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseSubmitReport = vi.mocked(useSubmitReport);
 const mockUseDeleteReport = vi.mocked(useDeleteReport);
-const mockUseAuth = vi.mocked(useAuth);
+const mockUseCurrentUser = vi.mocked(useCurrentUser);
 
 // テスト用 draft 状態のレポート詳細データ（Test Member 所有、明細1件あり）。
 const mockDraftReportDetail = {
@@ -100,7 +100,7 @@ describe('ReportDetailPage', () => {
   // （report-detail.md §ReportDetailPage: レポートデータを読み込み子コンポーネントに伝播）
   it('RPT-FE-064: useReport がデータを返すと ReportInfoCard と ReportActionBar が描画される', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が draft レポートデータを返すようにモックする。
     // スタブ実装では useReport が未実装のため失敗する。
@@ -131,7 +131,7 @@ describe('ReportDetailPage', () => {
   // （report-detail.md コンポーネントツリー: データ読み込み中は PageSkeleton 表示）
   it('RPT-FE-065: useReport isLoading=true のとき PageSkeleton が表示される', () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport がローディング中を返すようにモックする。
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -155,7 +155,7 @@ describe('ReportDetailPage', () => {
   // （report-detail.md §ReportDetailPage: レポートが存在しない場合は not found メッセージ表示）
   it('RPT-FE-066: useReport が 404 を返すと not found メッセージとレポート一覧リンクが表示される', async () => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が 404 エラーを返すようにモックする。
     const notFoundError = Object.assign(new Error('Not Found'), { status: 404, code: 'RESOURCE_NOT_FOUND' });
@@ -192,7 +192,7 @@ describe('ReportDetailPage', () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
@@ -256,7 +256,7 @@ describe('ReportDetailPage', () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
@@ -308,7 +308,7 @@ describe('ReportDetailPage', () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    mockUseAuth.mockReturnValue({ isAuthenticated: true, user: mockCurrentUser } as any);
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);

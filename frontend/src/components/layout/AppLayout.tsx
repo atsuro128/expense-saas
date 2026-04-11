@@ -9,7 +9,9 @@ import Container from '@mui/material/Container';
 import Toolbar from '@mui/material/Toolbar';
 import AppHeader from './AppHeader';
 import AppSidebar from './AppSidebar';
-import { clearTokens, getCurrentUser } from '../../stores/auth';
+import PageSkeleton from '../ui/PageSkeleton';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useLogout } from '../../hooks/useLogout';
 import type { HeaderUser } from './AppHeader';
 
 export interface AppLayoutProps {
@@ -21,25 +23,18 @@ export interface AppLayoutProps {
 const DRAWER_WIDTH = 240;
 
 /**
- * auth store からユーザー情報を取得し、HeaderUser に変換する。
- * login 時に /api/auth/me で取得した AuthUser が保持されている。
- */
-function getHeaderUser(): HeaderUser | null {
-  const user = getCurrentUser();
-  if (!user) return null;
-  return { name: user.name, role: user.role };
-}
-
-/**
  * AppLayout は認証済み画面の共通レイアウトを提供する。
  * AppHeader と AppSidebar を内部で統合し、メインコンテンツを描画する。
+ * useCurrentUser で GET /api/auth/me を取得し、ローディング中はスケルトンを表示する。
  */
 export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const logoutMutation = useLogout();
 
-  const user = getHeaderUser();
+  // TanStack Query でユーザー情報を取得する。
+  const { data: currentUserResponse, isLoading } = useCurrentUser();
 
   const handleToggleSidebar = () => {
     setSidebarOpen((prev) => !prev);
@@ -50,15 +45,27 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
 
   const handleLogout = () => {
-    clearTokens();
-    navigate('/login');
+    // サーバー側のリフレッシュトークン失効 + ローカル状態破棄を実行する。
+    logoutMutation.mutate(undefined, {
+      onSettled: () => {
+        navigate('/login');
+      },
+    });
   };
 
-  // ユーザー情報が無い場合はログイン画面にリダイレクト
-  if (!user) {
+  // ローディング中はスケルトンを表示する。
+  if (isLoading) {
+    return <PageSkeleton variant="card" />;
+  }
+
+  // ユーザー情報が取得できない場合はログイン画面にリダイレクトする。
+  const authUser = currentUserResponse?.data;
+  if (!authUser) {
     navigate('/login');
     return null;
   }
+
+  const user: HeaderUser = { name: authUser.name, role: authUser.role };
 
   return (
     <Box sx={{ display: 'flex' }}>
