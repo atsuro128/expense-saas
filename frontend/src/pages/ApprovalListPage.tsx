@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import TextField from '@mui/material/TextField';
 import AppDataGrid from '../components/ui/AppDataGrid';
 import AppPagination from '../components/ui/AppPagination';
@@ -46,6 +47,14 @@ const COLUMNS: GridColDef[] = [
     flex: 1,
     valueFormatter: (value: string | null) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
+  },
+  {
+    field: 'navigate',
+    headerName: '',
+    width: 48,
+    sortable: false,
+    disableColumnMenu: true,
+    renderCell: () => <ChevronRightIcon fontSize="small" color="action" />,
   },
 ];
 
