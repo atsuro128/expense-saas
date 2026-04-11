@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Toolbar from '@mui/material/Toolbar';
@@ -31,6 +32,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   // TanStack Query でユーザー情報を取得する。
   const { data: currentUserResponse, isLoading } = useCurrentUser();
@@ -45,6 +47,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const handleLogout = () => {
     clearTokens();
+    // ログアウト後にキャッシュされたユーザー情報が残らないようクエリキャッシュを破棄する。
+    queryClient.removeQueries({ queryKey: ['auth', 'me'] });
     navigate('/login');
   };
 
