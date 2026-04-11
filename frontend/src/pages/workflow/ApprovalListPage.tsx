@@ -1,21 +1,21 @@
-// 支払待ちレポート一覧ページ（PaymentListPage）。
-// SCR-WFL-002 に対応する。
-// Accounting ロールのユーザーが支払待ちのレポートを一覧表示する。
+// 承認待ちレポート一覧ページ（ApprovalListPage）。
+// SCR-WFL-001 に対応する。
+// Approver ロールのユーザーが承認待ちのレポートを一覧表示する。
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import TextField from '@mui/material/TextField';
-import AppDataGrid from '../components/ui/AppDataGrid';
-import AppPagination from '../components/ui/AppPagination';
-import AppToast from '../components/ui/AppToast';
-import PageSkeleton from '../components/ui/PageSkeleton';
-import FilterResetButton from '../components/ui/FilterResetButton';
-import SelfLabel from '../components/ui/SelfLabel';
-import { usePayableReports } from '../hooks/useReports';
+import AppDataGrid from '../../components/ui/AppDataGrid';
+import AppPagination from '../../components/ui/AppPagination';
+import AppToast from '../../components/ui/AppToast';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import FilterResetButton from '../../components/ui/FilterResetButton';
+import SelfLabel from '../../components/ui/SelfLabel';
+import { usePendingReports } from '../../hooks/useReports';
 
-/** テーブルのカラム定義。openapi.yaml の PayableReport フィールドに準拠する。 */
+/** テーブルのカラム定義。openapi.yaml の PendingReport フィールドに準拠する。 */
 const COLUMNS: GridColDef[] = [
   {
     field: 'submitter_name',
@@ -42,8 +42,8 @@ const COLUMNS: GridColDef[] = [
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
   {
-    field: 'approved_at',
-    headerName: '承認日',
+    field: 'submitted_at',
+    headerName: '提出日',
     flex: 1,
     valueFormatter: (value: string | null) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
@@ -59,11 +59,11 @@ const COLUMNS: GridColDef[] = [
 ];
 
 /**
- * PaymentListPage は支払待ちレポートの一覧を表示する画面。
+ * ApprovalListPage は承認待ちレポートの一覧を表示する画面。
  * 403 エラー時はダッシュボードにリダイレクトする。
  * 500 エラー時は AppToast でエラーを表示する。
  */
-export default function PaymentListPage() {
+export default function ApprovalListPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
@@ -125,8 +125,8 @@ export default function PaymentListPage() {
   // フィルタが適用されているかどうか。
   const isFiltered = !!applicantNameParam;
 
-  // 支払待ちレポート一覧データを取得する。
-  const { data, isLoading, isError, error } = usePayableReports({
+  // 承認待ちレポート一覧データを取得する。
+  const { data, isLoading, isError, error } = usePendingReports({
     page,
     applicant_name: applicantNameParam || undefined,
   });
@@ -159,22 +159,22 @@ export default function PaymentListPage() {
   // 空状態メッセージをフィルタ有無で切り替える。
   const emptyMessage = isFiltered
     ? '条件に一致するレポートはありません。'
-    : '支払待ちのレポートはありません。';
+    : '承認待ちのレポートはありません。';
 
   // ローディング中はスケルトンを表示する。
   if (isLoading) {
     return (
-      <div data-testid="payable-reports-page">
+      <div data-testid="pending-approvals-page">
         <PageSkeleton variant="table" />
       </div>
     );
   }
 
   return (
-    <div data-testid="payable-reports-page">
+    <div data-testid="pending-approvals-page">
       {/* ページタイトル */}
       <div>
-        <h1>支払待ち一覧</h1>
+        <h1>承認待ち一覧</h1>
       </div>
 
       {/* フィルタ */}
@@ -186,14 +186,14 @@ export default function PaymentListPage() {
           onChange={(e) => handleApplicantNameChange(e.target.value)}
           placeholder="申請者名で絞り込み"
           label="申請者名"
-          inputProps={{ 'data-testid': 'payable-filter-applicant-name', 'aria-label': '申請者名フィルタ' }}
+          inputProps={{ 'data-testid': 'pending-filter-applicant-name', 'aria-label': '申請者名フィルタ' }}
         />
         <FilterResetButton onReset={handleFilterReset} isFiltered={isFiltered} />
       </div>
 
       {/* 件数表示（データがある場合のみ） */}
       {reports.length > 0 && (
-        <p>{totalCount} 件の支払待ちレポート</p>
+        <p>{totalCount} 件の承認待ちレポート</p>
       )}
 
       {/* データグリッド（emptyMessage で空状態も表示） */}

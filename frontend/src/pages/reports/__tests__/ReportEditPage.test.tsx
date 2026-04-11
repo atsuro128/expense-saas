@@ -22,8 +22,8 @@ vi.mock('../../hooks/useCurrentUser', () => ({
 }));
 
 // vi.mock 後に import することでモック済みの関数参照を取得する。
-import { useReport, useUpdateReport } from '../../hooks/useReports';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useReport, useUpdateReport } from '../../../hooks/useReports';
+import { useCurrentUser } from '../../../hooks/useCurrentUser';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseUpdateReport = vi.mocked(useUpdateReport);

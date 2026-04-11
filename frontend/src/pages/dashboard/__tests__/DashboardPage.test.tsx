@@ -7,7 +7,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
-import DashboardPage from '../../DashboardPage';
+import DashboardPage from '../DashboardPage';
 import * as useDashboardModule from '../../../hooks/useDashboard';
 import * as useCurrentUserModule from '../../../hooks/useCurrentUser';
 import type { DashboardResponse } from '../../../api/types';

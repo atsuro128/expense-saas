@@ -3,13 +3,13 @@ import LoginPage from './pages/login/LoginPage';
 import SignupPage from './pages/signup/SignupPage';
 import PasswordResetRequestPage from './pages/password-reset/PasswordResetRequestPage';
 import PasswordResetPage from './pages/password-reset/PasswordResetPage';
-import DashboardPage from './pages/DashboardPage';
-import ReportListPage from './pages/ReportListPage';
-import ReportDetailPage from './pages/ReportDetailPage';
-import ReportCreatePage from './pages/ReportCreatePage';
-import ReportEditPage from './pages/ReportEditPage';
-import ApprovalListPage from './pages/ApprovalListPage';
-import PaymentListPage from './pages/PaymentListPage';
+import DashboardPage from './pages/dashboard/DashboardPage';
+import ReportListPage from './pages/reports/ReportListPage';
+import ReportDetailPage from './pages/reports/ReportDetailPage';
+import ReportCreatePage from './pages/reports/ReportCreatePage';
+import ReportEditPage from './pages/reports/ReportEditPage';
+import ApprovalListPage from './pages/workflow/ApprovalListPage';
+import PaymentListPage from './pages/workflow/PaymentListPage';
 
 export default function App() {
   return (
