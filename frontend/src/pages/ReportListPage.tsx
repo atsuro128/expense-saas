@@ -6,9 +6,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
-import FormControl from '@mui/material/FormControl';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -18,6 +15,7 @@ import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AppToast from '../components/ui/AppToast';
 import AppPagination from '../components/ui/AppPagination';
+import AppSelect from '../components/ui/AppSelect';
 import PageSkeleton from '../components/ui/PageSkeleton';
 import { useMyReports } from '../hooks/useReports';
 
@@ -180,23 +178,18 @@ export default function ReportListPage() {
       >
         {/*
          * ステータスフィルタ。
-         * SelectDisplayProps に data-testid を設定して display div をテストで取得可能にする。
+         * AppSelect の selectDisplayProps に data-testid を設定して display div をテストで取得可能にする。
          * useEffect で display div の value プロパティを設定し toHaveValue() を機能させる。
          */}
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <Select
-            value={status}
-            onChange={(e) => handleStatusChange(e.target.value as string)}
-            displayEmpty
-            SelectDisplayProps={{ 'data-testid': 'report-list-filter-status' } as React.HTMLAttributes<HTMLDivElement>}
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <MenuItem key={opt.value} value={opt.value}>
-                {opt.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <AppSelect
+          name="status"
+          label="ステータス"
+          options={STATUS_OPTIONS}
+          value={status}
+          onChange={handleStatusChange}
+          fullWidth={false}
+          selectDisplayProps={{ 'data-testid': 'report-list-filter-status' }}
+        />
 
         {/* 開始日フィルタ */}
         <TextField
