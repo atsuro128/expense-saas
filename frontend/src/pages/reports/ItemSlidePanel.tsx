@@ -2,6 +2,7 @@
 // 明細の追加・編集・閲覧をスライドパネルで提供する。
 // SCR-RPT-004 §6 に対応する。
 
+import Button from '@mui/material/Button';
 import type { ReportStatus, ExpenseItemWithAttachments } from '../../api/types';
 import ItemForm from './ItemForm';
 import type { ItemFormValues } from './ItemForm';
@@ -105,9 +106,9 @@ export default function ItemSlidePanel({
     >
       <div>
         <h2>{title}</h2>
-        <button type="button" onClick={onClose}>
+        <Button variant="text" size="small" onClick={onClose}>
           閉じる
-        </button>
+        </Button>
       </div>
       <ItemForm
         mode={formMode}

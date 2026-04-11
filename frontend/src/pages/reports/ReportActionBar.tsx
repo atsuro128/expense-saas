@@ -2,6 +2,7 @@
 // OwnerActions と WorkflowActions を条件によって表示する。
 // SCR-RPT-004 に対応する。
 
+import Button from '@mui/material/Button';
 import type { ReportStatus } from '../../api/types';
 import OwnerActions from './OwnerActions';
 
@@ -68,12 +69,12 @@ export default function ReportActionBar({
     return (
       <div data-testid="report-action-bar">
         <div data-testid="workflow-actions">
-          <button type="button" onClick={onApprove} disabled={pendingAction !== null}>
+          <Button variant="contained" onClick={onApprove} disabled={pendingAction !== null}>
             承認
-          </button>
-          <button type="button" onClick={onReject} disabled={pendingAction !== null}>
+          </Button>
+          <Button variant="outlined" color="error" onClick={onReject} disabled={pendingAction !== null}>
             却下
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -84,9 +85,9 @@ export default function ReportActionBar({
     return (
       <div data-testid="report-action-bar">
         <div data-testid="workflow-actions">
-          <button type="button" onClick={onPay} disabled={pendingAction !== null}>
+          <Button variant="contained" onClick={onPay} disabled={pendingAction !== null}>
             支払完了
-          </button>
+          </Button>
         </div>
       </div>
     );
