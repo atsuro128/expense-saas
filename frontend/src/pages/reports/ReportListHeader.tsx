@@ -2,6 +2,8 @@
 // 「マイレポート」タイトルと「+ レポート作成」ボタンを表示する。
 // SCR-RPT-001 に対応する。
 
+import Button from '@mui/material/Button';
+
 export interface ReportListHeaderProps {
   /** レポート作成ボタン押下時のコールバック */
   onCreateReport: () => void;
@@ -14,9 +16,9 @@ export default function ReportListHeader({ onCreateReport }: ReportListHeaderPro
   return (
     <div>
       <h1>マイレポート</h1>
-      <button type="button" onClick={onCreateReport}>
+      <Button variant="contained" onClick={onCreateReport}>
         + レポート作成
-      </button>
+      </Button>
     </div>
   );
 }
