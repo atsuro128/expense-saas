@@ -90,7 +90,7 @@ export default function AppSelect({
         value={value}
         label={label}
         onChange={handleChange}
-        displayEmpty={!!placeholder}
+        displayEmpty
         SelectDisplayProps={selectDisplayProps}
       >
         {/* 未選択時のプレースホルダー */}
