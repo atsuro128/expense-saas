@@ -6,9 +6,9 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import ReportForm from '../components/report/ReportForm';
-import type { ReportFormValues } from '../components/report/ReportForm';
-import { useCreateReport, useReport } from '../hooks/useReports';
+import ReportForm from '../../components/report/ReportForm';
+import type { ReportFormValues } from '../../components/report/ReportForm';
+import { useCreateReport, useReport } from '../../hooks/useReports';
 
 /**
  * ReportCreatePage は新規レポート作成フォームを表示する画面。

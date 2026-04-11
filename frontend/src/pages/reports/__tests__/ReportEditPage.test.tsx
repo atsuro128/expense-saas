@@ -12,18 +12,18 @@ import ReportEditPage from '../ReportEditPage';
 
 // useReport / useUpdateReport / useCurrentUser Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
-vi.mock('../../hooks/useReports', () => ({
+vi.mock('../../../hooks/useReports', () => ({
   useReport: vi.fn(),
   useUpdateReport: vi.fn(),
 }));
 
-vi.mock('../../hooks/useCurrentUser', () => ({
+vi.mock('../../../hooks/useCurrentUser', () => ({
   useCurrentUser: vi.fn(),
 }));
 
 // vi.mock 後に import することでモック済みの関数参照を取得する。
-import { useReport, useUpdateReport } from '../../hooks/useReports';
-import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useReport, useUpdateReport } from '../../../hooks/useReports';
+import { useCurrentUser } from '../../../hooks/useCurrentUser';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseUpdateReport = vi.mocked(useUpdateReport);

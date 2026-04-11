@@ -38,7 +38,7 @@ import { vi, describe, it, afterEach, expect } from 'vitest';
 // MUI X の ESM import 解決問題を回避するため AppDataGrid をモックする。
 // onRowClick は { row: rowData } 形式で呼び出す。
 // is_own_report が true のとき「自分」ラベルを描画する（SelfLabel の動作を再現）。
-vi.mock('../../components/ui/AppDataGrid', () => ({
+vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
     rows: Array<{ id: string; submitter_name: string; title: string; total_amount: number; is_own_report: boolean; approved_at: string | null }>;
     columns: unknown[];
@@ -77,7 +77,7 @@ vi.mock('../../components/ui/AppDataGrid', () => ({
 }));
 
 // AppPagination をモックする。pagination-page-{n} testid を持つボタンを描画する。
-vi.mock('../../components/ui/AppPagination', () => ({
+vi.mock('../../../components/ui/AppPagination', () => ({
   default: (props: {
     currentPage: number;
     totalPages: number;
@@ -105,7 +105,7 @@ vi.mock('../../components/ui/AppPagination', () => ({
 import PaymentListPage from '../PaymentListPage';
 
 // usePayableReports Hook をモックする。
-vi.mock('../../hooks/useReports', () => ({
+vi.mock('../../../hooks/useReports', () => ({
   usePendingReports: vi.fn(),
   usePayableReports: vi.fn(),
   useMyReports: vi.fn(),
@@ -116,7 +116,7 @@ vi.mock('../../hooks/useReports', () => ({
   useDeleteReport: vi.fn(),
 }));
 
-import { usePayableReports } from '../../hooks/useReports';
+import { usePayableReports } from '../../../hooks/useReports';
 
 const mockUsePayableReports = vi.mocked(usePayableReports);
 

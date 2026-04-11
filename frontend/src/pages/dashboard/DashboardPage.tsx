@@ -2,17 +2,17 @@
 // ロール別にセクションを出し分ける。
 // 55_ui_component/screens/dashboard.md §DashboardPage 準拠。
 
-import { useDashboard } from '../hooks/useDashboard';
-import { useCurrentUser } from '../hooks/useCurrentUser';
-import PageSkeleton from '../components/ui/PageSkeleton';
-import AppToast from '../components/ui/AppToast';
-import CountCard from '../components/dashboard/CountCard';
-import MyReportCountCards from '../components/dashboard/MyReportCountCards';
-import TenantStatusCards from '../components/dashboard/TenantStatusCards';
-import MonthlySummaryTable from '../components/dashboard/MonthlySummaryTable';
-import RecentReportList from '../components/dashboard/RecentReportList';
-import type { MonthlySummaryItem } from '../components/dashboard/MonthlySummaryTable';
-import type { RecentReport } from '../components/dashboard/RecentReportList';
+import { useDashboard } from '../../hooks/useDashboard';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import AppToast from '../../components/ui/AppToast';
+import CountCard from '../../components/dashboard/CountCard';
+import MyReportCountCards from '../../components/dashboard/MyReportCountCards';
+import TenantStatusCards from '../../components/dashboard/TenantStatusCards';
+import MonthlySummaryTable from '../../components/dashboard/MonthlySummaryTable';
+import RecentReportList from '../../components/dashboard/RecentReportList';
+import type { MonthlySummaryItem } from '../../components/dashboard/MonthlySummaryTable';
+import type { RecentReport } from '../../components/dashboard/RecentReportList';
 
 /**
  * DashboardPage はダッシュボード画面のルートコンポーネント。
