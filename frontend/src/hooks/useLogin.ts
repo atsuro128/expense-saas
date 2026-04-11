@@ -31,7 +31,7 @@ export function useLogin() {
       // アカウント切り替え時に前ユーザーのキャッシュが残らないよう無効化する。
       void queryClient.invalidateQueries({ queryKey: ['auth', 'me'] });
       // ダッシュボード遷移時にキャッシュを温めてローディングスケルトンを回避する。
-      void queryClient.fetchQuery({
+      void queryClient.prefetchQuery({
         queryKey: ['auth', 'me'],
         queryFn: () => api.get<ApiResponse<AuthUser>>('/api/auth/me'),
       });
