@@ -4,15 +4,14 @@
 
 import { useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
 import Toolbar from '@mui/material/Toolbar';
 import AppHeader from './AppHeader';
 import AppSidebar from './AppSidebar';
 import PageSkeleton from '../ui/PageSkeleton';
-import { clearTokens } from '../../stores/auth';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { useLogout } from '../../hooks/useLogout';
 import type { HeaderUser } from './AppHeader';
 
 export interface AppLayoutProps {
@@ -32,7 +31,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
-  const queryClient = useQueryClient();
+  const logoutMutation = useLogout();
 
   // TanStack Query でユーザー情報を取得する。
   const { data: currentUserResponse, isLoading } = useCurrentUser();
@@ -46,10 +45,12 @@ export default function AppLayout({ children }: AppLayoutProps) {
   };
 
   const handleLogout = () => {
-    clearTokens();
-    // ログアウト後にキャッシュされたユーザー情報が残らないようクエリキャッシュを破棄する。
-    queryClient.removeQueries({ queryKey: ['auth', 'me'] });
-    navigate('/login');
+    // サーバー側のリフレッシュトークン失効 + ローカル状態破棄を実行する。
+    logoutMutation.mutate(undefined, {
+      onSettled: () => {
+        navigate('/login');
+      },
+    });
   };
 
   // ローディング中はスケルトンを表示する。
