@@ -89,11 +89,11 @@ describe('ReportListPage', () => {
   // （report-list.md §ReportListPage: URL クエリパラメータからフィルタ条件を復元し useMyReports でデータ取得）
   it('RPT-FE-001: useMyReports が 3 件返ると ReportListHeader/Filter/Table/Pagination が描画される', async () => {
     // useMyReports が成功レスポンスで 3 件のデータを返すようにモックする。
-    // スタブ実装では useMyReports が未実装のため、このモックは意味をなさず失敗する。
+    // totalPages を 2 に設定し、AppPagination が描画されるようにする。
     mockUseMyReports.mockReturnValue({
       data: {
         data: mockReports,
-        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 2 },
       },
       isLoading: false,
       isError: false,
