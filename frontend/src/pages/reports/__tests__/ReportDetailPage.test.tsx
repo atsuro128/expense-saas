@@ -12,13 +12,13 @@ import ReportDetailPage from '../ReportDetailPage';
 
 // useReport / useSubmitReport / useDeleteReport / useCurrentUser Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
-vi.mock('../../hooks/useReports', () => ({
+vi.mock('../../../hooks/useReports', () => ({
   useReport: vi.fn(),
   useSubmitReport: vi.fn(),
   useDeleteReport: vi.fn(),
 }));
 
-vi.mock('../../hooks/useCurrentUser', () => ({
+vi.mock('../../../hooks/useCurrentUser', () => ({
   useCurrentUser: vi.fn(),
 }));
 

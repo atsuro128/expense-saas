@@ -12,7 +12,7 @@ import ReportCreatePage from '../ReportCreatePage';
 
 // useCreateReport / useReport Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
-vi.mock('../../hooks/useReports', () => ({
+vi.mock('../../../hooks/useReports', () => ({
   useCreateReport: vi.fn(),
   useReport: vi.fn(),
 }));
