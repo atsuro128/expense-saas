@@ -5,6 +5,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import TextField from '@mui/material/TextField';
+import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import AppToast from '../components/ui/AppToast';
 import PageSkeleton from '../components/ui/PageSkeleton';
 import FilterResetButton from '../components/ui/FilterResetButton';
@@ -187,6 +188,7 @@ export default function PaymentListPage() {
                 <th>タイトル</th>
                 <th>金額</th>
                 <th data-testid="payable-table-header-approved-at">承認日</th>
+                <th aria-label="詳細へ移動" />
               </tr>
             </thead>
             <tbody>
@@ -204,6 +206,10 @@ export default function PaymentListPage() {
                   <td>{report.title}</td>
                   <td>{report.total_amount.toLocaleString()}</td>
                   <td>{report.approved_at ?? ''}</td>
+                  {/* 遷移アイコン列: 設計書 workflow-payable.md §5 の5列目。行クリックで詳細画面へ遷移する */}
+                  <td style={{ width: 48, textAlign: 'center' }}>
+                    <ChevronRightIcon fontSize="small" color="action" />
+                  </td>
                 </tr>
               ))}
             </tbody>
