@@ -13,11 +13,11 @@ import TableHead from '@mui/material/TableHead';
 import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
-import AppToast from '../components/ui/AppToast';
-import AppPagination from '../components/ui/AppPagination';
-import AppSelect from '../components/ui/AppSelect';
-import PageSkeleton from '../components/ui/PageSkeleton';
-import { useMyReports } from '../hooks/useReports';
+import AppToast from '../../components/ui/AppToast';
+import AppPagination from '../../components/ui/AppPagination';
+import AppSelect from '../../components/ui/AppSelect';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import { useMyReports } from '../../hooks/useReports';
 
 /** ステータスフィルタの選択肢 */
 const STATUS_OPTIONS = [

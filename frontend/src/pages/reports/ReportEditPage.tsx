@@ -6,11 +6,11 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
-import ReportForm from '../components/report/ReportForm';
-import type { ReportFormValues } from '../components/report/ReportForm';
-import PageSkeleton from '../components/ui/PageSkeleton';
-import { useReport, useUpdateReport } from '../hooks/useReports';
-import { useCurrentUser } from '../hooks/useCurrentUser';
+import ReportForm from '../../components/report/ReportForm';
+import type { ReportFormValues } from '../../components/report/ReportForm';
+import PageSkeleton from '../../components/ui/PageSkeleton';
+import { useReport, useUpdateReport } from '../../hooks/useReports';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 /**
  * BodyToast はページコンポーネントのライフサイクルに依存せず

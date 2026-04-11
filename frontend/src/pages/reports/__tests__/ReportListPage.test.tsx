@@ -12,12 +12,12 @@ import ReportListPage from '../ReportListPage';
 
 // useMyReports Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
-vi.mock('../../hooks/useReports', () => ({
+vi.mock('../../../hooks/useReports', () => ({
   useMyReports: vi.fn(),
 }));
 
 // vi.mock 後に import することでモック済みの関数参照を取得する。
-import { useMyReports } from '../../hooks/useReports';
+import { useMyReports } from '../../../hooks/useReports';
 
 const mockUseMyReports = vi.mocked(useMyReports);
 
