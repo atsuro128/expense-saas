@@ -1,5 +1,8 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
+import LoginPage from './pages/login/LoginPage';
+import SignupPage from './pages/signup/SignupPage';
+import PasswordResetRequestPage from './pages/password-reset/PasswordResetRequestPage';
+import PasswordResetPage from './pages/password-reset/PasswordResetPage';
 import DashboardPage from './pages/DashboardPage';
 import ReportListPage from './pages/ReportListPage';
 import ReportDetailPage from './pages/ReportDetailPage';
@@ -13,6 +16,9 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/password-reset" element={<PasswordResetRequestPage />} />
+        <Route path="/password-reset/:token" element={<PasswordResetPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         {/* screens.md §3.2: SCR-DASH-001 = /dashboard。ルートは /dashboard にリダイレクト */}
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
