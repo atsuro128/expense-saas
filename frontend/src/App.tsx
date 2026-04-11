@@ -10,6 +10,8 @@ import ReportCreatePage from './pages/reports/ReportCreatePage';
 import ReportEditPage from './pages/reports/ReportEditPage';
 import ApprovalListPage from './pages/workflow/ApprovalListPage';
 import PaymentListPage from './pages/workflow/PaymentListPage';
+import AllReportsPage from './pages/admin/AllReportsPage';
+import TenantPage from './pages/admin/TenantPage';
 
 export default function App() {
   return (
@@ -24,10 +26,14 @@ export default function App() {
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/reports" element={<ReportListPage />} />
         <Route path="/reports/new" element={<ReportCreatePage />} />
+        {/* SCR-ADM-001: 管理者向け全レポート一覧。:id より前に配置して all がパラメータにマッチしないようにする */}
+        <Route path="/reports/all" element={<AllReportsPage />} />
         <Route path="/reports/:id" element={<ReportDetailPage />} />
         <Route path="/reports/:id/edit" element={<ReportEditPage />} />
         <Route path="/approvals" element={<ApprovalListPage />} />
         <Route path="/payments" element={<PaymentListPage />} />
+        {/* SCR-ADM-002: テナント設定画面 */}
+        <Route path="/settings/tenant" element={<TenantPage />} />
       </Routes>
     </BrowserRouter>
   );
