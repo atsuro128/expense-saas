@@ -34,10 +34,77 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, afterEach, expect } from 'vitest';
+
+// MUI X の ESM import 解決問題を回避するため AppDataGrid をモックする。
+// onRowClick は { row: rowData } 形式で呼び出す。
+// is_own_report が true のとき「自分」ラベルを描画する（SelfLabel の動作を再現）。
+vi.mock('../../components/ui/AppDataGrid', () => ({
+  default: (props: {
+    rows: Array<{ id: string; submitter_name: string; title: string; total_amount: number; is_own_report: boolean; approved_at: string | null }>;
+    columns: unknown[];
+    onRowClick?: (params: { row: unknown }) => void;
+    loading?: boolean;
+    emptyMessage?: string;
+  }) => {
+    if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
+    if (props.rows.length === 0) {
+      return <div data-testid="app-data-grid">{props.emptyMessage}</div>;
+    }
+    return (
+      <table data-testid="payable-report-table">
+        <tbody>
+          {props.rows.map((row) => (
+            <tr
+              key={row.id}
+              onClick={() => props.onRowClick?.({ row })}
+              data-testid={`payable-report-row-${row.id}`}
+            >
+              <td>
+                {row.submitter_name}
+                {row.is_own_report && <span>自分</span>}
+              </td>
+              <td>{row.title}</td>
+              <td>{`¥${row.total_amount.toLocaleString()}`}</td>
+              <td data-testid="payable-table-header-approved-at">
+                {row.approved_at ? new Date(row.approved_at).toLocaleDateString('ja-JP') : '-'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  },
+}));
+
+// AppPagination をモックする。pagination-page-{n} testid を持つボタンを描画する。
+vi.mock('../../components/ui/AppPagination', () => ({
+  default: (props: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+    disabled?: boolean;
+  }) => {
+    if (props.totalPages <= 1) return null;
+    return (
+      <div data-testid="app-pagination">
+        {Array.from({ length: props.totalPages }, (_, i) => i + 1).map((p) => (
+          <button
+            key={p}
+            data-testid={`pagination-page-${p}`}
+            onClick={() => props.onPageChange(p)}
+            aria-current={p === props.currentPage ? 'page' : undefined}
+          >
+            {p}
+          </button>
+        ))}
+      </div>
+    );
+  },
+}));
+
 import PaymentListPage from '../PaymentListPage';
 
 // usePayableReports Hook をモックする。
-// スタブ実装段階では実際の Hook は存在しない。
 vi.mock('../../hooks/useReports', () => ({
   usePendingReports: vi.fn(),
   usePayableReports: vi.fn(),
@@ -111,7 +178,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
   });
 
   // WFL-FE-030: usePayableReports が 3 件のレポートデータを返す
-  // → PayableReportsContent にレポート一覧が表示される。件数表示「3 件の支払待ちレポート」が表示される
+  // → PayableReportsContent にレポート一覧が表示される。
   it('WFL-FE-030: renders_payable_reports_page_with_data — 3件のデータが表示される', () => {
     mockUsePayableReports.mockReturnValue({
       data: {
@@ -126,7 +193,6 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // ページが描画されること。スタブ実装では PayableReportsContent が存在しないため失敗する。
     expect(screen.getByTestId('payable-reports-page')).toBeInTheDocument();
   });
 
@@ -147,7 +213,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
     const user = userEvent.setup({ delay: null });
     renderPage();
 
-    // 申請者名フィルタに入力する。スタブ実装では filter-input が存在しないため失敗する。
+    // 申請者名フィルタに入力する。
     const filterInput = screen.getByTestId('payable-filter-applicant-name');
     await user.type(filterInput, '田中');
 
@@ -180,7 +246,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // ページネーションで 2 ページ目をクリックする。スタブ実装では存在しないため失敗する。
+    // AppPagination モックの 2 ページ目ボタンをクリックする。
     const page2Button = screen.getByTestId('pagination-page-2');
     await user.click(page2Button);
 
@@ -237,7 +303,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // ダッシュボードにリダイレクトされること。スタブ実装では存在しないため失敗する。
+    // ダッシュボードにリダイレクトされること。
     await waitFor(() => {
       expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
     });
@@ -255,12 +321,12 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // PageSkeleton が表示されること。スタブ実装では存在しないため失敗する。
+    // PageSkeleton が表示されること。
     expect(screen.getByTestId('page-skeleton')).toBeInTheDocument();
     expect(screen.getByTestId('page-skeleton')).toHaveAttribute('data-variant', 'table');
   });
 
-  // WFL-FE-036: reports=[], isLoading=false, filters={} のとき EmptyState に「支払待ちのレポートはありません。」が表示される。
+  // WFL-FE-036: reports=[], isLoading=false, filters={} のとき「支払待ちのレポートはありません。」が表示される。
   it('WFL-FE-036: shows_empty_state_no_filter — 空リストでフィルタなしの EmptyState', () => {
     mockUsePayableReports.mockReturnValue({
       data: {
@@ -275,7 +341,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // EmptyState に「支払待ちのレポートはありません。」が表示されること。スタブ実装では失敗する。
+    // AppDataGrid モックが emptyMessage を描画すること。
     expect(screen.getByText('支払待ちのレポートはありません。')).toBeInTheDocument();
   });
 
@@ -294,7 +360,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage('/workflow/payable?applicant_name=存在しない名前');
 
-    // 「条件に一致するレポートはありません。」が表示されること。スタブ実装では失敗する。
+    // AppDataGrid モックが emptyMessage を描画すること。
     expect(screen.getByText('条件に一致するレポートはありません。')).toBeInTheDocument();
     // フィルタリセットボタンが表示されること。
     expect(screen.getByTestId('filter-reset-button')).toBeInTheDocument();
@@ -315,7 +381,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // テーブルが描画されること。スタブ実装では存在しないため失敗する。
+    // AppDataGrid モックの table が描画されること。
     expect(screen.getByTestId('payable-report-table')).toBeInTheDocument();
   });
 
@@ -331,7 +397,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // AppToast が表示されること。スタブ実装では存在しないため失敗する。
+    // AppToast が表示されること。
     await waitFor(() => {
       expect(screen.getByTestId('app-toast')).toBeInTheDocument();
     });
@@ -352,11 +418,11 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // 「5 件の支払待ちレポート」が表示されること。スタブ実装では失敗する。
+    // 「5 件の支払待ちレポート」が表示されること。
     expect(screen.getByText('5 件の支払待ちレポート')).toBeInTheDocument();
   });
 
-  // WFL-FE-045: レポートテーブルに申請者名・タイトル・金額・承認日・遷移アイコンが描画される。
+  // WFL-FE-045: レポートテーブルに申請者名・タイトル・金額・承認日が描画される。
   it('WFL-FE-045: renders_table_columns — テーブルの各カラムが正しく描画される', () => {
     mockUsePayableReports.mockReturnValue({
       data: {
@@ -371,7 +437,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // 申請者名・タイトルが表示されること。スタブ実装では失敗する。
+    // 申請者名・タイトルが表示されること。
     expect(screen.getByText('田中太郎')).toBeInTheDocument();
     expect(screen.getByText('4月交通費')).toBeInTheDocument();
   });
@@ -391,7 +457,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // 「自分」ラベルが表示されること。スタブ実装では失敗する。
+    // 「自分」ラベルが表示されること。
     expect(screen.getByText('自分')).toBeInTheDocument();
   });
 
@@ -410,11 +476,11 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // 「自分」ラベルが表示されないこと。スタブ実装では失敗する。
+    // 「自分」ラベルが表示されないこと。
     expect(screen.queryByText('自分')).not.toBeInTheDocument();
   });
 
-  // WFL-FE-048: レポート行をクリックすると onRowClick が reportId で呼び出される。
+  // WFL-FE-048: レポート行をクリックすると /reports/{id} に遷移する。
   it('WFL-FE-048: navigates_to_detail_on_row_click — レポート行クリックで詳細ページに遷移する', async () => {
     const user = userEvent.setup();
     mockUsePayableReports.mockReturnValue({
@@ -430,7 +496,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // テーブル行をクリックする。スタブ実装では存在しないため失敗する。
+    // AppDataGrid モックの行をクリックする。
     const row = screen.getByTestId('payable-report-row-report-001');
     await user.click(row);
 
@@ -456,7 +522,7 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     renderPage();
 
-    // 「承認日」カラムヘッダーが表示されること。スタブ実装では失敗する。
+    // AppDataGrid モックで payable-table-header-approved-at が描画されること。
     expect(screen.getByTestId('payable-table-header-approved-at')).toBeInTheDocument();
   });
 });

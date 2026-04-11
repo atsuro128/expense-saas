@@ -31,6 +31,11 @@ export default function AppPagination({
     onPageChange(page);
   };
 
+  // 1 ページ以下の場合はページネーションを表示しない。
+  if (totalPages <= 1) {
+    return null;
+  }
+
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }} data-testid="app-pagination">
       <Pagination

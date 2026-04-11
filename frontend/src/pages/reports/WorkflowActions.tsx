@@ -3,6 +3,7 @@
 // Approver には「承認」「却下」ボタン、Accounting には「支払完了」ボタンを表示する。
 // authz.md §6 のロール別認可に準拠する。
 
+import Button from '@mui/material/Button';
 import type { ReportStatus, Role } from '../../api/types';
 
 export interface WorkflowActionsProps {
@@ -49,24 +50,25 @@ export default function WorkflowActions({
 
     return (
       <div>
-        <button
-          type="button"
+        <Button
+          variant="contained"
           data-testid="approve-button"
           onClick={onApprove}
           disabled={isBusy}
         >
           {isApproving && <span data-testid="approve-spinner" />}
           承認
-        </button>
-        <button
-          type="button"
+        </Button>
+        <Button
+          variant="outlined"
+          color="error"
           data-testid="reject-button"
           onClick={onReject}
           disabled={isBusy}
         >
           {isRejecting && <span data-testid="reject-spinner" />}
           却下
-        </button>
+        </Button>
       </div>
     );
   }
@@ -77,15 +79,15 @@ export default function WorkflowActions({
 
     return (
       <div>
-        <button
-          type="button"
+        <Button
+          variant="contained"
           data-testid="pay-button"
           onClick={onMarkAsPaid}
           disabled={pendingAction !== null}
         >
           {isPaying && <span data-testid="pay-spinner" />}
           支払完了
-        </button>
+        </Button>
       </div>
     );
   }

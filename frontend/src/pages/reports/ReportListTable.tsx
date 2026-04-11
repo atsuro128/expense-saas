@@ -1,6 +1,10 @@
-// レポート一覧テーブルコンポーネント（スタブ）。
+// レポート一覧テーブルコンポーネント。
 // SCR-RPT-001 に対応する。
 
+import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
+import AppDataGrid from '../../components/ui/AppDataGrid';
+import StatusChip from '../../components/ui/StatusChip';
+import EmptyState from '../../components/ui/EmptyState';
 import type { ReportStatus } from '../../api/types';
 
 export interface ReportListItem {
@@ -20,8 +24,47 @@ export interface ReportListTableProps {
   onCreateReport?: () => void;
 }
 
+/** テーブルのカラム定義。ReportListItem のフィールド名に準拠する。 */
+const COLUMNS: GridColDef[] = [
+  {
+    field: 'title',
+    headerName: 'タイトル',
+    flex: 2,
+  },
+  {
+    field: 'period',
+    headerName: '対象期間',
+    flex: 2,
+    // periodStart〜periodEnd を結合して表示する。
+    renderCell: (params) => (
+      <span>{`${params.row.periodStart as string} 〜 ${params.row.periodEnd as string}`}</span>
+    ),
+  },
+  {
+    field: 'totalAmount',
+    headerName: '合計金額',
+    flex: 1,
+    // 金額を 3 桁カンマ区切りで表示する。
+    valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
+  },
+  {
+    field: 'status',
+    headerName: 'ステータス',
+    flex: 1,
+    // StatusChip コンポーネントで色分け表示する。
+    renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
+  },
+  {
+    field: 'createdAt',
+    headerName: '作成日',
+    flex: 1,
+    valueFormatter: (value: string) =>
+      value ? new Date(value).toLocaleDateString('ja-JP') : '-',
+  },
+];
+
 /**
- * ReportListTable はレポート一覧をテーブル形式で表示する。
+ * ReportListTable はレポート一覧を AppDataGrid で表示する。
  * 0 件のとき EmptyState を表示する。
  */
 export default function ReportListTable({
@@ -30,49 +73,35 @@ export default function ReportListTable({
   onRowClick,
   onCreateReport,
 }: ReportListTableProps) {
+  // データが 0 件の場合は EmptyState を表示する。
   if (!loading && reports.length === 0) {
     return (
-      <div data-testid="empty-state">
-        <p>経費レポートはまだありません。レポートを作成して経費精算を始めましょう。</p>
-        {onCreateReport && (
-          <button type="button" onClick={onCreateReport}>
-            レポートを作成
-          </button>
-        )}
-      </div>
+      <EmptyState
+        message="経費レポートはまだありません。レポートを作成して経費精算を始めましょう。"
+        action={
+          onCreateReport
+            ? { label: 'レポートを作成', onClick: onCreateReport }
+            : undefined
+        }
+      />
     );
   }
 
+  // AppDataGrid の rows に型変換する。
+  const rows = reports as unknown as readonly Record<string, unknown>[];
+
   return (
-    <table data-loading={loading}>
-      <thead>
-        <tr>
-          <th>タイトル</th>
-          <th>対象期間</th>
-          <th>合計金額</th>
-          <th>ステータス</th>
-          <th>作成日</th>
-        </tr>
-      </thead>
-      <tbody>
-        {reports.map((r) => (
-          <tr
-            key={r.id}
-            onClick={() => onRowClick?.(r.id)}
-            style={{ cursor: 'pointer' }}
-          >
-            <td>{r.title}</td>
-            <td>
-              {r.periodStart} 〜 {r.periodEnd}
-            </td>
-            <td>{r.totalAmount.toLocaleString()}</td>
-            <td>
-              <span data-status={r.status}>{r.status}</span>
-            </td>
-            <td>{r.createdAt}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <AppDataGrid
+      columns={COLUMNS}
+      rows={rows}
+      loading={loading}
+      hideFooterPagination
+      onRowClick={
+        onRowClick
+          ? (params: GridRowParams) => onRowClick((params.row as { id: string }).id)
+          : undefined
+      }
+      sx={{ cursor: onRowClick ? 'pointer' : 'default' }}
+    />
   );
 }

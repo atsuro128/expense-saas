@@ -2,6 +2,8 @@
 // 明細件数と「+ 明細追加」ボタンを横並びに配置する。
 // SCR-RPT-004 §5 に対応する。
 
+import Button from '@mui/material/Button';
+
 export interface ItemListHeaderProps {
   /** 明細件数 */
   itemCount: number;
@@ -20,9 +22,9 @@ export default function ItemListHeader({ itemCount, canAddItem, onAddItem }: Ite
     <div data-testid="item-list-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
       <h3>明細一覧（{itemCount}件）</h3>
       {canAddItem && (
-        <button type="button" onClick={onAddItem}>
+        <Button variant="outlined" size="small" onClick={onAddItem}>
           明細追加
-        </button>
+        </Button>
       )}
     </div>
   );
