@@ -60,8 +60,9 @@ func NewTestServer(t *testing.T, pool *pgxpool.Pool) *TestServer {
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	// テスト用インメモリ S3 モック（実際のストレージへのアクセスを行わない）。
+	// presignedURLExpiry はテスト用デフォルト値（15 分）を使用する。
 	storageClient := pkgs3.NewInMemoryClient()
-	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient)
+	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient, 15*time.Minute)
 	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
 	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
 	categorySvc := service.NewCategoryService(categoryRepo)

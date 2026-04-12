@@ -2,18 +2,21 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"time"
 )
 
 // Config は環境変数から読み込んだアプリケーション設定を保持する。
 type Config struct {
-	DatabaseURL        string // DATABASE_URL（必須）
-	AppDatabaseURL     string // APP_DATABASE_URL（必須）
-	JWTPrivateKeyPath  string // JWT_PRIVATE_KEY_PATH
-	JWTPublicKeyPath   string // JWT_PUBLIC_KEY_PATH
-	CORSAllowedOrigins string // CORS_ALLOWED_ORIGINS
-	LogLevel           string // LOG_LEVEL（デフォルト: "info"）
-	Port               string // PORT（デフォルト: "8080"）
+	DatabaseURL          string        // DATABASE_URL（必須）
+	AppDatabaseURL       string        // APP_DATABASE_URL（必須）
+	JWTPrivateKeyPath    string        // JWT_PRIVATE_KEY_PATH
+	JWTPublicKeyPath     string        // JWT_PUBLIC_KEY_PATH
+	CORSAllowedOrigins   string        // CORS_ALLOWED_ORIGINS
+	LogLevel             string        // LOG_LEVEL（デフォルト: "info"）
+	Port                 string        // PORT（デフォルト: "8080"）
+	S3PresignedURLExpiry time.Duration // S3_PRESIGNED_URL_EXPIRY（デフォルト: 15m）
 }
 
 // LoadConfig は環境変数から設定を読み込み、Config を返す。
@@ -49,13 +52,25 @@ func LoadConfig() (*Config, error) {
 		port = "8080"
 	}
 
+	// S3_PRESIGNED_URL_EXPIRY: 署名付きダウンロード URL の有効期限（env_config.md §4.4）。
+	// 未設定の場合はデフォルト 15 分を使用する（既存の Go 定数値と一致させ破壊的変更を避ける）。
+	s3PresignedURLExpiry := 15 * time.Minute
+	if raw := os.Getenv("S3_PRESIGNED_URL_EXPIRY"); raw != "" {
+		d, err := time.ParseDuration(raw)
+		if err != nil {
+			return nil, fmt.Errorf("environment variable S3_PRESIGNED_URL_EXPIRY is invalid: %w", err)
+		}
+		s3PresignedURLExpiry = d
+	}
+
 	return &Config{
-		DatabaseURL:        databaseURL,
-		AppDatabaseURL:     appDatabaseURL,
-		JWTPrivateKeyPath: jwtPrivateKeyPath,
-		JWTPublicKeyPath:  jwtPublicKeyPath,
-		CORSAllowedOrigins: os.Getenv("CORS_ALLOWED_ORIGINS"),
-		LogLevel:           logLevel,
-		Port:               port,
+		DatabaseURL:          databaseURL,
+		AppDatabaseURL:       appDatabaseURL,
+		JWTPrivateKeyPath:    jwtPrivateKeyPath,
+		JWTPublicKeyPath:     jwtPublicKeyPath,
+		CORSAllowedOrigins:   os.Getenv("CORS_ALLOWED_ORIGINS"),
+		LogLevel:             logLevel,
+		Port:                 port,
+		S3PresignedURLExpiry: s3PresignedURLExpiry,
 	}, nil
 }

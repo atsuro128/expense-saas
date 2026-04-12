@@ -138,7 +138,7 @@ func main() {
 	authSvc := service.NewAuthService(ownerPool, userRepo, tenantRepo, membershipRepo, refreshTokenRepo, passwordResetRepo, hasher, tokenGen, tokenVerifier)
 	reportSvc := service.NewReportService(reportRepo, userRepo, membershipRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
 	itemSvc := service.NewItemService(reportRepo, itemRepo, categoryRepo, attachmentRepo, authorizer)
-	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient)
+	attachmentSvc := service.NewAttachmentService(reportRepo, itemRepo, attachmentRepo, authorizer, storageClient, cfg.S3PresignedURLExpiry)
 	workflowSvc := service.NewWorkflowService(reportRepo, userRepo, membershipRepo, authorizer)
 	dashboardSvc := service.NewDashboardService(reportRepo, membershipRepo)
 	categorySvc := service.NewCategoryService(categoryRepo)

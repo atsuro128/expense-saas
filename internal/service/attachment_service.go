@@ -15,31 +15,32 @@ import (
 // attachmentMaxSize は添付ファイルの最大サイズ（5MB）。
 const attachmentMaxSize = 5 * 1024 * 1024 // 5,242,880 バイト
 
-// attachmentDownloadExpiry は署名付きダウンロード URL の有効期限（15 分）。
-const attachmentDownloadExpiry = 15 * time.Minute
-
 type attachmentService struct {
-	reportRepo     domain.ReportRepository
-	itemRepo       domain.ItemRepository
-	attachmentRepo domain.AttachmentRepository
-	authorizer     Authorizer
-	storage        StorageClient
+	reportRepo           domain.ReportRepository
+	itemRepo             domain.ItemRepository
+	attachmentRepo       domain.AttachmentRepository
+	authorizer           Authorizer
+	storage              StorageClient
+	presignedURLExpiry   time.Duration // 署名付きダウンロード URL の有効期限（S3_PRESIGNED_URL_EXPIRY）
 }
 
 // NewAttachmentService は AttachmentService を生成して返す。
+// presignedURLExpiry には署名付きダウンロード URL の有効期限を渡す（env_config.md §4.4）。
 func NewAttachmentService(
 	reportRepo domain.ReportRepository,
 	itemRepo domain.ItemRepository,
 	attachmentRepo domain.AttachmentRepository,
 	authorizer Authorizer,
 	storage StorageClient,
+	presignedURLExpiry time.Duration,
 ) AttachmentService {
 	return &attachmentService{
-		reportRepo:     reportRepo,
-		itemRepo:       itemRepo,
-		attachmentRepo: attachmentRepo,
-		authorizer:     authorizer,
-		storage:        storage,
+		reportRepo:         reportRepo,
+		itemRepo:           itemRepo,
+		attachmentRepo:     attachmentRepo,
+		authorizer:         authorizer,
+		storage:            storage,
+		presignedURLExpiry: presignedURLExpiry,
 	}
 }
 
@@ -186,8 +187,8 @@ func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor dom
 		return nil, err
 	}
 
-	// 署名付き URL を生成する（ATT-012: 有効期限 15 分）。
-	downloadURL, expiresAt, err := s.storage.PresignGetObject(ctx, att.S3Key, att.FileName, string(att.MimeType), attachmentDownloadExpiry)
+	// 署名付き URL を生成する（ATT-012: 有効期限は S3_PRESIGNED_URL_EXPIRY 環境変数で設定、デフォルト 15 分）。
+	downloadURL, expiresAt, err := s.storage.PresignGetObject(ctx, att.S3Key, att.FileName, string(att.MimeType), s.presignedURLExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("attachmentService.GetAttachmentDownload: presign: %w", err)
 	}
