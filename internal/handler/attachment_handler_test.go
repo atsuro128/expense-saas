@@ -1333,7 +1333,7 @@ func TestDeleteAttachment_AlreadyDeleted(t *testing.T) {
 // テナント分離テスト（CRS-008〜CRS-011）
 // =============================================================================
 
-// CRS-008: 他テナントの添付にアップロ���ド → 404 RESOURCE_NOT_FOUND。
+// CRS-008: 他テナントの添付にアップロード → 404 RESOURCE_NOT_FOUND。
 func TestTenantIsolation_UploadAttachment_OtherTenant_404(t *testing.T) {
 	srv, pool := setupAttachmentTest(t)
 
