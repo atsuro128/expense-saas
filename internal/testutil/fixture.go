@@ -9,33 +9,43 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"expense-saas/internal/domain"
+	"expense-saas/internal/seed"
 )
 
 // テストフィクスチャ用の固定 UUID（test_strategy.md §4 参照）。
+// 値は internal/seed パッケージの定数と完全一致させる。
+// 後方互換性維持のため testutil パッケージ内に定数を再エクスポートする。
 const (
-	TenantAID        = "aaaaaaaa-0001-0001-0001-000000000001"
-	TenantBID        = "bbbbbbbb-0002-0002-0002-000000000002"
-	UserAdminID      = "aaaaaaaa-1111-1111-1111-000000000001"
-	UserApproverID   = "aaaaaaaa-2222-2222-2222-000000000002"
-	UserMemberID     = "aaaaaaaa-3333-3333-3333-000000000003"
-	UserAccountingID = "aaaaaaaa-4444-4444-4444-000000000004"
-	UserMemberBID    = "bbbbbbbb-3333-3333-3333-000000000003"
+	TenantAID        = seed.TenantAID
+	TenantBID        = seed.TenantBID
+	UserAdminID      = seed.UserAdminID
+	UserApproverID   = seed.UserApproverID
+	UserMemberID     = seed.UserMemberID
+	UserAccountingID = seed.UserAccountingID
+	UserMemberBID    = seed.UserMemberBID
 
 	// レポートフィクスチャ UUID（テナント A）。
-	ReportDraftID      = "cccccccc-0001-0001-0001-000000000001"
-	ReportDraftEmptyID = "cccccccc-0001-0001-0001-000000000002"
-	ReportSubmittedID  = "cccccccc-0002-0002-0002-000000000002"
-	ReportApprovedID   = "cccccccc-0003-0003-0003-000000000003"
-	ReportRejectedID   = "cccccccc-0004-0004-0004-000000000004"
-	ReportPaidID       = "cccccccc-0005-0005-0005-000000000005"
+	ReportDraftID      = seed.ReportDraftID
+	ReportDraftEmptyID = seed.ReportDraftEmptyID
+	ReportSubmittedID  = seed.ReportSubmittedID
+	ReportApprovedID   = seed.ReportApprovedID
+	ReportRejectedID   = seed.ReportRejectedID
+	ReportPaidID       = seed.ReportPaidID
 
 	// レポートフィクスチャ UUID（テナント B）。
-	ReportTenantBDraftID     = "eeeeeeee-0001-0001-0001-000000000001"
-	ReportTenantBSubmittedID = "eeeeeeee-0002-0002-0002-000000000002"
-	ReportTenantBApprovedID  = "eeeeeeee-0003-0003-0003-000000000003"
+	ReportTenantBDraftID     = seed.ReportTenantBDraftID
+	ReportTenantBSubmittedID = seed.ReportTenantBSubmittedID
+	ReportTenantBApprovedID  = seed.ReportTenantBApprovedID
 
 	// 経費項目フィクスチャ UUID。
-	ItemDraftID = "dddddddd-0001-0001-0001-000000000001"
+	ItemDraftID     = seed.ItemDraftID
+	ItemSubmittedID = seed.ItemSubmittedID
+
+	// 添付ファイルフィクスチャ UUID。
+	// AttachmentSubmittedID は SMK-037（ダウンロード確認）用に reportSubmitted に紐付く。
+	// AttachmentDraftID は SMK-038（削除確認）用に reportDraft に紐付く。
+	AttachmentSubmittedID = seed.AttachmentSubmittedID
+	AttachmentDraftID     = seed.AttachmentDraftID
 )
 
 // testPasswordHash は "TestPass1!" の Argon2id ハッシュ。
@@ -55,193 +65,14 @@ func init() {
 
 // SeedFixtures は標準テストフィクスチャをすべてテストデータベースに挿入する。
 // RLS をバイパスするため、オーナーロールの直接コネクションを使用する。
+// 内部実装は internal/seed.Run に委譲しており、testutil と seed CLI で同一データを投入する。
 func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
-	ctx := context.Background()
-
-	conn, err := pool.Acquire(ctx)
-	if err != nil {
-		t.Fatalf("testutil: SeedFixtures: failed to acquire connection: %v", err)
-	}
-	defer conn.Release()
-
-	now := time.Now().UTC()
-	periodStart := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-	periodEnd := time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC)
-	expenseDate := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
-
-	// --- テナント ---
-	tenantAID := uuid.MustParse(TenantAID)
-	tenantBID := uuid.MustParse(TenantBID)
-
-	if _, err := conn.Exec(ctx,
-		`INSERT INTO tenants (tenant_id, company_name, created_at, updated_at) VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (tenant_id) DO NOTHING`,
-		tenantAID, "Test Company A", now, now,
-	); err != nil {
-		t.Fatalf("testutil: SeedFixtures: insert tenant A: %v", err)
-	}
-
-	if _, err := conn.Exec(ctx,
-		`INSERT INTO tenants (tenant_id, company_name, created_at, updated_at) VALUES ($1, $2, $3, $4)
-		 ON CONFLICT (tenant_id) DO NOTHING`,
-		tenantBID, "Test Company B", now, now,
-	); err != nil {
-		t.Fatalf("testutil: SeedFixtures: insert tenant B: %v", err)
-	}
-
-	// --- ユーザー（テナント A）---
-	type userSeed struct {
-		id    string
-		email string
-		name  string
-	}
-	usersA := []userSeed{
-		{UserAdminID, "test-admin@example.com", "Test Admin"},
-		{UserApproverID, "test-approver@example.com", "Test Approver"},
-		{UserMemberID, "test-member@example.com", "Test Member"},
-		{UserAccountingID, "test-accounting@example.com", "Test Accounting"},
-	}
-	for _, u := range usersA {
-		if _, err := conn.Exec(ctx,
-			`INSERT INTO users (user_id, email, name, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)
-			 ON CONFLICT (user_id) DO NOTHING`,
-			uuid.MustParse(u.id), u.email, u.name, testPasswordHash, now, now,
-		); err != nil {
-			t.Fatalf("testutil: SeedFixtures: insert user %s: %v", u.id, err)
-		}
-	}
-
-	// --- ユーザー（テナント B）---
-	if _, err := conn.Exec(ctx,
-		`INSERT INTO users (user_id, email, name, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)
-		 ON CONFLICT (user_id) DO NOTHING`,
-		uuid.MustParse(UserMemberBID), "test-member-b@example.com", "Test Member B", testPasswordHash, now, now,
-	); err != nil {
-		t.Fatalf("testutil: SeedFixtures: insert user B: %v", err)
-	}
-
-	// --- メンバーシップ（テナント A）---
-	type membershipSeed struct {
-		tenantID string
-		userID   string
-		role     domain.Role
-	}
-	memberships := []membershipSeed{
-		{TenantAID, UserAdminID, domain.RoleAdmin},
-		{TenantAID, UserApproverID, domain.RoleApprover},
-		{TenantAID, UserMemberID, domain.RoleMember},
-		{TenantAID, UserAccountingID, domain.RoleAccounting},
-		{TenantBID, UserMemberBID, domain.RoleMember},
-	}
-	for _, m := range memberships {
-		if _, err := conn.Exec(ctx,
-			`INSERT INTO tenant_memberships (tenant_id, user_id, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)
-			 ON CONFLICT (tenant_id, user_id) DO NOTHING`,
-			uuid.MustParse(m.tenantID), uuid.MustParse(m.userID), string(m.role), now, now,
-		); err != nil {
-			t.Fatalf("testutil: SeedFixtures: insert membership %s/%s: %v", m.tenantID, m.userID, err)
-		}
-	}
-
-	// CleanupTables の TRUNCATE CASCADE でグローバルカテゴリが削除されるため、毎回再投入する。
-	if _, err := conn.Exec(ctx, `
-		INSERT INTO categories (category_id, tenant_id, code, name_ja, sort_order, is_active) VALUES
-			(gen_random_uuid(), NULL, 'transportation', '交通費', 1, true),
-			(gen_random_uuid(), NULL, 'accommodation', '宿泊費', 2, true),
-			(gen_random_uuid(), NULL, 'food', '飲食費', 3, true),
-			(gen_random_uuid(), NULL, 'supplies', '消耗品費', 4, true),
-			(gen_random_uuid(), NULL, 'communication', '通信費', 5, true),
-			(gen_random_uuid(), NULL, 'other', 'その他', 6, true)
-		ON CONFLICT (code) WHERE tenant_id IS NULL DO NOTHING
-	`); err != nil {
-		t.Fatalf("testutil: SeedFixtures: insert global categories: %v", err)
-	}
-
-	// 経費項目フィクスチャで使用する交通費カテゴリ ID を取得する。
-	var transportCategoryID uuid.UUID
-	if err := conn.QueryRow(ctx,
-		`SELECT category_id FROM categories WHERE code = 'transportation' AND tenant_id IS NULL`,
-	).Scan(&transportCategoryID); err != nil {
-		t.Fatalf("testutil: SeedFixtures: resolve transportation category: %v", err)
-	}
-
-	// --- 経費レポート（テナント A）---
-	memberID := uuid.MustParse(UserMemberID)
-
-	type reportSeed struct {
-		id     string
-		status domain.ReportStatus
-		title  string
-	}
-	reports := []reportSeed{
-		{ReportDraftID, domain.ReportStatusDraft, "テスト下書きレポート"},
-		{ReportDraftEmptyID, domain.ReportStatusDraft, "テスト下書き（明細なし）"},
-		{ReportSubmittedID, domain.ReportStatusSubmitted, "テスト提出済みレポート"},
-		{ReportApprovedID, domain.ReportStatusApproved, "テスト承認済みレポート"},
-		{ReportRejectedID, domain.ReportStatusRejected, "テスト却下レポート"},
-		{ReportPaidID, domain.ReportStatusPaid, "テスト支払済みレポート"},
-	}
-	for _, rep := range reports {
-		if _, err := conn.Exec(ctx,
-			`INSERT INTO expense_reports
-			 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			 ON CONFLICT (report_id) DO NOTHING`,
-			uuid.MustParse(rep.id), tenantAID, memberID,
-			rep.title, periodStart, periodEnd, string(rep.status), 0,
-			now, now,
-		); err != nil {
-			t.Fatalf("testutil: SeedFixtures: insert report %s: %v", rep.id, err)
-		}
-	}
-
-	// --- report_draft 用の経費項目 ---
-	if _, err := conn.Exec(ctx,
-		`INSERT INTO expense_items
-		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		 ON CONFLICT (item_id) DO NOTHING`,
-		uuid.MustParse(ItemDraftID), uuid.MustParse(ReportDraftID), tenantAID,
-		expenseDate, 1000, transportCategoryID, "テスト交通費",
-		now, now,
-	); err != nil {
-		t.Fatalf("testutil: SeedFixtures: insert item: %v", err)
-	}
-
-	// 経費項目を反映して report_draft の total_amount を更新する。
-	if _, err := conn.Exec(ctx,
-		`UPDATE expense_reports SET total_amount = 1000 WHERE report_id = $1`,
-		uuid.MustParse(ReportDraftID),
-	); err != nil {
-		t.Fatalf("testutil: SeedFixtures: update report_draft total_amount: %v", err)
-	}
-
-	// --- 経費レポート（テナント B）---
-	memberBID := uuid.MustParse(UserMemberBID)
-	type reportBSeed struct {
-		id     string
-		status domain.ReportStatus
-		title  string
-	}
-	reportsB := []reportBSeed{
-		{ReportTenantBDraftID, domain.ReportStatusDraft, "テナントB下書きレポート"},
-		{ReportTenantBSubmittedID, domain.ReportStatusSubmitted, "テナントB提出済みレポート"},
-		{ReportTenantBApprovedID, domain.ReportStatusApproved, "テナントB承認済みレポート"},
-	}
-	for _, rep := range reportsB {
-		if _, err := conn.Exec(ctx,
-			`INSERT INTO expense_reports
-			 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			 ON CONFLICT (report_id) DO NOTHING`,
-			uuid.MustParse(rep.id), tenantBID, memberBID,
-			rep.title, periodStart, periodEnd, string(rep.status), 0,
-			now, now,
-		); err != nil {
-			t.Fatalf("testutil: SeedFixtures: insert tenant B report %s: %v", rep.id, err)
-		}
+	// テスト環境では S3 クライアントを渡さない（nil）ため、MinIO アップロードはスキップされる。
+	// 添付ファイルの DB レコードのみ投入し、実ファイルのアップロードは行わない。
+	if err := seed.Run(context.Background(), pool, nil); err != nil {
+		t.Fatalf("testutil: SeedFixtures: %v", err)
 	}
 }
 
