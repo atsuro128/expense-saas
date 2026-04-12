@@ -2,6 +2,9 @@
 // DATABASE_URL 環境変数（expense_owner ロール）を読み込んで seed.Run() を実行する。
 // 冪等性を担保しているため、複数回実行しても既存データを破壊しない。
 //
+// S3_ENDPOINT 環境変数が設定されている場合、MinIO にダミーファイルをアップロードする。
+// S3_ENDPOINT が未設定の場合、MinIO アップロードをスキップして DB レコードのみ投入する。
+//
 // 使用方法:
 //
 //	DATABASE_URL="postgres://expense_owner:localdev@localhost:5432/expense_saas?sslmode=disable" go run ./cmd/seed
@@ -17,6 +20,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 
+	"expense-saas/internal/pkg/s3"
 	"expense-saas/internal/seed"
 )
 
@@ -55,8 +59,22 @@ func main() {
 	}
 	slog.Info("DB 接続確認完了")
 
+	// S3 クライアントを初期化する。
+	// S3_ENDPOINT が未設定の場合は nil を渡し、MinIO アップロードをスキップする。
+	var s3Client *s3.Client
+	if os.Getenv("S3_ENDPOINT") != "" {
+		s3Client, err = s3.NewClientFromEnv()
+		if err != nil {
+			slog.Error("S3 クライアントの初期化に失敗しました", "error", err)
+			os.Exit(1)
+		}
+		slog.Info("S3 クライアント初期化完了", "endpoint", os.Getenv("S3_ENDPOINT"), "bucket", os.Getenv("S3_BUCKET"))
+	} else {
+		slog.Info("S3_ENDPOINT が未設定のため MinIO アップロードをスキップします")
+	}
+
 	// フィクスチャを投入する。
-	if err := seed.Run(ctx, pool); err != nil {
+	if err := seed.Run(ctx, pool, s3Client); err != nil {
 		slog.Error("フィクスチャ投入に失敗しました", "error", err)
 		os.Exit(1)
 	}
@@ -68,6 +86,11 @@ func main() {
 		"member", "test-member@example.com",
 		"accounting", "test-accounting@example.com",
 		"password", "TestPass1!",
+	)
+	slog.Info("投入済み添付ファイル",
+		"attachment_id", seed.AttachmentSubmittedID,
+		"report_id", seed.ReportSubmittedID,
+		"s3_key", seed.TenantAID+"/"+seed.ReportSubmittedID+"/"+seed.AttachmentSubmittedID,
 	)
 }
 

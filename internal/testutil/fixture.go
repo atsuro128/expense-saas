@@ -38,7 +38,11 @@ const (
 	ReportTenantBApprovedID  = seed.ReportTenantBApprovedID
 
 	// 経費項目フィクスチャ UUID。
-	ItemDraftID = seed.ItemDraftID
+	ItemDraftID     = seed.ItemDraftID
+	ItemSubmittedID = seed.ItemSubmittedID
+
+	// 添付ファイルフィクスチャ UUID（SMK-037 ダウンロード確認用）。
+	AttachmentSubmittedID = seed.AttachmentSubmittedID
 )
 
 // testPasswordHash は "TestPass1!" の Argon2id ハッシュ。
@@ -62,7 +66,9 @@ func init() {
 func SeedFixtures(t *testing.T, pool *pgxpool.Pool) {
 	t.Helper()
 
-	if err := seed.Run(context.Background(), pool); err != nil {
+	// テスト環境では S3 クライアントを渡さない（nil）ため、MinIO アップロードはスキップされる。
+	// 添付ファイルの DB レコードのみ投入し、実ファイルのアップロードは行わない。
+	if err := seed.Run(context.Background(), pool, nil); err != nil {
 		t.Fatalf("testutil: SeedFixtures: %v", err)
 	}
 }

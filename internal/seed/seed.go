@@ -4,7 +4,9 @@
 package seed
 
 import (
+	"bytes"
 	"context"
+	_ "embed"
 	"fmt"
 	"time"
 
@@ -12,7 +14,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"expense-saas/internal/domain"
+	"expense-saas/internal/pkg/s3"
 )
+
+// receiptSampleJPEG は seed CLI バイナリに埋め込むダミー JPEG ファイル。
+// SMK-037「ダウンロード起動」スモークテストの前提データとして MinIO にアップロードする。
+//
+//go:embed testdata/receipt_sample.jpg
+var receiptSampleJPEG []byte
 
 // 標準フィクスチャの固定 UUID（test_strategy.md §4.2 参照）。
 // testutil パッケージの定数と完全一致させる。
@@ -39,15 +48,29 @@ const (
 	ReportTenantBApprovedID  = "eeeeeeee-0003-0003-0003-000000000003"
 
 	// 経費項目フィクスチャ UUID。
-	ItemDraftID = "dddddddd-0001-0001-0001-000000000001"
+	ItemDraftID     = "dddddddd-0001-0001-0001-000000000001"
+	ItemSubmittedID = "dddddddd-0002-0002-0002-000000000002"
+
+	// 添付ファイルフィクスチャ UUID（SMK-037 ダウンロード確認用）。
+	// reportSubmitted（cccccccc-0002-0002-0002-000000000002）に紐付く 1 件のみ投入する。
+	AttachmentSubmittedID = "ffffffff-0001-0001-0001-000000000001"
 )
+
+// attachmentS3Key は添付フィクスチャの S3 オブジェクトキーを返す。
+// files.md §2.2 の形式: {tenant_id}/{report_id}/{attachment_id}
+func attachmentS3Key() string {
+	return TenantAID + "/" + ReportSubmittedID + "/" + AttachmentSubmittedID
+}
 
 // Run は pool を使ってフィクスチャをすべてデータベースに投入する。
 // pool はオーナーロール（expense_owner）の接続プールを使用すること。
 // RLS をバイパスするためにオーナーロールが必要。
 // 冪等性を担保するため ON CONFLICT DO NOTHING を使用している。
 // 再実行時も既存データを壊さず、不足分のみ補完する。
-func Run(ctx context.Context, pool *pgxpool.Pool) error {
+//
+// s3Client が nil でない場合、MinIO にダミーファイルをアップロードする。
+// テスト環境（testutil.SeedFixtures）では nil を渡すことで S3 アップロードをスキップできる。
+func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 	// パスワードハッシュを生成する（"TestPass1!" の Argon2id ハッシュ）。
 	hasher := domain.NewArgon2idHasher()
 	passwordHash, err := hasher.HashPassword("TestPass1!")
@@ -202,6 +225,58 @@ func Run(ctx context.Context, pool *pgxpool.Pool) error {
 		uuid.MustParse(ReportDraftID),
 	); err != nil {
 		return fmt.Errorf("seed: report_draft total_amount 更新失敗: %w", err)
+	}
+
+	// 経費項目（report_submitted に 1 件）投入。
+	// SMK-037 の前提データとして添付ファイルを紐付けるために必要。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_items
+		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (item_id) DO NOTHING`,
+		uuid.MustParse(ItemSubmittedID), uuid.MustParse(ReportSubmittedID), tenantAID,
+		expenseDate, 2000, transportCategoryID, "テスト交通費（提出済み）",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: 経費項目（提出済み）挿入失敗: %w", err)
+	}
+
+	// report_submitted の total_amount を経費項目に合わせて更新する。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports SET total_amount = 2000 WHERE report_id = $1`,
+		uuid.MustParse(ReportSubmittedID),
+	); err != nil {
+		return fmt.Errorf("seed: report_submitted total_amount 更新失敗: %w", err)
+	}
+
+	// 添付ファイルレコード投入（SMK-037 ダウンロード確認用）。
+	// reportSubmitted に紐付く 1 件のみ投入する（最小限スコープ）。
+	// s3_key は files.md §2.2 の形式: {tenant_id}/{report_id}/{attachment_id}
+	s3Key := attachmentS3Key()
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO attachments
+		 (attachment_id, item_id, report_id, tenant_id, file_name, file_size, mime_type, s3_key, created_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (attachment_id) DO NOTHING`,
+		uuid.MustParse(AttachmentSubmittedID),
+		uuid.MustParse(ItemSubmittedID),
+		uuid.MustParse(ReportSubmittedID),
+		tenantAID,
+		"receipt_sample.jpg",
+		len(receiptSampleJPEG),
+		string(domain.MimeTypeImageJpeg),
+		s3Key,
+		now,
+	); err != nil {
+		return fmt.Errorf("seed: 添付ファイルレコード挿入失敗: %w", err)
+	}
+
+	// MinIO にダミーファイルをアップロードする。
+	// s3Client が nil の場合（テスト環境等）はスキップする。
+	if s3Client != nil {
+		if err := s3Client.Upload(ctx, s3Key, bytes.NewReader(receiptSampleJPEG), string(domain.MimeTypeImageJpeg)); err != nil {
+			return fmt.Errorf("seed: MinIO アップロード失敗 [key=%s]: %w", s3Key, err)
+		}
 	}
 
 	// 経費レポート（テナント B）投入。
