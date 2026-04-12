@@ -212,9 +212,9 @@ func buildMultipartRequestNoFilePart(t *testing.T, url string) *http.Request {
 	return req
 }
 
-// addAuthHeader は TestServer に紐付いた鍵ペアで生成した JWT トークンをリクエストに付与する。
+// addAuthHeader は JWT トークンを生成してリクエストに認証ヘッダーを付与する。
 // multipart/form-data リクエストのボディを維持しながら認証ヘッダーのみを追加する。
-func addAuthHeader(t *testing.T, srv *testutil.TestServer, req *http.Request, userID, tenantID, role string) *http.Request {
+func addAuthHeader(t *testing.T, req *http.Request, userID, tenantID, role string) *http.Request {
 	t.Helper()
 
 	token := testutil.GenerateTestToken(t, userID, tenantID, role)
@@ -234,7 +234,7 @@ func TestUploadAttachment_Success_JPEG(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -248,7 +248,7 @@ func TestUploadAttachment_Success_PNG(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.png", "image/png", makePNGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -262,7 +262,7 @@ func TestUploadAttachment_Success_PDF(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.pdf", "application/pdf", makePDFFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -277,7 +277,7 @@ func TestUploadAttachment_Success_ExactlyMaxSize(t *testing.T) {
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	// 5MB = 5 * 1024 * 1024 = 5,242,880 バイト（境界値・許可）。
 	req := buildMultipartRequest(t, url, "file", "large.jpg", "image/jpeg", makeJPEGFile(5242880))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -303,7 +303,7 @@ func TestUploadAttachment_Success_Approver(t *testing.T) {
 
 	url := "/api/reports/" + reportID.String() + "/items/" + itemID.String() + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserApproverID, testutil.TenantAID, "approver")
+	req = addAuthHeader(t, req, testutil.UserApproverID, testutil.TenantAID, "approver")
 
 	rec := srv.Execute(req)
 
@@ -320,7 +320,7 @@ func TestUploadAttachment_FileTooLarge(t *testing.T) {
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	// 5MB + 1 バイト = 5,242,881 バイト（1バイトオーバー）。
 	req := buildMultipartRequest(t, url, "file", "toolarge.jpg", "image/jpeg", makeJPEGFile(5242881))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -334,7 +334,7 @@ func TestUploadAttachment_InvalidMimeType_GIF(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.gif", "image/gif", makeGIFFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -349,7 +349,7 @@ func TestUploadAttachment_SpoofedMimeType(t *testing.T) {
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	// Content-Type は image/jpeg と宣言するが、マジックバイトは GIF。
 	req := buildMultipartRequest(t, url, "file", "spoofed.jpg", "image/jpeg", makeSpoofedJPEGFile())
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -363,7 +363,7 @@ func TestUploadAttachment_MissingFilePart(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequestNoFilePart(t, url)
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -378,7 +378,7 @@ func TestUploadAttachment_NoContentType(t *testing.T) {
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	// contentType を空文字にすることで Content-Type ヘッダーなしのリクエストを構築する。
 	req := buildMultipartRequest(t, url, "file", "noct.jpg", "", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -419,7 +419,7 @@ func TestUploadAttachment_Forbidden_NotOwner(t *testing.T) {
 	// report_draft の所有者は Test Member。Test Approver は所有者でない。
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserApproverID, testutil.TenantAID, "approver")
+	req = addAuthHeader(t, req, testutil.UserApproverID, testutil.TenantAID, "approver")
 
 	rec := srv.Execute(req)
 
@@ -441,7 +441,7 @@ func TestUploadAttachment_ReportNotEditable_Submitted(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -460,7 +460,7 @@ func TestUploadAttachment_ReportNotEditable_Approved(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportApprovedID + "/items/" + itemID.String() + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -479,7 +479,7 @@ func TestUploadAttachment_ReportNotEditable_Rejected(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportRejectedID + "/items/" + itemID.String() + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -498,7 +498,7 @@ func TestUploadAttachment_ReportNotEditable_Paid(t *testing.T) {
 
 	url := "/api/reports/" + testutil.ReportPaidID + "/items/" + itemID.String() + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -515,7 +515,7 @@ func TestUploadAttachment_ReportNotFound(t *testing.T) {
 	nonExistentReportID := "00000000-0000-0000-0000-000000000099"
 	url := "/api/reports/" + nonExistentReportID + "/items/" + testutil.ItemDraftID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -530,7 +530,7 @@ func TestUploadAttachment_ItemNotFound(t *testing.T) {
 	nonExistentItemID := "00000000-0000-0000-0000-000000000099"
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + nonExistentItemID + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
@@ -551,7 +551,7 @@ func TestUploadAttachment_ItemBelongsToDifferentReport(t *testing.T) {
 	// report_draft の URL に report_draft_empty の明細 ID を組み合わせる。
 	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + otherItemID.String() + "/attachments"
 	req := buildMultipartRequest(t, url, "file", "receipt.jpg", "image/jpeg", makeJPEGFile(1024))
-	req = addAuthHeader(t, srv, req, testutil.UserMemberID, testutil.TenantAID, "member")
+	req = addAuthHeader(t, req, testutil.UserMemberID, testutil.TenantAID, "member")
 
 	rec := srv.Execute(req)
 
