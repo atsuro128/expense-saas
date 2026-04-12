@@ -18,11 +18,11 @@ migrate-create:
 	migrate create -ext sql -dir $(MIGRATE_PATH) -seq $(name)
 
 # 開発用フィクスチャを DB に投入する。
-# docker compose up -d でサービスが起動した後に実行すること。
-# DATABASE_URL にはオーナーロール（expense_owner）の接続 URL を指定する。
-# コンテナ内 DB に投入する場合は DATABASE_URL をコンテナのポートに合わせて指定する。
+# docker compose up -d 実行後に make seed を叩く（2 ステップ運用）。
+# Compose 経由で実行するためホスト Go は不要。
+# 内部で `docker compose --profile seed run --rm seed` を実行する。
 seed:
-	DATABASE_URL=$(DATABASE_URL) go run ./cmd/seed
+	docker compose --profile seed run --rm seed
 
 docker-up:
 	docker compose up -d

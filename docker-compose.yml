@@ -100,8 +100,35 @@ services:
       "
 
   # -----------------------------------------------------------------------
+  # Seed（開発用フィクスチャ投入、ワンショット、profile で通常起動から除外）
+  # `docker compose --profile seed run --rm seed` で実行する。
+  # `docker compose up -d` 実行後に make seed を叩く運用を想定。
+  # -----------------------------------------------------------------------
+  seed:
+    build: .
+    profiles: [seed]
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      minio-init:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: ${DATABASE_URL:-postgres://expense_owner:localdev@db:5432/expense_saas?sslmode=disable}
+      APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://expense_app:localdev@db:5432/expense_saas?sslmode=disable}
+      S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
+      S3_BUCKET: ${S3_BUCKET:-expense-saas-receipts-dev}
+      AWS_REGION: ${AWS_REGION:-ap-northeast-1}
+    entrypoint: ["/app/seed"]
+    restart: "no"
+
+  # -----------------------------------------------------------------------
   # API サーバー（Go バックエンド）
-  # migrate の完了と minio の起動を待ってから起動する。
+  # migrate の完了と minio-init の完了を待ってから起動する。
+  # minio-init が minio healthy を含意するため minio の直接待ちは不要。
   # -----------------------------------------------------------------------
   api:
     build: .
@@ -112,8 +139,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
-      minio:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgres://expense_owner:localdev@db:5432/expense_saas?sslmode=disable}
       APP_DATABASE_URL: ${APP_DATABASE_URL:-postgres://expense_app:localdev@db:5432/expense_saas?sslmode=disable}

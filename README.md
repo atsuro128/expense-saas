@@ -6,7 +6,6 @@
 ## 前提条件
 
 - Docker / Docker Compose v2
-- Go 1.24 以上（`make seed` を実行する場合）
 - `./scripts/generate-keys.sh` に必要な OpenSSL
 
 ## ローカル開発環境のセットアップ
@@ -45,6 +44,7 @@ docker compose up -d
 | `minio-init` | MinIO 初期バケット作成後に終了 |
 | `api` | Go バックエンド |
 | `frontend` | React / Vite 開発サーバー |
+| `seed` | 開発用フィクスチャ投入（profile: seed、ワンショット実行、通常起動から除外） |
 
 マイグレーション（`000001` 〜 `000011`）は `migrate` コンテナが自動適用するため、手動実行は不要。
 
@@ -53,6 +53,9 @@ docker compose up -d
 ```bash
 make seed
 ```
+
+内部で `docker compose --profile seed run --rm seed` を実行する。ホスト Go は不要。
+seed サービスは `depends_on` で `migrate` と `minio-init` の完了を自動待機するため、起動順序エラーは通常発生しない。
 
 以下のデータが投入される（`test_strategy.md §4.2/4.3/4.4` 参照）:
 
@@ -128,10 +131,11 @@ FRONTEND_PORT=5174
 
 ### `make seed` でエラー
 
-`docker compose up -d` が完了してから実行する（特に migrate コンテナの完了を待つ）。
+`docker compose up -d` が完了してから実行する。
+seed サービスは `depends_on` で `migrate` と `minio-init` の完了を自動待機するため、通常は起動順序エラーは発生しない。
+それでもエラーが出る場合は以下で `migrate` と `minio-init` の STATUS を確認する。
 
 ```bash
-# migrate コンテナの完了を確認する
-docker compose ps migrate
-# STATUS が "Exited (0)" になっていれば完了
+docker compose ps
+# migrate と minio-init の STATUS が "Exited (0)" になっていれば完了
 ```
