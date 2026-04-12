@@ -1,4 +1,4 @@
-.PHONY: setup migrate-up migrate-down migrate-create docker-up docker-down docker-restart
+.PHONY: setup migrate-up migrate-down migrate-create docker-up docker-down docker-restart seed
 
 setup:
 	git config core.hooksPath .githooks
@@ -16,6 +16,13 @@ migrate-down:
 migrate-create:
 	@if [ -z "$(name)" ]; then echo "Usage: make migrate-create name=<migration_name>"; exit 1; fi
 	migrate create -ext sql -dir $(MIGRATE_PATH) -seq $(name)
+
+# 開発用フィクスチャを DB に投入する。
+# docker compose up -d でサービスが起動した後に実行すること。
+# DATABASE_URL にはオーナーロール（expense_owner）の接続 URL を指定する。
+# コンテナ内 DB に投入する場合は DATABASE_URL をコンテナのポートに合わせて指定する。
+seed:
+	DATABASE_URL=$(DATABASE_URL) go run ./cmd/seed
 
 docker-up:
 	docker compose up -d
