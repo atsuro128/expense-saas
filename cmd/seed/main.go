@@ -87,10 +87,15 @@ func main() {
 		"accounting", "test-accounting@example.com",
 		"password", "TestPass1!",
 	)
-	slog.Info("投入済み添付ファイル",
+	slog.Info("投入済み添付ファイル（reportSubmitted）",
 		"attachment_id", seed.AttachmentSubmittedID,
 		"report_id", seed.ReportSubmittedID,
 		"s3_key", seed.TenantAID+"/"+seed.ReportSubmittedID+"/"+seed.AttachmentSubmittedID,
+	)
+	slog.Info("投入済み添付ファイル（reportDraft）",
+		"attachment_id", seed.AttachmentDraftID,
+		"report_id", seed.ReportDraftID,
+		"s3_key", seed.TenantAID+"/"+seed.ReportDraftID+"/"+seed.AttachmentDraftID,
 	)
 }
 

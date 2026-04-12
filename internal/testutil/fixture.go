@@ -41,8 +41,11 @@ const (
 	ItemDraftID     = seed.ItemDraftID
 	ItemSubmittedID = seed.ItemSubmittedID
 
-	// 添付ファイルフィクスチャ UUID（SMK-037 ダウンロード確認用）。
+	// 添付ファイルフィクスチャ UUID。
+	// AttachmentSubmittedID は SMK-037（ダウンロード確認）用に reportSubmitted に紐付く。
+	// AttachmentDraftID は SMK-038（削除確認）用に reportDraft に紐付く。
 	AttachmentSubmittedID = seed.AttachmentSubmittedID
+	AttachmentDraftID     = seed.AttachmentDraftID
 )
 
 // testPasswordHash は "TestPass1!" の Argon2id ハッシュ。
