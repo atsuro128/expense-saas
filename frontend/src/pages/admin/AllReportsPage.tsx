@@ -1,6 +1,8 @@
 // AllReportsPage: テナント全レポート一覧画面（SCR-ADM-001）
 // Admin および Accounting ロールのみアクセス可能。他ロールはダッシュボード（/）にリダイレクトする。
 // 403 エラー時もダッシュボードにリダイレクトする。
+// 共通レイアウト（AppHeader + AppSidebar）は App.tsx の AppLayoutOutlet が適用するため、
+// このページコンポーネントは AppLayout を自前でラップしない。
 
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -9,7 +11,6 @@ import { useTenantMembers } from '../../hooks/useTenantMembers';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import { ApiClientError } from '../../api/client';
 import type { AllReportRow } from '../../api/adminTypes';
-import AppLayout from '../../components/layout/AppLayout';
 import PageTitle from '../../components/ui/PageTitle';
 import AppToast from '../../components/ui/AppToast';
 import AppPagination from '../../components/ui/AppPagination';
@@ -94,7 +95,7 @@ export default function AllReportsPage() {
     !!filters.status || !!filters.from || !!filters.to || !!filters.submitterId;
 
   return (
-    <AppLayout>
+    <>
       <PageTitle title="全レポート" />
       <AllReportsFilterBar
         filters={filters}
@@ -119,6 +120,6 @@ export default function AllReportsPage() {
         message={toastMessage}
         onClose={() => setToastOpen(false)}
       />
-    </AppLayout>
+    </>
   );
 }

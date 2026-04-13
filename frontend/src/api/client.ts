@@ -75,6 +75,15 @@ async function apiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   if (res.status === 401) {
+    // /api/auth/login および /api/auth/refresh の 401 はリフレッシュ処理をスキップして
+    // 呼び出し元にそのまま ApiClientError を投げる。
+    // - login: 誤認証情報によるエラー。リフレッシュ不要。
+    // - refresh: リフレッシュトークン失効によるエラー。無限ループを防ぐためスキップ必須。
+    const isAuthEndpoint = path === '/api/auth/login' || path === '/api/auth/refresh';
+    if (isAuthEndpoint) {
+      await handleErrorResponse(res);
+    }
+
     const refreshed = await refreshAccessToken();
     if (!refreshed) {
       throw new ApiClientError('Unauthorized', 401, 'UNAUTHORIZED');
