@@ -2,7 +2,7 @@
 // AppHeader + AppSidebar + メインコンテンツ領域を統合する。
 // screens.md §4.1 準拠。メインコンテンツ領域は Container maxWidth="lg" で制約する。
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Container from '@mui/material/Container';
@@ -53,15 +53,23 @@ export default function AppLayout({ children }: AppLayoutProps) {
     });
   };
 
+  const authUser = currentUserResponse?.data;
+
+  // ローディング完了後にユーザー情報が取得できない場合はログイン画面にリダイレクトする。
+  // レンダー中に navigate を呼ぶと React の警告対象になるため useEffect 内で実行する。
+  useEffect(() => {
+    if (!isLoading && !authUser) {
+      navigate('/login');
+    }
+  }, [isLoading, authUser, navigate]);
+
   // ローディング中はスケルトンを表示する。
   if (isLoading) {
     return <PageSkeleton variant="card" />;
   }
 
-  // ユーザー情報が取得できない場合はログイン画面にリダイレクトする。
-  const authUser = currentUserResponse?.data;
+  // ユーザー情報が未取得の場合は null を返す（useEffect でリダイレクトが実行される）。
   if (!authUser) {
-    navigate('/login');
     return null;
   }
 

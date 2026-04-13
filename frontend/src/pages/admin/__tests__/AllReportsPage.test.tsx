@@ -12,11 +12,6 @@ import * as useTenantMembersModule from '../../../hooks/useTenantMembers';
 import * as useCurrentUserModule from '../../../hooks/useCurrentUser';
 import { ApiClientError } from '../../../api/client';
 
-// AppLayout をモックし、children をそのまま描画する（auth store 依存を排除）。
-vi.mock('../../../components/layout/AppLayout', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div data-testid="app-layout">{children}</div>,
-}));
-
 // MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
 vi.mock('../../../components/ui/AppSelect', () => ({
   default: (props: { label: string; value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; disabled?: boolean }) => (
