@@ -4,16 +4,17 @@
 // ロール不一致の制御は各ページコンポーネント側（TenantPage / AllReportsPage 等）が担う。
 
 import { useLocation, Navigate, Outlet } from 'react-router-dom';
-import { getAccessToken } from '../../stores/auth';
+import { useAuth } from '../../hooks/useAuth';
 
 /**
  * PrivateRoute は認証必須ルートのガードコンポーネント。
  * アクセストークンが存在しない場合は /login にリダイレクトし、
  * location.state.from に元の URL を保持してログイン後の復帰を可能にする。
+ * 認証状態の取得は useAuth フックに一本化し、stores/auth への直接アクセスを排除する。
  */
 export default function PrivateRoute() {
   const location = useLocation();
-  const isAuthenticated = getAccessToken() !== null;
+  const { isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
     // 未ログイン時は /login にリダイレクトし、元の URL を state.from に保持する。
