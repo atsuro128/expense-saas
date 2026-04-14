@@ -88,9 +88,21 @@ func TestSeed_PaidReportPeriodDistribution(t *testing.T) {
 		t.Fatalf("rows.Err(): %v", err)
 	}
 
-	// 2 ヶ月以上に分散していることを確認する（当月・前月・前々月の 3 ヶ月を期待）。
-	if len(months) < 2 {
-		t.Errorf("paid レポートの期間分散が不十分: %d ヶ月のみ (want >= 2)", len(months))
+	// issue-087 完了条件: 当月・前月・前々月の 3 ヶ月分が必ず含まれていること。
+	now := time.Now().UTC()
+	curMonth := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+	prevMonth := curMonth.AddDate(0, -1, 0)
+	prev2Month := curMonth.AddDate(0, -2, 0)
+
+	monthSet := make(map[time.Time]bool, len(months))
+	for _, m := range months {
+		monthSet[m] = true
+	}
+
+	for _, want := range []time.Time{prev2Month, prevMonth, curMonth} {
+		if !monthSet[want] {
+			t.Errorf("paid レポートに %s の月が含まれていません (got months=%v)", want.Format("2006-01"), months)
+		}
 	}
 }
 
