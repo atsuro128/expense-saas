@@ -578,6 +578,22 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 	// 当月末日を period_end として設定する（CHECK (period_start <= period_end) 制約を満たすため）。
 	currentMonthEnd := currentMonthStart.AddDate(0, 1, -1)
 
+	// テスト追加レポートが当月集計に紛れ込む量を観測するため、追加前の seed 由来 paid 合計を取得する。
+	// seed 拡張（issue 087）で当月に paid レポートが含まれる場合があるため、ハードコード値ではなく動的に算出する。
+	var seedPaidBaseline int
+	if err := pool.QueryRow(context.Background(),
+		`SELECT COALESCE(SUM(total_amount), 0)
+		 FROM expense_reports
+		 WHERE tenant_id = $1
+		   AND status = 'paid'
+		   AND period_start >= $2
+		   AND period_start < $3
+		   AND deleted_at IS NULL`,
+		tenantID, currentMonthStart, currentMonthStart.AddDate(0, 1, 0),
+	).Scan(&seedPaidBaseline); err != nil {
+		t.Fatalf("seed 由来の当月 paid 合計取得に失敗しました: %v", err)
+	}
+
 	// approved ステータスのレポートを作成する（10000円）。
 	// monthly_summary の集計に含まれてはならない。
 	testutil.CreateReport(t, pool, tenantID, approverID,
@@ -630,18 +646,18 @@ func TestGetDashboard_MonthlySummary_OnlyPaidIncluded(t *testing.T) {
 		t.Fatalf("monthly_summary に当月（%s）のエントリが存在しません", currentYearMonth)
 	}
 
-	// 標準フィクスチャの paid レポートは period_start が 2026-03-01（過去）のため当月集計対象外。
-	// 当月に集計されるのは今回追加した paid レポート（5000円）のみ。
-	wantAmount := 5000
+	// 期待値: seed 由来の当月 paid 合計 + 今回追加した paid レポート（5000円）。
+	// approved（10000円）は集計対象外のため含めない。
+	wantAmount := seedPaidBaseline + 5000
 	if got := *currentMonthAmount; got != wantAmount {
-		t.Errorf("monthly_summary[%s].total_amount: got %d, want %d\n"+
+		t.Errorf("monthly_summary[%s].total_amount: got %d, want %d (seed baseline=%d + test paid=5000)\n"+
 			"（approved の 10000 円が含まれている可能性があります）",
-			currentYearMonth, got, wantAmount)
+			currentYearMonth, got, wantAmount, seedPaidBaseline)
 	}
 
 	// approved の金額（10000）が含まれていないことを明示的に確認する。
-	// もし approved が混入していれば total_amount は 15000 になる。
-	if got := *currentMonthAmount; got == 15000 {
+	// もし approved が混入していれば total_amount は wantAmount + 10000 になる。
+	if got := *currentMonthAmount; got == wantAmount+10000 {
 		t.Errorf("monthly_summary に approved の金額（10000円）が混入しています: got %d", got)
 	}
 }
