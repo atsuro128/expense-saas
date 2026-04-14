@@ -207,6 +207,30 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('支払待ち')).not.toBeInTheDocument();
   });
 
+  // DSH-FE-003b: Approver の承認待ちカードが Grid レイアウトコンテナ（approver-action-cards）内に配置されること。
+  it('DSH-FE-003b: Approver の承認待ちカードが Grid レイアウトコンテナ内に配置される', () => {
+    renderDashboard('approver', mockDashboardApprover);
+
+    // data-testid="approver-action-cards" の Grid コンテナが存在すること。
+    const actionCardsContainer = screen.getByTestId('approver-action-cards');
+    expect(actionCardsContainer).toBeInTheDocument();
+
+    // コンテナ内に承認待ちラベルが存在すること（MyReportCountCards と同じ Grid 構造）。
+    expect(within(actionCardsContainer).getByText('承認待ち')).toBeInTheDocument();
+  });
+
+  // DSH-FE-004b: Accounting の支払待ちカードが Grid レイアウトコンテナ（accounting-action-cards）内に配置されること。
+  it('DSH-FE-004b: Accounting の支払待ちカードが Grid レイアウトコンテナ内に配置される', () => {
+    renderDashboard('accounting', mockDashboardAccounting);
+
+    // data-testid="accounting-action-cards" の Grid コンテナが存在すること。
+    const actionCardsContainer = screen.getByTestId('accounting-action-cards');
+    expect(actionCardsContainer).toBeInTheDocument();
+
+    // コンテナ内に支払待ちラベルが存在すること（MyReportCountCards と同じ Grid 構造）。
+    expect(within(actionCardsContainer).getByText('支払待ち')).toBeInTheDocument();
+  });
+
   // DSH-FE-006: useDashboard が isLoading=true のとき PageSkeleton が表示されること。
   it('DSH-FE-006: isLoading=true のとき PageSkeleton が表示される', () => {
     (useCurrentUserModule.useCurrentUser as Mock).mockReturnValue({
