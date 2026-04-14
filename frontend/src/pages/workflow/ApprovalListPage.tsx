@@ -131,10 +131,18 @@ export default function ApprovalListPage() {
     applicant_name: applicantNameParam || undefined,
   });
 
-  // 403 エラー時はダッシュボードにリダイレクトする。
+  // 403 エラー時はダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (isError && error && (error as { status?: number }).status === 403) {
-      void navigate('/dashboard');
+      void navigate('/dashboard', {
+        state: {
+          toast: {
+            severity: 'error',
+            message: 'この画面にアクセスする権限がありません。',
+          },
+        },
+        replace: true,
+      });
     }
   }, [isError, error, navigate]);
 
