@@ -61,9 +61,9 @@ seed サービスは `depends_on` で `migrate` と `minio-init` の完了を自
 
 - テナント A（Test Company A）/ テナント B（Test Company B）
 - テナント A ユーザー（4 ロール）
-- 経費レポート 6 件（各ステータス）
+- 経費レポート 8 件（draft × 2 / submitted × 1 / rejected × 1 / paid × 3（直近 3 ヶ月に分散））
 - グローバルカテゴリ 6 種
-- 経費項目 1 件
+- 経費項目（各レポートに 1 件）
 
 冪等性を担保しているため複数回実行しても問題ない。
 
