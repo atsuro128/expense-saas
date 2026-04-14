@@ -1,12 +1,16 @@
 // ダッシュボードページコンポーネント。
 // ロール別にセクションを出し分ける。
 // 55_ui_component/screens/dashboard.md §DashboardPage 準拠。
+// navigate state 経由で遷移先トーストを受信する（issue 088: 403 認可エラー UX）。
 
+import { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Grid from '@mui/material/Grid2';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import AppToast from '../../components/ui/AppToast';
+import type { ToastSeverity } from '../../components/ui/AppToast';
 import CountCard from '../../components/dashboard/CountCard';
 import MyReportCountCards from '../../components/dashboard/MyReportCountCards';
 import TenantStatusCards from '../../components/dashboard/TenantStatusCards';
@@ -14,6 +18,13 @@ import MonthlySummaryTable from '../../components/dashboard/MonthlySummaryTable'
 import RecentReportList from '../../components/dashboard/RecentReportList';
 import type { MonthlySummaryItem } from '../../components/dashboard/MonthlySummaryTable';
 import type { RecentReport } from '../../components/dashboard/RecentReportList';
+
+/** navigate state 経由で受け取るトースト情報の型 */
+interface ToastState {
+  open: boolean;
+  message: string;
+  severity: ToastSeverity;
+}
 
 /**
  * DashboardPage はダッシュボード画面のルートコンポーネント。
@@ -23,6 +34,23 @@ import type { RecentReport } from '../../components/dashboard/RecentReportList';
 export default function DashboardPage() {
   const { data: dashboardData, isLoading: dashboardLoading, error: dashboardError } = useDashboard();
   const { data: userData, isLoading: userLoading } = useCurrentUser();
+  const location = useLocation();
+
+  // navigate state 経由で渡されたトースト情報を受信する（issue 088: 403 認可エラー UX）。
+  const [redirectToast, setRedirectToast] = useState<ToastState>({
+    open: false,
+    message: '',
+    severity: 'info',
+  });
+
+  useEffect(() => {
+    const locationState = location.state as { toast?: { severity: ToastSeverity; message: string } } | null;
+    if (locationState?.toast) {
+      setRedirectToast({ ...locationState.toast, open: true });
+      // 履歴リロード時の再発火を防ぐためにステートをクリアする。
+      window.history.replaceState({}, '');
+    }
+  }, [location]);
 
   if (dashboardLoading || userLoading) {
     return <PageSkeleton variant="card" />;
@@ -70,6 +98,14 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* 認可エラーによるリダイレクト時のトースト（issue 088: 403 認可エラー UX）。*/}
+      <AppToast
+        open={redirectToast.open}
+        severity={redirectToast.severity}
+        message={redirectToast.message}
+        onClose={() => setRedirectToast((prev) => ({ ...prev, open: false }))}
+      />
+
       {/* Member / Approver / Accounting: 自分のレポートカード */}
       {isMemberLike && (
         <MyReportCountCards

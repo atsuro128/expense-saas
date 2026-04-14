@@ -1,9 +1,10 @@
 // DashboardPage コンポーネントのユニットテスト。
 // DSH-FE-001〜DSH-FE-007 に対応する。
+// DSH-FE-008: issue 088（403 認可エラーフィードバック）のリダイレクトトースト表示確認テストを追加。
 
 import { type ReactNode } from 'react';
-import { render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { render, screen, within, waitFor } from '@testing-library/react';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import type { Mock } from 'vitest';
@@ -43,6 +44,38 @@ function renderDashboard(role: string, dashboardData: DashboardResponse) {
   });
   const Wrapper = createWrapper();
   return render(<DashboardPage />, { wrapper: Wrapper });
+}
+
+/**
+ * navigate state 付きで DashboardPage をレンダリングするヘルパー（issue 088 テスト用）。
+ * MemoryRouter の initialEntries に state を乗せることで navigate 遷移後の状態を再現する。
+ */
+function renderDashboardWithLocationState(
+  role: string,
+  dashboardData: DashboardResponse,
+  locationState: unknown,
+) {
+  (useCurrentUserModule.useCurrentUser as Mock).mockReturnValue({
+    data: { data: { role, name: 'Test User', id: 'user-1', email: 'test@example.com', tenant: { id: 't-1', name: 'Test' } } },
+    isLoading: false,
+    error: null,
+  });
+  (useDashboardModule.useDashboard as Mock).mockReturnValue({
+    data: { data: dashboardData },
+    isLoading: false,
+    error: null,
+  });
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: locationState }]}>
+        <Routes>
+          <Route path="/" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
+        </Routes>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
 }
 
 // FE テスト用フィクスチャ。
@@ -270,5 +303,23 @@ describe('DashboardPage', () => {
 
     // AppToast のエラーメッセージが表示されること。
     expect(screen.getByText('サーバーエラーが発生しました')).toBeInTheDocument();
+  });
+
+  // DSH-FE-008: location state にトースト情報が含まれている場合、AppToast が表示されること（issue 088）。
+  // 認可エラー（403）でダッシュボードにリダイレクトされた際、navigate state 経由でトーストを受信する。
+  it('DSH-FE-008: location state にトースト情報が含まれている場合 AppToast が表示される', async () => {
+    const locationState = {
+      toast: {
+        severity: 'error',
+        message: 'この画面にアクセスする権限がありません。',
+      },
+    };
+
+    renderDashboardWithLocationState('member', mockDashboardMember, locationState);
+
+    // AppToast のトーストメッセージが表示されること。
+    await waitFor(() => {
+      expect(screen.getByText('この画面にアクセスする権限がありません。')).toBeInTheDocument();
+    });
   });
 });

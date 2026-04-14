@@ -1,9 +1,10 @@
 // AllReportsPage のユニットテスト。
 // TNT-FE-016〜023 に対応する。
+// TNT-FE-024〜025: issue 088（403 認可エラーフィードバック）の navigate toast state 確認テストを追加。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, afterEach } from 'vitest';
 import AllReportsPage from '../AllReportsPage';
@@ -61,14 +62,30 @@ function createQueryClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false }, mutations: { retry: false } } });
 }
 
+/** navigate で渡された state を検証するためのヘルパーコンポーネント。 */
+function DashboardWithState() {
+  const location = useLocation();
+  const state = location.state as { toast?: { severity: string; message: string } } | null;
+  return (
+    <div>
+      <div>Dashboard</div>
+      {state?.toast && (
+        <div data-testid="nav-toast-message">{state.toast.message}</div>
+      )}
+    </div>
+  );
+}
+
 // テスト用ラッパー: QueryClientProvider + MemoryRouter + Routes。
+// 実アプリの / → /dashboard 2段遷移を再現するためルート構成を合わせる。
 function renderAllReportsPage(initialEntries: string[] = ['/reports/all']) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <MemoryRouter initialEntries={initialEntries}>
         <Routes>
           <Route path="/reports/all" element={<AllReportsPage />} />
-          <Route path="/" element={<div>Dashboard</div>} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardWithState />} />
           <Route path="/reports/:id" element={<div data-testid="report-detail">Report Detail</div>} />
         </Routes>
       </MemoryRouter>
@@ -396,6 +413,78 @@ describe('AllReportsPage', () => {
     // レポート詳細画面に遷移すること。
     await waitFor(() => {
       expect(screen.getByTestId('report-detail')).toBeInTheDocument();
+    });
+  });
+
+  // TNT-FE-024: ロール不一致時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示されること（issue 088）。
+  it('TNT-FE-024: ロール不一致時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示される', async () => {
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: { id: 'user3', name: 'Test Member', email: 'member@example.com', role: 'member', tenant: { id: 'tenant1', name: 'Test Company A' } } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    renderAllReportsPage();
+
+    // ダッシュボードにリダイレクトされること。
+    await waitFor(() => {
+      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
+  });
+
+  // TNT-FE-025: 403 エラー時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示されること（issue 088）。
+  it('TNT-FE-025: 403 エラー時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示される', async () => {
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: mockAdminUser },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: new ApiClientError('Forbidden', 403, 'FORBIDDEN'),
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    renderAllReportsPage();
+
+    // ダッシュボードにリダイレクトされること。
+    await waitFor(() => {
+      expect(screen.getByText('Dashboard')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
     });
   });
 });
