@@ -167,7 +167,7 @@ func TestGetDashboard_Member_CountsMatchFixtures(t *testing.T) {
 
 // TestGetDashboard_Member_RecentReports_MaxFive は recent_reports が最大 5 件であることを検証する。
 // DSH-004 に対応する。
-// フィクスチャ: userMember が 6 件のレポートを保有する（標準フィクスチャ 6 件）。
+// フィクスチャ: userMember が 8 件のレポートを保有する（標準フィクスチャ 6 件 + issue-087 追加 paid 2 件）。
 func TestGetDashboard_Member_RecentReports_MaxFive(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -435,7 +435,8 @@ func TestGetDashboard_Accounting_NoApproverFields(t *testing.T) {
 
 // TestGetDashboard_Admin_TenantCounts は Admin のテナント全体集計が正しく返ることを検証する。
 // DSH-014 に対応する。
-// フィクスチャ: テナントA に draft × 2, submitted × 1, approved × 1, rejected × 1, paid × 1 が存在する。
+// フィクスチャ: テナントA に draft × 2, submitted × 1, approved × 1, rejected × 1, paid × 3 が存在する。
+// paid が 3 件なのは issue-087 の修正で 2026-02/03/04 に分散させたため。
 func TestGetDashboard_Admin_TenantCounts(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -459,7 +460,8 @@ func TestGetDashboard_Admin_TenantCounts(t *testing.T) {
 		{"tenant_submitted_count", resp.Data.TenantSubmittedCount, 1},
 		{"tenant_approved_count", resp.Data.TenantApprovedCount, 1},
 		{"tenant_rejected_count", resp.Data.TenantRejectedCount, 1},
-		{"tenant_paid_count", resp.Data.TenantPaidCount, 1},
+		// issue-087: 2026-02/03/04 に paid レポートを 1 件ずつ追加したため 3 件になる。
+		{"tenant_paid_count", resp.Data.TenantPaidCount, 3},
 	}
 
 	for _, tt := range tests {

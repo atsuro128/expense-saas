@@ -42,6 +42,12 @@ const (
 	ReportRejectedID   = "cccccccc-0004-0004-0004-000000000004"
 	ReportPaidID       = "cccccccc-0005-0005-0005-000000000005"
 
+	// 追加 paid レポート UUID（テナント A）。
+	// issue-087: Admin ダッシュボード月別合計 0 円対応 — 複数月に分散して paid レポートを追加する。
+	// 命名規則: dddddddd-000N-000N-000N-000000000001（N=連番）
+	ReportPaid2026Feb1ID = "dddddddd-0002-0002-0002-000000000001"
+	ReportPaid2026Apr1ID = "dddddddd-0003-0003-0003-000000000001"
+
 	// レポートフィクスチャ UUID（テナント B）。
 	ReportTenantBDraftID     = "eeeeeeee-0001-0001-0001-000000000001"
 	ReportTenantBSubmittedID = "eeeeeeee-0002-0002-0002-000000000002"
@@ -50,6 +56,15 @@ const (
 	// 経費項目フィクスチャ UUID。
 	ItemDraftID     = "dddddddd-0001-0001-0001-000000000001"
 	ItemSubmittedID = "dddddddd-0002-0002-0002-000000000002"
+
+	// 追加 expense_items UUID（issue-087 対応）。
+	// approved / rejected / 追加 paid レポートの total_amount を 0 円以外にするために使用する。
+	// 命名規則: eeeeeeee-000N-000N-000N-000000000001（N=連番）
+	ItemApprovedID    = "eeeeeeee-0002-0002-0002-000000000001"
+	ItemRejectedID    = "eeeeeeee-0003-0003-0003-000000000001"
+	ItemPaid2026Feb1  = "eeeeeeee-0004-0004-0004-000000000001"
+	ItemPaid2026Apr1  = "eeeeeeee-0005-0005-0005-000000000001"
+	ItemPaid2026Mar1  = "eeeeeeee-0006-0006-0006-000000000001"
 
 	// 添付ファイルフィクスチャ UUID。
 	// AttachmentSubmittedID は SMK-037（ダウンロード確認）用に reportSubmitted に紐付く。
@@ -96,6 +111,11 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 	periodStart := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC)
 	expenseDate := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+
+	// 各月の中旬タイムスタンプ（問題③: 状態タイムスタンプが NULL の修正用）。
+	ts202602 := time.Date(2026, 2, 15, 10, 0, 0, 0, time.UTC)
+	ts202603 := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+	ts202604 := time.Date(2026, 4, 15, 10, 0, 0, 0, time.UTC)
 
 	tenantAID := uuid.MustParse(TenantAID)
 	tenantBID := uuid.MustParse(TenantBID)
@@ -186,32 +206,139 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 	}
 
 	// 経費レポート（テナント A）投入。
+	// 問題③: 各状態に対応するタイムスタンプを必ずセットする。
 	memberID := uuid.MustParse(UserMemberID)
-	type reportRow struct {
-		id     string
-		status domain.ReportStatus
-		title  string
+	approverID := uuid.MustParse(UserApproverID)
+	accountingID := uuid.MustParse(UserAccountingID)
+
+	// draft レポート 1: 明細 1 件あり。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportDraftID), tenantAID, memberID,
+		"テスト下書きレポート", periodStart, periodEnd, string(domain.ReportStatusDraft), 0,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportDraftID, err)
 	}
-	reportsA := []reportRow{
-		{ReportDraftID, domain.ReportStatusDraft, "テスト下書きレポート"},
-		{ReportDraftEmptyID, domain.ReportStatusDraft, "テスト下書き（明細なし）"},
-		{ReportSubmittedID, domain.ReportStatusSubmitted, "テスト提出済みレポート"},
-		{ReportApprovedID, domain.ReportStatusApproved, "テスト承認済みレポート"},
-		{ReportRejectedID, domain.ReportStatusRejected, "テスト却下レポート"},
-		{ReportPaidID, domain.ReportStatusPaid, "テスト支払済みレポート"},
+
+	// draft レポート 2: 明細なし。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportDraftEmptyID), tenantAID, memberID,
+		"テスト下書き（明細なし）", periodStart, periodEnd, string(domain.ReportStatusDraft), 0,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportDraftEmptyID, err)
 	}
-	for _, rep := range reportsA {
-		if _, err := conn.Exec(ctx,
-			`INSERT INTO expense_reports
-			 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			 ON CONFLICT (report_id) DO NOTHING`,
-			uuid.MustParse(rep.id), tenantAID, memberID,
-			rep.title, periodStart, periodEnd, string(rep.status), 0,
-			now, now,
-		); err != nil {
-			return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", rep.id, err)
-		}
+
+	// submitted レポート: submitted_at をセット。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportSubmittedID), tenantAID, memberID,
+		"テスト提出済みレポート", periodStart, periodEnd, string(domain.ReportStatusSubmitted), 0,
+		memberID, ts202603,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportSubmittedID, err)
+	}
+
+	// approved レポート: submitted_at + approved_at をセット。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, approved_by, approved_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportApprovedID), tenantAID, memberID,
+		"テスト承認済みレポート", periodStart, periodEnd, string(domain.ReportStatusApproved), 0,
+		memberID, ts202603,
+		approverID, ts202603,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportApprovedID, err)
+	}
+
+	// rejected レポート: submitted_at + rejected_at + rejection_reason をセット。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, rejected_by, rejected_at, rejection_reason, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportRejectedID), tenantAID, memberID,
+		"テスト却下レポート", periodStart, periodEnd, string(domain.ReportStatusRejected), 0,
+		memberID, ts202603,
+		approverID, ts202603, "テスト却下理由",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportRejectedID, err)
+	}
+
+	// paid レポート（既存・2026-03）: submitted_at + approved_at + paid_at + paid_by をセット。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, approved_by, approved_at, paid_by, paid_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportPaidID), tenantAID, memberID,
+		"テスト支払済みレポート（2026-03）",
+		time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC),
+		string(domain.ReportStatusPaid), 0,
+		memberID, ts202603,
+		approverID, ts202603,
+		accountingID, ts202603,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportPaidID, err)
+	}
+
+	// paid レポート（追加・2026-02）: 問題① — 複数月への分散。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, approved_by, approved_at, paid_by, paid_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportPaid2026Feb1ID), tenantAID, memberID,
+		"テスト支払済みレポート（2026-02）",
+		time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 2, 28, 0, 0, 0, 0, time.UTC),
+		string(domain.ReportStatusPaid), 0,
+		memberID, ts202602,
+		approverID, ts202602,
+		accountingID, ts202602,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportPaid2026Feb1ID, err)
+	}
+
+	// paid レポート（追加・2026-04）: 問題① — 複数月への分散。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, approved_by, approved_at, paid_by, paid_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportPaid2026Apr1ID), tenantAID, memberID,
+		"テスト支払済みレポート（2026-04）",
+		time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
+		string(domain.ReportStatusPaid), 0,
+		memberID, ts202604,
+		approverID, ts202604,
+		accountingID, ts202604,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportPaid2026Apr1ID, err)
 	}
 
 	// 経費項目（report_draft に 1 件）投入。
@@ -255,6 +382,130 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		uuid.MustParse(ReportSubmittedID),
 	); err != nil {
 		return fmt.Errorf("seed: report_submitted total_amount 更新失敗: %w", err)
+	}
+
+	// 問題②: approved / rejected / 追加 paid レポートに expense_items を紐付け、
+	// total_amount を 0 円以外にする。
+	// 各レポートの expense_date は period に合わせて設定する。
+
+	// 経費項目（report_approved に 1 件）投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_items
+		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (item_id) DO NOTHING`,
+		uuid.MustParse(ItemApprovedID), uuid.MustParse(ReportApprovedID), tenantAID,
+		time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC), 3000, transportCategoryID, "テスト交通費（承認済み）",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: 経費項目（承認済み）挿入失敗: %w", err)
+	}
+
+	// report_approved の total_amount を SUM(expense_items) で更新する。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports SET total_amount = (
+			SELECT COALESCE(SUM(amount), 0) FROM expense_items
+			WHERE report_id = $1 AND deleted_at IS NULL
+		) WHERE report_id = $1`,
+		uuid.MustParse(ReportApprovedID),
+	); err != nil {
+		return fmt.Errorf("seed: report_approved total_amount 更新失敗: %w", err)
+	}
+
+	// 経費項目（report_rejected に 1 件）投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_items
+		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (item_id) DO NOTHING`,
+		uuid.MustParse(ItemRejectedID), uuid.MustParse(ReportRejectedID), tenantAID,
+		time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC), 1500, transportCategoryID, "テスト交通費（却下）",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: 経費項目（却下）挿入失敗: %w", err)
+	}
+
+	// report_rejected の total_amount を SUM(expense_items) で更新する。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports SET total_amount = (
+			SELECT COALESCE(SUM(amount), 0) FROM expense_items
+			WHERE report_id = $1 AND deleted_at IS NULL
+		) WHERE report_id = $1`,
+		uuid.MustParse(ReportRejectedID),
+	); err != nil {
+		return fmt.Errorf("seed: report_rejected total_amount 更新失敗: %w", err)
+	}
+
+	// 経費項目（paid レポート 2026-03 に 1 件）投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_items
+		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (item_id) DO NOTHING`,
+		uuid.MustParse(ItemPaid2026Mar1), uuid.MustParse(ReportPaidID), tenantAID,
+		time.Date(2026, 3, 10, 0, 0, 0, 0, time.UTC), 5000, transportCategoryID, "テスト交通費（支払済み 2026-03）",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: 経費項目（支払済み 2026-03）挿入失敗: %w", err)
+	}
+
+	// report_paid（2026-03）の total_amount を SUM(expense_items) で更新する。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports SET total_amount = (
+			SELECT COALESCE(SUM(amount), 0) FROM expense_items
+			WHERE report_id = $1 AND deleted_at IS NULL
+		) WHERE report_id = $1`,
+		uuid.MustParse(ReportPaidID),
+	); err != nil {
+		return fmt.Errorf("seed: report_paid（2026-03）total_amount 更新失敗: %w", err)
+	}
+
+	// 経費項目（paid レポート 2026-02 に 1 件）投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_items
+		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (item_id) DO NOTHING`,
+		uuid.MustParse(ItemPaid2026Feb1), uuid.MustParse(ReportPaid2026Feb1ID), tenantAID,
+		time.Date(2026, 2, 10, 0, 0, 0, 0, time.UTC), 4000, transportCategoryID, "テスト交通費（支払済み 2026-02）",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: 経費項目（支払済み 2026-02）挿入失敗: %w", err)
+	}
+
+	// report_paid（2026-02）の total_amount を SUM(expense_items) で更新する。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports SET total_amount = (
+			SELECT COALESCE(SUM(amount), 0) FROM expense_items
+			WHERE report_id = $1 AND deleted_at IS NULL
+		) WHERE report_id = $1`,
+		uuid.MustParse(ReportPaid2026Feb1ID),
+	); err != nil {
+		return fmt.Errorf("seed: report_paid（2026-02）total_amount 更新失敗: %w", err)
+	}
+
+	// 経費項目（paid レポート 2026-04 に 1 件）投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_items
+		 (item_id, report_id, tenant_id, expense_date, amount, category_id, description, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		 ON CONFLICT (item_id) DO NOTHING`,
+		uuid.MustParse(ItemPaid2026Apr1), uuid.MustParse(ReportPaid2026Apr1ID), tenantAID,
+		time.Date(2026, 4, 10, 0, 0, 0, 0, time.UTC), 6000, transportCategoryID, "テスト交通費（支払済み 2026-04）",
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: 経費項目（支払済み 2026-04）挿入失敗: %w", err)
+	}
+
+	// report_paid（2026-04）の total_amount を SUM(expense_items) で更新する。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports SET total_amount = (
+			SELECT COALESCE(SUM(amount), 0) FROM expense_items
+			WHERE report_id = $1 AND deleted_at IS NULL
+		) WHERE report_id = $1`,
+		uuid.MustParse(ReportPaid2026Apr1ID),
+	); err != nil {
+		return fmt.Errorf("seed: report_paid（2026-04）total_amount 更新失敗: %w", err)
 	}
 
 	// 添付ファイルレコード投入（SMK-037 ダウンロード確認用）。
@@ -319,7 +570,12 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 
 	// 経費レポート（テナント B）投入。
 	memberBID := uuid.MustParse(UserMemberBID)
-	reportsB := []reportRow{
+	type tenantBReportRow struct {
+		id     string
+		status domain.ReportStatus
+		title  string
+	}
+	reportsB := []tenantBReportRow{
 		{ReportTenantBDraftID, domain.ReportStatusDraft, "テナントB下書きレポート"},
 		{ReportTenantBSubmittedID, domain.ReportStatusSubmitted, "テナントB提出済みレポート"},
 		{ReportTenantBApprovedID, domain.ReportStatusApproved, "テナントB承認済みレポート"},
