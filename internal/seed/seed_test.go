@@ -30,7 +30,7 @@ func setupSeedTest(t *testing.T) *pgxpool.Pool {
 }
 
 // TestSeed_PaidReportCount は paid ステータスのレポートが 3 件以上存在することを検証する。
-// issue-087 問題①: paid レポートが 2026-02/03/04 に分散して存在すること。
+// issue-087 問題①: paid レポートが直近 3 ヶ月（当月・前月・前々月）に分散して存在すること。
 func TestSeed_PaidReportCount(t *testing.T) {
 	pool := setupSeedTest(t)
 
@@ -47,14 +47,14 @@ func TestSeed_PaidReportCount(t *testing.T) {
 		t.Fatalf("paid 件数取得失敗: %v", err)
 	}
 
-	// 2026-02/03/04 に 1 件ずつ、合計 3 件以上を期待する。
+	// 直近 3 ヶ月（当月・前月・前々月）に 1 件ずつ、合計 3 件以上を期待する。
 	if count < 3 {
 		t.Errorf("paid レポートが 3 件未満: got %d, want >= 3", count)
 	}
 }
 
 // TestSeed_PaidReportPeriodDistribution は paid レポートが複数の月に分散していることを検証する。
-// issue-087 問題①: 直近 3 ヶ月（2026-02/03/04）に分散して存在すること。
+// issue-087 問題①: 直近 3 ヶ月（当月・前月・前々月）に分散して存在すること。
 func TestSeed_PaidReportPeriodDistribution(t *testing.T) {
 	pool := setupSeedTest(t)
 
@@ -88,7 +88,7 @@ func TestSeed_PaidReportPeriodDistribution(t *testing.T) {
 		t.Fatalf("rows.Err(): %v", err)
 	}
 
-	// 2 ヶ月以上に分散していることを確認する（2026-02/03/04 の 3 ヶ月を期待）。
+	// 2 ヶ月以上に分散していることを確認する（当月・前月・前々月の 3 ヶ月を期待）。
 	if len(months) < 2 {
 		t.Errorf("paid レポートの期間分散が不十分: %d ヶ月のみ (want >= 2)", len(months))
 	}

@@ -436,7 +436,7 @@ func TestGetDashboard_Accounting_NoApproverFields(t *testing.T) {
 // TestGetDashboard_Admin_TenantCounts は Admin のテナント全体集計が正しく返ることを検証する。
 // DSH-014 に対応する。
 // フィクスチャ: テナントA に draft × 2, submitted × 1, approved × 1, rejected × 1, paid × 3 が存在する。
-// paid が 3 件なのは issue-087 の修正で 2026-02/03/04 に分散させたため。
+// paid が 3 件なのは issue-087 の修正で直近 3 ヶ月（当月・前月・前々月）に分散させたため。
 func TestGetDashboard_Admin_TenantCounts(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -460,7 +460,7 @@ func TestGetDashboard_Admin_TenantCounts(t *testing.T) {
 		{"tenant_submitted_count", resp.Data.TenantSubmittedCount, 1},
 		{"tenant_approved_count", resp.Data.TenantApprovedCount, 1},
 		{"tenant_rejected_count", resp.Data.TenantRejectedCount, 1},
-		// issue-087: 2026-02/03/04 に paid レポートを 1 件ずつ追加したため 3 件になる。
+		// issue-087: 直近 3 ヶ月（当月・前月・前々月）に paid レポートを 1 件ずつ追加したため 3 件になる。
 		{"tenant_paid_count", resp.Data.TenantPaidCount, 3},
 	}
 
