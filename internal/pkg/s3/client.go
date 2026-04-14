@@ -24,7 +24,10 @@ type Client struct {
 
 // NewClientFromEnv は環境変数から S3 クライアントを生成する。
 // 環境変数:
-//   - S3_ENDPOINT: カスタムエンドポイント URL（省略時は AWS S3 を使用）
+//   - S3_ENDPOINT: カスタムエンドポイント URL（省略時は AWS S3 を使用）。内部通信・アップロード用。
+//   - S3_PUBLIC_ENDPOINT: 署名付き URL 生成に使うエンドポイント URL（省略時は S3_ENDPOINT にフォールバック）。
+//     ローカル開発で MinIO をホストブラウザからアクセス可能なホスト名に切り替えるために使用。
+//     本番環境（AWS S3）では未設定でよい（S3_ENDPOINT も未設定なら AWS デフォルトエンドポイントを使用）。
 //   - S3_BUCKET: バケット名
 //   - AWS_ACCESS_KEY_ID: アクセスキー（省略時は ECS タスクロール等のデフォルトクレデンシャルを使用）
 //   - AWS_SECRET_ACCESS_KEY: シークレットキー
@@ -52,7 +55,7 @@ func NewClientFromEnv() (*Client, error) {
 		return nil, fmt.Errorf("s3.NewClientFromEnv: load config: %w", err)
 	}
 
-	// S3 クライアントオプション。
+	// 通常クライアント用オプション（内部通信・アップロード）。
 	var s3Opts []func(*s3.Options)
 
 	endpoint := os.Getenv("S3_ENDPOINT")
@@ -65,7 +68,25 @@ func NewClientFromEnv() (*Client, error) {
 	}
 
 	client := s3.NewFromConfig(cfg, s3Opts...)
-	presigner := s3.NewPresignClient(client)
+
+	// PresignClient 用オプション（署名付き URL 生成・公開アクセス用）。
+	// S3_PUBLIC_ENDPOINT が設定されている場合はそのエンドポイントを使う。
+	// 未設定の場合は S3_ENDPOINT にフォールバックし、さらに未設定なら AWS デフォルトを使用する。
+	var presignOpts []func(*s3.Options)
+
+	publicEndpoint := os.Getenv("S3_PUBLIC_ENDPOINT")
+	if publicEndpoint == "" {
+		// フォールバック: S3_PUBLIC_ENDPOINT が未設定の場合は S3_ENDPOINT を使う（従来挙動）。
+		publicEndpoint = endpoint
+	}
+	if publicEndpoint != "" {
+		presignOpts = append(presignOpts, func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(publicEndpoint)
+			o.UsePathStyle = true // MinIO はパス形式を使用する。
+		})
+	}
+
+	presigner := s3.NewPresignClient(s3.NewFromConfig(cfg, presignOpts...))
 
 	return &Client{
 		s3Client:      client,
