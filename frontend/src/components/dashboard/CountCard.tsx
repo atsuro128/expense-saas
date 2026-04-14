@@ -62,7 +62,13 @@ export default function CountCard({
 
   const wrappedCard =
     showBadge && count >= 1 ? (
-      <Badge color="error" variant="dot" sx={{ width: '100%' }}>
+      <Badge
+        color="error"
+        variant="dot"
+        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+        aria-label="要対応あり"
+        sx={{ width: '100%' }}
+      >
         {cardContent}
       </Badge>
     ) : (
