@@ -27,17 +27,33 @@ export default function TenantPage() {
   const [toastOpen, setToastOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
-  // Admin 以外のロールはダッシュボードにリダイレクトする。
+  // Admin 以外のロールはダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
-      navigate('/');
+      navigate('/', {
+        state: {
+          toast: {
+            severity: 'error',
+            message: 'この画面にアクセスする権限がありません。',
+          },
+        },
+        replace: true,
+      });
     }
   }, [currentUser, navigate]);
 
-  // 403 エラー時はダッシュボードにリダイレクトする。
+  // 403 エラー時はダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (error instanceof ApiClientError && error.status === 403) {
-      navigate('/');
+      navigate('/', {
+        state: {
+          toast: {
+            severity: 'error',
+            message: 'この画面にアクセスする権限がありません。',
+          },
+        },
+        replace: true,
+      });
     }
   }, [error, navigate]);
 
