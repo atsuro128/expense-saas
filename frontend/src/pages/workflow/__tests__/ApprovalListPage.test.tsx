@@ -32,7 +32,7 @@
 
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, afterEach, expect } from 'vitest';
 
@@ -153,6 +153,24 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname + location.search}</div>;
 }
 
+/**
+ * navigate で渡された state を検証するためのヘルパーコンポーネント。
+ * リダイレクト後のダッシュボードに toast が表示されることを検証する。
+ */
+function DashboardWithState() {
+  const location = useLocation();
+  const state = location.state as { toast?: { severity: string; message: string } } | null;
+  return (
+    <div>
+      <div data-testid="dashboard-page">dashboard</div>
+      {state?.toast && (
+        <div data-testid="nav-toast-message">{state.toast.message}</div>
+      )}
+    </div>
+  );
+}
+
+// 実アプリの / → /dashboard 2段遷移を再現したルーティング構成でページをレンダリングする。
 function renderPage(initialEntry = '/workflow/pending') {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -161,8 +179,9 @@ function renderPage(initialEntry = '/workflow/pending') {
     <QueryClientProvider client={queryClient}>
       <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/workflow/pending" element={<ApprovalListPage />} />
-          <Route path="/dashboard" element={<div data-testid="dashboard-page">dashboard</div>} />
+          <Route path="/dashboard" element={<DashboardWithState />} />
           <Route path="/reports/:id" element={<div data-testid="detail-page">detail</div>} />
         </Routes>
         <LocationDisplay />
@@ -290,7 +309,7 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
   });
 
   // WFL-FE-005: usePendingReports が 403 エラーを返す
-  // → ダッシュボード（SCR-DASH-001）にリダイレクトされる
+  // → ダッシュボード（SCR-DASH-001）にリダイレクトされ、state.toast 付きで遷移する
   it('WFL-FE-005: redirects_non_approver_on_403 — 403 エラー時にダッシュボードにリダイレクト', async () => {
     mockUsePendingReports.mockReturnValue({
       data: undefined,
@@ -305,6 +324,35 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     // ダッシュボードにリダイレクトされること。
     await waitFor(() => {
       expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること（issue 088 対応）。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
+  });
+
+  // APR-FE-001: 403 エラー時に navigate が state.toast 付きで呼ばれ、/dashboard でトーストが表示される。
+  // Warning #3 対応: 2段ルーティング構成で実アプリと同等の遷移フローを検証する。
+  it('APR-FE-001: 403 エラー時に navigate が state.toast 付きで /dashboard に遷移し、トーストが表示される', async () => {
+    mockUsePendingReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: true,
+      error: { status: 403, code: 'FORBIDDEN', message: 'Forbidden' },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // /dashboard に遷移すること。
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // リダイレクト先で「この画面にアクセスする権限がありません。」トーストが表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
     });
   });
 
