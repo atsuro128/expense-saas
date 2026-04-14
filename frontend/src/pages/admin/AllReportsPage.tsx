@@ -56,7 +56,7 @@ export default function AllReportsPage() {
   // Admin / Accounting 以外のロールはダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin' && currentUser.role !== 'accounting') {
-      navigate('/', {
+      navigate('/dashboard', {
         state: {
           toast: {
             severity: 'error',
@@ -71,7 +71,7 @@ export default function AllReportsPage() {
   // 403 エラー時はダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (error instanceof ApiClientError && error.status === 403) {
-      navigate('/', {
+      navigate('/dashboard', {
         state: {
           toast: {
             severity: 'error',

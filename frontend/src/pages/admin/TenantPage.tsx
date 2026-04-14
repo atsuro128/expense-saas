@@ -30,7 +30,7 @@ export default function TenantPage() {
   // Admin 以外のロールはダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (currentUser && currentUser.role !== 'admin') {
-      navigate('/', {
+      navigate('/dashboard', {
         state: {
           toast: {
             severity: 'error',
@@ -45,7 +45,7 @@ export default function TenantPage() {
   // 403 エラー時はダッシュボードにリダイレクトし、トーストで理由を通知する。
   useEffect(() => {
     if (error instanceof ApiClientError && error.status === 403) {
-      navigate('/', {
+      navigate('/dashboard', {
         state: {
           toast: {
             severity: 'error',
