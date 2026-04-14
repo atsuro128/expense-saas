@@ -3,7 +3,7 @@
 // TNT-FE-008〜009: issue 088（403 認可エラーフィードバック）の navigate toast state 確認テストを追加。
 
 import { render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, afterEach } from 'vitest';
 import TenantPage from '../TenantPage';
@@ -30,13 +30,15 @@ function DashboardWithState() {
 }
 
 // テスト用ラッパー: QueryClientProvider + MemoryRouter + Routes。
+// 実アプリの / → /dashboard 2段遷移を再現するためルート構成を合わせる。
 function renderTenantPage(initialEntries: string[] = ['/settings/tenant']) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <MemoryRouter initialEntries={initialEntries}>
         <Routes>
           <Route path="/settings/tenant" element={<TenantPage />} />
-          <Route path="/" element={<DashboardWithState />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardWithState />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

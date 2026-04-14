@@ -68,9 +68,10 @@ function renderDashboardWithLocationState(
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter initialEntries={[{ pathname: '/', state: locationState }]}>
+      <MemoryRouter initialEntries={[{ pathname: '/dashboard', state: locationState }]}>
         <Routes>
           <Route path="/" element={<DashboardPage />} />
+          <Route path="/dashboard" element={<DashboardPage />} />
         </Routes>
       </MemoryRouter>
     </QueryClientProvider>,

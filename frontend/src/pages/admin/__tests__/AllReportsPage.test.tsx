@@ -4,7 +4,7 @@
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { MemoryRouter, Routes, Route, useLocation } from 'react-router-dom';
+import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, describe, it, afterEach } from 'vitest';
 import AllReportsPage from '../AllReportsPage';
@@ -77,13 +77,15 @@ function DashboardWithState() {
 }
 
 // テスト用ラッパー: QueryClientProvider + MemoryRouter + Routes。
+// 実アプリの / → /dashboard 2段遷移を再現するためルート構成を合わせる。
 function renderAllReportsPage(initialEntries: string[] = ['/reports/all']) {
   return render(
     <QueryClientProvider client={createQueryClient()}>
       <MemoryRouter initialEntries={initialEntries}>
         <Routes>
           <Route path="/reports/all" element={<AllReportsPage />} />
-          <Route path="/" element={<DashboardWithState />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<DashboardWithState />} />
           <Route path="/reports/:id" element={<div data-testid="report-detail">Report Detail</div>} />
         </Routes>
       </MemoryRouter>
