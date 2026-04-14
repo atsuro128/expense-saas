@@ -3,7 +3,7 @@
 // report-detail.md §ReportDetailPage の責務を検証する仕様テスト。
 // スタブ実装段階では失敗する（赤い仕様テスト）。
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -22,14 +22,32 @@ vi.mock('../../../hooks/useCurrentUser', () => ({
   useCurrentUser: vi.fn(),
 }));
 
+// useCategories をモックする（ItemSlidePanel 経由で参照）。
+vi.mock('../../../hooks/useCategories', () => ({
+  useCategories: vi.fn(),
+}));
+
+// useItems（useCreateItem / useUpdateItem / useDeleteItem）をモックする。
+vi.mock('../../../hooks/useItems', () => ({
+  useCreateItem: vi.fn(),
+  useUpdateItem: vi.fn(),
+  useDeleteItem: vi.fn(),
+}));
+
 // vi.mock 後に import することでモック済みの関数参照を取得する。
 import { useReport, useSubmitReport, useDeleteReport } from '../../../hooks/useReports';
 import { useCurrentUser } from '../../../hooks/useCurrentUser';
+import { useCategories } from '../../../hooks/useCategories';
+import { useCreateItem, useUpdateItem, useDeleteItem } from '../../../hooks/useItems';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseSubmitReport = vi.mocked(useSubmitReport);
 const mockUseDeleteReport = vi.mocked(useDeleteReport);
 const mockUseCurrentUser = vi.mocked(useCurrentUser);
+const mockUseCategories = vi.mocked(useCategories);
+const mockUseCreateItem = vi.mocked(useCreateItem);
+const mockUseUpdateItem = vi.mocked(useUpdateItem);
+const mockUseDeleteItem = vi.mocked(useDeleteItem);
 
 // テスト用 draft 状態のレポート詳細データ（Test Member 所有、明細1件あり）。
 const mockDraftReportDetail = {
@@ -91,6 +109,26 @@ function renderPage(reportId = 'test-report-id', queryClient?: QueryClient) {
 }
 
 describe('ReportDetailPage', () => {
+  // 各テスト前に useItems / useCategories のデフォルトモックを設定する。
+  // これらのフックは ReportDetailPage が常に呼ぶため、最低限の返り値が必要。
+  // プリフィル検証で使用するカテゴリデータ。
+  // 明細データの category.id と一致させることで MUI Select が正しく描画される。
+  const mockCategories = [
+    { id: 'cat-001', code: 'TRANSPORT', name_ja: '交通費', sort_order: 1 },
+    { id: 'cat-002', code: 'FOOD', name_ja: '食費', sort_order: 2 },
+  ];
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCategories.mockReturnValue({ data: mockCategories, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseUpdateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -344,5 +382,173 @@ describe('ReportDetailPage', () => {
 
     // useSubmitReport の mutate が呼び出されていないこと。
     expect(submitMutate).not.toHaveBeenCalled();
+  });
+
+  // RPT-FE-090-A: 明細行クリック時に ItemSlidePanel が開き、対象明細のプリフィル値が表示される。
+  // （090: handleItemClick が formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする）
+  it('RPT-FE-090-A: 明細行クリックで ItemSlidePanel が表示され、フォームに対象明細の値がプリフィルされる', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 明細行をクリックする。
+    // ItemTable に `data-testid="item-row-{itemId}"` の行が存在する。
+    const itemRow = screen.getByTestId('item-row-item-001');
+    await user.click(itemRow);
+
+    // ItemSlidePanel（Drawer の Paper）が表示されること。
+    // MUI Drawer は open=true になると PaperProps の data-testid が DOM に現れる。
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
+
+    // パネル内のフォームに対象明細（item-001）の値がプリフィルされていること。
+    // blocker issue 090: フォームプリフィル未実装が再発した場合にこのアサートで検出できる。
+    const panel = screen.getByTestId('item-slide-panel');
+
+    // 日付フィールドに '2026-03-10' がプリフィルされていること。
+    const dateInput = within(panel).getByDisplayValue('2026-03-10');
+    expect(dateInput).toBeInTheDocument();
+
+    // 金額フィールドに 50000 がプリフィルされていること。
+    const amountInput = within(panel).getByDisplayValue('50000');
+    expect(amountInput).toBeInTheDocument();
+
+    // カテゴリフィールドに '交通費' が表示されていること（MUI Select の表示テキストで確認）。
+    expect(within(panel).getByText('交通費')).toBeInTheDocument();
+
+    // 摘要フィールドに '新幹線代' がプリフィルされていること。
+    const descriptionInput = within(panel).getByDisplayValue('新幹線代');
+    expect(descriptionInput).toBeInTheDocument();
+  });
+
+  // RPT-FE-090-B: 別明細クリック時にパネルが切り替わり、それぞれのプリフィル値が正しく表示される。
+  // （090: handleItemClick を連続で呼んでも formKey インクリメントで再マウントされ正しくプリフィルされること）
+  it('RPT-FE-090-B: 2件の明細を連続クリックすると、それぞれの明細の値がパネルにプリフィルされる', async () => {
+    const user = userEvent.setup();
+
+    // 2件の明細を持つレポートデータ。
+    const twoItemsReport = {
+      ...mockDraftReportDetail,
+      items: [
+        {
+          id: 'item-001',
+          report_id: 'test-report-id',
+          expense_date: '2026-03-10',
+          amount: 50000,
+          category: { id: 'cat-001', code: 'TRANSPORT', name_ja: '交通費', sort_order: 1 },
+          description: '新幹線代',
+          attachments: [],
+          created_at: '2026-03-01T00:00:00Z',
+          updated_at: '2026-03-01T00:00:00Z',
+        },
+        {
+          id: 'item-002',
+          report_id: 'test-report-id',
+          expense_date: '2026-03-11',
+          amount: 3000,
+          category: { id: 'cat-002', code: 'FOOD', name_ja: '食費', sort_order: 2 },
+          description: '昼食代',
+          attachments: [],
+          created_at: '2026-03-02T00:00:00Z',
+          updated_at: '2026-03-02T00:00:00Z',
+        },
+      ],
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: twoItemsReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 1件目（item-001）をクリックしてパネルを開く。
+    await user.click(screen.getByTestId('item-row-item-001'));
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
+
+    // 1件目クリック後: item-001 の値がプリフィルされていること。
+    const panel1 = screen.getByTestId('item-slide-panel');
+    expect(within(panel1).getByDisplayValue('2026-03-10')).toBeInTheDocument();
+    expect(within(panel1).getByDisplayValue('50000')).toBeInTheDocument();
+    expect(within(panel1).getByText('交通費')).toBeInTheDocument();
+    expect(within(panel1).getByDisplayValue('新幹線代')).toBeInTheDocument();
+
+    // 2件目（item-002）をクリックして別明細に切り替える（formKey がインクリメントされ再マウントされる）。
+    await user.click(screen.getByTestId('item-row-item-002'));
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
+
+    // 2件目クリック後: item-002 の値に切り替わっていること（item-001 の値は表示されない）。
+    const panel2 = screen.getByTestId('item-slide-panel');
+    expect(within(panel2).getByDisplayValue('2026-03-11')).toBeInTheDocument();
+    expect(within(panel2).getByDisplayValue('3000')).toBeInTheDocument();
+    expect(within(panel2).getByText('食費')).toBeInTheDocument();
+    expect(within(panel2).getByDisplayValue('昼食代')).toBeInTheDocument();
+    // item-001 の値は表示されないこと（プリフィルの切り替えを検証）。
+    expect(within(panel2).queryByDisplayValue('新幹線代')).not.toBeInTheDocument();
+  });
+
+  // RPT-FE-090-C: 編集ボタン（handleEditItem 経路）押下時にも対象明細の値がプリフィルされる。
+  // （090: handleEditItem 経路のテストが欠落していた codex 指摘への対応）
+  it('RPT-FE-090-C: 明細の編集ボタン押下で ItemSlidePanel が表示され、フォームに対象明細の値がプリフィルされる', async () => {
+    const user = userEvent.setup();
+
+    // 編集ボタンは canEditItems=true（isOwner=true かつ status='draft'）の場合のみ表示される。
+    // mockCurrentUser.id と mockDraftReportDetail.submitter.id は共に 'current-user-id' のため isOwner=true になる。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 「編集」ボタンをクリックする。
+    // ItemTable の編集ボタン（canEditItems=true 時のみ表示）をクリックする。
+    // ReportActionBar にも「編集」ボタンが存在するため、item-row 内に絞り込んで取得する。
+    const itemRow = screen.getByTestId('item-row-item-001');
+    const editButton = within(itemRow).getByRole('button', { name: /編集/ });
+    await user.click(editButton);
+
+    // ItemSlidePanel が表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
+
+    // パネル内のフォームに対象明細（item-001）の値がプリフィルされていること。
+    // handleEditItem 経路でも formKey インクリメントによる再マウントが実施される。
+    const panel = screen.getByTestId('item-slide-panel');
+
+    // 日付フィールドに '2026-03-10' がプリフィルされていること。
+    expect(within(panel).getByDisplayValue('2026-03-10')).toBeInTheDocument();
+
+    // 金額フィールドに 50000 がプリフィルされていること。
+    expect(within(panel).getByDisplayValue('50000')).toBeInTheDocument();
+
+    // カテゴリフィールドに '交通費' が表示されていること（MUI Select の表示テキストで確認）。
+    expect(within(panel).getByText('交通費')).toBeInTheDocument();
+
+    // 摘要フィールドに '新幹線代' がプリフィルされていること。
+    expect(within(panel).getByDisplayValue('新幹線代')).toBeInTheDocument();
   });
 });

@@ -350,6 +350,8 @@ export default function ReportDetailPage() {
     setSelectedItem(item);
     setPanelMode('view');
     setItemApiError(null);
+    // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする。
+    setFormKey((prev) => prev + 1);
     setPanelOpen(true);
   };
 
@@ -361,6 +363,8 @@ export default function ReportDetailPage() {
     setSelectedItem(item);
     setPanelMode('edit');
     setItemApiError(null);
+    // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする。
+    setFormKey((prev) => prev + 1);
     setPanelOpen(true);
   };
 
