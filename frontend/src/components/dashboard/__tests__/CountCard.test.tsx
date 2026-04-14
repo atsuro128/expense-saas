@@ -94,6 +94,22 @@ describe('CountCard', () => {
     expect(badge).toBeInTheDocument();
   });
 
+  // DSH-FE-012b: showBadge=true かつ count >= 1 のとき anchorOrigin が top/right であること。
+  it('DSH-FE-012b: showBadge=true かつ count >= 1 のとき Badge が anchorOriginTopRight クラスを持つ', () => {
+    const { container } = renderWithProviders(<CountCard label="承認待ち" count={3} showBadge={true} />);
+    // MUI Badge は anchorOrigin に基づいて MuiBadge-anchorOriginTopRight クラスを付与する。
+    const badge = container.querySelector('.MuiBadge-anchorOriginTopRight');
+    expect(badge).toBeInTheDocument();
+  });
+
+  // DSH-FE-012c: showBadge=true かつ count >= 1 のとき aria-label="要対応あり" が付与されること。
+  it('DSH-FE-012c: showBadge=true かつ count >= 1 のとき Badge に aria-label="要対応あり" が付与される', () => {
+    renderWithProviders(<CountCard label="承認待ち" count={3} showBadge={true} />);
+    // Badge の span 要素に aria-label が付与されていることを確認する。
+    const badgeRoot = document.querySelector('[aria-label="要対応あり"]');
+    expect(badgeRoot).toBeInTheDocument();
+  });
+
   // DSH-FE-013: showBadge=true かつ count=0 のときバッジが表示されないこと。
   it('DSH-FE-013: showBadge=true かつ count=0 のときバッジが表示されない', () => {
     const { container } = renderWithProviders(<CountCard label="承認待ち" count={0} showBadge={true} />);

@@ -43,7 +43,8 @@ const threeAttachments: Attachment[] = [
 
 describe('AttachmentList', () => {
   // ATT-FE-007: ファイル情報（ファイル名・ファイルサイズ）が表示される。
-  it('ATT-FE-007: ファイル名とファイルサイズが表示される', () => {
+  // ファイルサイズは formatFileSize でフォーマットされた文字列（例: "240 KB"）で表示される。
+  it('ATT-FE-007: ファイル名とファイルサイズがフォーマット済みで表示される', () => {
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -58,7 +59,38 @@ describe('AttachmentList', () => {
     );
 
     expect(screen.getByText('receipt.jpg')).toBeInTheDocument();
-    expect(screen.getByTestId('attachment-size-att-001')).toBeInTheDocument();
+    // file_size=245760 バイト → "240 KB" と表示されること。
+    const sizeEl = screen.getByTestId('attachment-size-att-001');
+    expect(sizeEl).toBeInTheDocument();
+    expect(sizeEl).toHaveTextContent('240 KB');
+  });
+
+  // ATT-FE-007b: ファイルサイズが 1MB 以上の場合は "X.X MB" 形式で表示される。
+  it('ATT-FE-007b: file_size が 1MB 以上のとき "X.X MB" 形式で表示される', () => {
+    const onDownload = vi.fn();
+    const onDelete = vi.fn();
+    const largeFile: Attachment = {
+      id: 'att-large',
+      item_id: 'item-001',
+      file_name: 'large.pdf',
+      file_size: 2859424,
+      mime_type: 'application/pdf',
+      created_at: '2026-03-01T00:00:00Z',
+    };
+
+    render(
+      <AttachmentList
+        attachments={[largeFile]}
+        canDelete={false}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        deletingId={null}
+      />,
+    );
+
+    // file_size=2859424 バイト → "2.7 MB" と表示されること。
+    const sizeEl = screen.getByTestId('attachment-size-att-large');
+    expect(sizeEl).toHaveTextContent('2.7 MB');
   });
 
   // ATT-FE-008: attachments が空の場合、添付ファイルの行要素が描画されない。

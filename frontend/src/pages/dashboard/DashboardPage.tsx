@@ -2,6 +2,7 @@
 // ロール別にセクションを出し分ける。
 // 55_ui_component/screens/dashboard.md §DashboardPage 準拠。
 
+import Grid from '@mui/material/Grid2';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 import PageSkeleton from '../../components/ui/PageSkeleton';
@@ -78,26 +79,34 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Approver: 承認待ちカード */}
+      {/* Approver: 承認待ちカード。MyReportCountCards と同じ Grid レイアウト・余白で配置する */}
       {isApprover && (
-        <CountCard
-          label="承認待ち"
-          count={dashboard.pending_approval_count ?? 0}
-          showBadge={true}
-          href="/approvals"
-          accentColor="info"
-        />
+        <Grid container spacing={2} data-testid="approver-action-cards">
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <CountCard
+              label="承認待ち"
+              count={dashboard.pending_approval_count ?? 0}
+              showBadge={true}
+              href="/approvals"
+              accentColor="info"
+            />
+          </Grid>
+        </Grid>
       )}
 
-      {/* Accounting: 支払待ちカード */}
+      {/* Accounting: 支払待ちカード。MyReportCountCards と同じ Grid レイアウト・余白で配置する */}
       {isAccounting && (
-        <CountCard
-          label="支払待ち"
-          count={dashboard.pending_payment_count ?? 0}
-          showBadge={true}
-          href="/payments"
-          accentColor="success"
-        />
+        <Grid container spacing={2} data-testid="accounting-action-cards">
+          <Grid size={{ xs: 12, sm: 4 }}>
+            <CountCard
+              label="支払待ち"
+              count={dashboard.pending_payment_count ?? 0}
+              showBadge={true}
+              href="/payments"
+              accentColor="success"
+            />
+          </Grid>
+        </Grid>
       )}
 
       {/* Admin: テナント全体ステータスカード + メンバー数 */}
