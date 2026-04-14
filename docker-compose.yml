@@ -151,6 +151,7 @@ services:
       PORT: ${PORT:-8080}
       # S3 / MinIO 設定（env_config.md §4.4 参照）
       S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT:-http://localhost:9000}
       AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-minioadmin}
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
       S3_BUCKET: ${S3_BUCKET:-expense-saas-receipts-dev}
