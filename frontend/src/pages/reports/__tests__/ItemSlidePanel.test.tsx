@@ -59,6 +59,8 @@ describe('ItemSlidePanel', () => {
   });
 
   // ITM-FE-019: open=false のときスライドパネルが表示されない。
+  // MUI Drawer は open=false のとき Paper コンテンツを DOM にマウントしないため
+  // queryByTestId が null を返し、not.toBeInTheDocument() で検証する。
   it('ITM-FE-019: open=false のときスライドパネルが表示されない', () => {
     render(
       <ItemSlidePanel
@@ -69,8 +71,8 @@ describe('ItemSlidePanel', () => {
       />,
     );
 
-    // スライドパネルが表示されない（ITM-FE-019）。スタブ実装のため現在は失敗する。
-    expect(screen.queryByTestId('item-slide-panel')).not.toBeVisible();
+    // スライドパネルが DOM に存在しないこと（Drawer の open=false で Paper 非マウント）。
+    expect(screen.queryByTestId('item-slide-panel')).not.toBeInTheDocument();
   });
 
   // ITM-FE-020: mode='add', item=null のとき追加モードのタイトルが表示される。
@@ -172,6 +174,83 @@ describe('ItemSlidePanel', () => {
     // 閉じるボタンクリック（ITM-FE-025）。スタブ実装のため現在は失敗する。
     const closeButton = screen.getByRole('button', { name: /閉じる/ });
     await userEvent.click(closeButton);
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // 091: view モード時は AttachmentUploader が表示されない（canModify=false）。
+  it('ITM-FE-091-A: mode=view, isOwner=true, reportStatus=draft のとき AttachmentUploader が表示されない', () => {
+    // item が存在するとき AttachmentArea が QueryClient を使うため wrapper が必要。
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="view"
+        item={mockItem}
+        {...defaultProps}
+      />,
+      { wrapper: createWrapper() },
+    );
+
+    // 閲覧モードでは添付アップロード UI が非表示（091 案 B）。
+    expect(screen.queryByTestId('attachment-uploader')).not.toBeInTheDocument();
+  });
+
+  // 091: edit モード時は canModify=true で AttachmentArea が描画される（対照ケース）。
+  it('ITM-FE-091-B: mode=edit, isOwner=true, reportStatus=draft のとき AttachmentArea が描画される', () => {
+    // item が存在するとき AttachmentArea が QueryClient を使うため wrapper が必要。
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+      />,
+      { wrapper: createWrapper() },
+    );
+
+    // 編集モードでは AttachmentArea が描画される。
+    expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+  });
+
+  // 092: ESC キーで onClose が呼ばれる（MUI Drawer の標準挙動）。
+  it('ITM-FE-092-A: ESC キー押下で onClose が呼ばれる', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+    );
+
+    // ESC キーで Drawer が閉じ、onClose が呼ばれる。
+    await user.keyboard('{Escape}');
+
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // 092: Backdrop クリックで onClose が呼ばれる（MUI Drawer の標準挙動）。
+  it('ITM-FE-092-B: Backdrop クリックで onClose が呼ばれる', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+    );
+
+    // MUI Drawer の Backdrop をクリックすると onClose が呼ばれる。
+    const backdrop = document.querySelector('.MuiBackdrop-root');
+    if (backdrop) {
+      await user.click(backdrop);
+    }
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });

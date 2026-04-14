@@ -22,14 +22,32 @@ vi.mock('../../../hooks/useCurrentUser', () => ({
   useCurrentUser: vi.fn(),
 }));
 
+// useCategories をモックする（ItemSlidePanel 経由で参照）。
+vi.mock('../../../hooks/useCategories', () => ({
+  useCategories: vi.fn(),
+}));
+
+// useItems（useCreateItem / useUpdateItem / useDeleteItem）をモックする。
+vi.mock('../../../hooks/useItems', () => ({
+  useCreateItem: vi.fn(),
+  useUpdateItem: vi.fn(),
+  useDeleteItem: vi.fn(),
+}));
+
 // vi.mock 後に import することでモック済みの関数参照を取得する。
 import { useReport, useSubmitReport, useDeleteReport } from '../../../hooks/useReports';
 import { useCurrentUser } from '../../../hooks/useCurrentUser';
+import { useCategories } from '../../../hooks/useCategories';
+import { useCreateItem, useUpdateItem, useDeleteItem } from '../../../hooks/useItems';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseSubmitReport = vi.mocked(useSubmitReport);
 const mockUseDeleteReport = vi.mocked(useDeleteReport);
 const mockUseCurrentUser = vi.mocked(useCurrentUser);
+const mockUseCategories = vi.mocked(useCategories);
+const mockUseCreateItem = vi.mocked(useCreateItem);
+const mockUseUpdateItem = vi.mocked(useUpdateItem);
+const mockUseDeleteItem = vi.mocked(useDeleteItem);
 
 // テスト用 draft 状態のレポート詳細データ（Test Member 所有、明細1件あり）。
 const mockDraftReportDetail = {
@@ -91,6 +109,19 @@ function renderPage(reportId = 'test-report-id', queryClient?: QueryClient) {
 }
 
 describe('ReportDetailPage', () => {
+  // 各テスト前に useItems / useCategories のデフォルトモックを設定する。
+  // これらのフックは ReportDetailPage が常に呼ぶため、最低限の返り値が必要。
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCategories.mockReturnValue({ data: [], isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseUpdateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -344,5 +375,91 @@ describe('ReportDetailPage', () => {
 
     // useSubmitReport の mutate が呼び出されていないこと。
     expect(submitMutate).not.toHaveBeenCalled();
+  });
+
+  // RPT-FE-090-A: 明細行クリック時に ItemSlidePanel が開く。
+  // （090: handleItemClick が formKey をインクリメントして ItemSlidePanel を再マウントする）
+  it('RPT-FE-090-A: 明細行クリックで ItemSlidePanel が表示される', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 明細行をクリックする。
+    // ItemTable に `data-testid="item-row-{itemId}"` の行が存在する。
+    const itemRow = screen.getByTestId('item-row-item-001');
+    await user.click(itemRow);
+
+    // ItemSlidePanel（Drawer の Paper）が表示されること。
+    // MUI Drawer は open=true になると PaperProps の data-testid が DOM に現れる。
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
+  });
+
+  // RPT-FE-090-B: 別明細クリック時にパネルが切り替わる（formKey インクリメントで再マウント）。
+  // （090: handleItemClick を連続で呼んでも正しく動作すること）
+  it('RPT-FE-090-B: 2件の明細を連続クリックしても ItemSlidePanel が表示される', async () => {
+    const user = userEvent.setup();
+
+    // 2件の明細を持つレポートデータ。
+    const twoItemsReport = {
+      ...mockDraftReportDetail,
+      items: [
+        {
+          id: 'item-001',
+          report_id: 'test-report-id',
+          expense_date: '2026-03-10',
+          amount: 50000,
+          category: { id: 'cat-001', code: 'TRANSPORT', name_ja: '交通費', sort_order: 1 },
+          description: '新幹線代',
+          attachments: [],
+          created_at: '2026-03-01T00:00:00Z',
+          updated_at: '2026-03-01T00:00:00Z',
+        },
+        {
+          id: 'item-002',
+          report_id: 'test-report-id',
+          expense_date: '2026-03-11',
+          amount: 3000,
+          category: { id: 'cat-002', code: 'FOOD', name_ja: '食費', sort_order: 2 },
+          description: '昼食代',
+          attachments: [],
+          created_at: '2026-03-02T00:00:00Z',
+          updated_at: '2026-03-02T00:00:00Z',
+        },
+      ],
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: twoItemsReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 1件目をクリックしてパネルを開く。
+    await user.click(screen.getByTestId('item-row-item-001'));
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
+
+    // 2件目をクリックして別明細に切り替える（formKey がインクリメントされ再マウントされる）。
+    await user.click(screen.getByTestId('item-row-item-002'));
+    await waitFor(() => {
+      expect(screen.getByTestId('item-slide-panel')).toBeInTheDocument();
+    });
   });
 });

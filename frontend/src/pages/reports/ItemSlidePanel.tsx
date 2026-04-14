@@ -3,6 +3,8 @@
 // SCR-RPT-004 §6 に対応する。
 
 import Button from '@mui/material/Button';
+import Drawer from '@mui/material/Drawer';
+import type { PaperProps } from '@mui/material/Paper';
 import type { ReportStatus, ExpenseItemWithAttachments } from '../../api/types';
 import ItemForm from './ItemForm';
 import type { ItemFormValues } from './ItemForm';
@@ -43,7 +45,9 @@ export interface ItemSlidePanelProps {
 
 /**
  * ItemSlidePanel は明細追加・編集・閲覧のスライドパネルコンポーネント。
- * open=true のとき表示され、mode に応じてフォームの入力可否を制御する。
+ * open=true のとき MUI Drawer が画面右側からスライドインして表示される。
+ * mode に応じてフォームの入力可否を制御する。
+ * 閲覧モード（mode='view'）では添付操作（アップロード/削除）も不可とする（設計書 §6）。
  */
 export default function ItemSlidePanel({
   open,
@@ -74,8 +78,9 @@ export default function ItemSlidePanel({
       }
     : undefined;
 
-  // canModify: 所有者かつ draft 状態のときのみ明細編集が可能。
-  const canModify = isOwner && reportStatus === 'draft';
+  // canModify: 所有者かつ draft 状態、かつ閲覧モードでない場合のみ明細編集・添付操作が可能。
+  // 閲覧モード（mode='view'）では全操作を禁止する（案 B, 設計書 §5/§6）。
+  const canModify = isOwner && reportStatus === 'draft' && mode !== 'view';
   const formMode = canModify ? mode : 'view';
 
   // フォーム送信ハンドラ。onItemSubmit が指定されていれば委譲、なければ onSaveSuccess を呼ぶ。
@@ -100,9 +105,11 @@ export default function ItemSlidePanel({
       : undefined;
 
   return (
-    <div
-      data-testid="item-slide-panel"
-      style={{ display: open ? 'block' : 'none' }}
+    <Drawer
+      anchor="right"
+      open={open}
+      onClose={onClose}
+      PaperProps={{ 'data-testid': 'item-slide-panel' } as PaperProps}
     >
       <div>
         <h2>{title}</h2>
@@ -126,6 +133,6 @@ export default function ItemSlidePanel({
         itemId={item?.id ?? null}
         canModify={canModify}
       />
-    </div>
+    </Drawer>
   );
 }

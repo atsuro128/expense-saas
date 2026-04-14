@@ -141,7 +141,6 @@ export default function ItemForm({
             options={categories}
             value={field.value}
             onChange={field.onChange}
-            placeholder="カテゴリを選択"
             errorMessage={errors.categoryId?.message}
             disabled={isView || (isPending && !isView)}
           />
