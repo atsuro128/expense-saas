@@ -4,6 +4,7 @@
 
 import Button from '@mui/material/Button';
 import type { Attachment } from '../../api/types';
+import { formatFileSize } from '../../lib/format';
 
 export interface AttachmentListProps {
   /** 添付ファイルデータ配列 */
@@ -49,7 +50,7 @@ export default function AttachmentList({
                 {att.file_name}
               </Button>
               <span data-testid={`attachment-size-${att.id}`}>
-                {att.file_size}
+                {formatFileSize(att.file_size)}
               </span>
               {canDelete && (
                 <Button
