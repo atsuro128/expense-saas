@@ -74,6 +74,22 @@ export default function AppSelect({
     onChange(event.target.value);
   };
 
+  // placeholder がある場合、または options に value='' の選択肢が含まれる場合は
+  // displayEmpty=true を維持する。
+  // MUI Select は displayEmpty=false のとき value="" を「未選択」扱いにして
+  // 表示要素を描画しないため、{ value: '', label: '...' } を持つ既存フィルタで
+  // 初期値 "" を表示できなくなる回帰を防ぐ。
+  const hasEmptyValueOption = options.some((opt) => opt.value === '');
+  const shouldDisplayEmpty = !!placeholder || hasEmptyValueOption;
+
+  // displayEmpty=true のとき MUI OutlinedInput は「表示要素あり」と見なし
+  // notched=true（ラベル幅ぶんの切り欠き）を常に開く。
+  // InputLabel 側も shrink=true にしてラベルを上部に固定しないと
+  // 「ラベルが内側にいるのに切り欠きが空いている」という視覚不整合が発生する。
+  // shouldDisplayEmpty=true かつ value="" のとき shrink=true を明示する。
+  // 値が選択済み（value !== ""）の場合は MUI のデフォルト挙動に委ねる。
+  const shouldShrink = shouldDisplayEmpty && value === '' ? true : undefined;
+
   return (
     <FormControl
       size="small"
@@ -82,7 +98,9 @@ export default function AppSelect({
       required={required}
       disabled={disabled}
     >
-      <InputLabel id={labelId}>{label}</InputLabel>
+      <InputLabel id={labelId} shrink={shouldShrink}>
+        {label}
+      </InputLabel>
       <Select
         labelId={labelId}
         id={name}
@@ -90,7 +108,7 @@ export default function AppSelect({
         value={value}
         label={label}
         onChange={handleChange}
-        displayEmpty
+        displayEmpty={shouldDisplayEmpty}
         SelectDisplayProps={selectDisplayProps}
       >
         {/* 未選択時のプレースホルダー */}
