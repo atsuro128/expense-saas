@@ -95,6 +95,44 @@ describe('useDeleteAttachment', () => {
     });
   });
 
+  // ATT-FE-042b: ミューテーション成功後に添付一覧キャッシュも無効化される（issue-099 修正）。
+  it('ATT-FE-042b: ミューテーション成功後に添付一覧キャッシュが無効化される', async () => {
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 204,
+      headers: { get: () => null },
+      json: async () => undefined,
+    } as unknown as Response);
+
+    const queryClient = new QueryClient({
+      defaultOptions: { mutations: { retry: false } },
+    });
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    );
+
+    const { result } = renderHook(() => useDeleteAttachment(), { wrapper });
+
+    await act(async () => {
+      await result.current.mutateAsync({
+        reportId: 'report-001',
+        itemId: 'item-001',
+        attId: 'att-001',
+      });
+    });
+
+    await waitFor(() => {
+      // 添付一覧のキャッシュが無効化されること（useUploadAttachment と同一パターン）
+      expect(invalidateSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          queryKey: ['reports', 'report-001', 'items', 'item-001', 'attachments'],
+        }),
+      );
+    });
+  });
+
   // ATT-FE-043: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる（添付不存在）。
   it('ATT-FE-043: API が 404 RESOURCE_NOT_FOUND を返すと isError=true になる', async () => {
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
