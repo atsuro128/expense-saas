@@ -1,6 +1,6 @@
 // 承認待ちレポート一覧ページ（ApprovalListPage）。
 // SCR-WFL-001 に対応する。
-// Approver ロールのユーザーが承認待ちのレポートを一覧表示する。
+// Approver / Admin ロールのユーザーが承認待ちのレポートを一覧表示する。
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -14,6 +14,7 @@ import PageSkeleton from '../../components/ui/PageSkeleton';
 import FilterResetButton from '../../components/ui/FilterResetButton';
 import SelfLabel from '../../components/ui/SelfLabel';
 import { usePendingReports } from '../../hooks/useReports';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
 
 /** テーブルのカラム定義。openapi.yaml の PendingReport フィールドに準拠する。 */
 const COLUMNS: GridColDef[] = [
@@ -60,11 +61,14 @@ const COLUMNS: GridColDef[] = [
 
 /**
  * ApprovalListPage は承認待ちレポートの一覧を表示する画面。
- * 403 エラー時はダッシュボードにリダイレクトする。
+ * Approver / Admin ロール以外は即時リダイレクトする（同期ロールチェック）。
+ * 403 エラー時はダッシュボードにリダイレクトする（フェイルセーフ）。
  * 500 エラー時は AppToast でエラーを表示する。
  */
 export default function ApprovalListPage() {
   const navigate = useNavigate();
+  const { data: userData } = useCurrentUser();
+  const currentUser = userData?.data;
   const [searchParams, setSearchParams] = useSearchParams();
 
   // URL クエリパラメータからフィルタ初期値を取得する。
@@ -125,6 +129,22 @@ export default function ApprovalListPage() {
   // フィルタが適用されているかどうか。
   const isFiltered = !!applicantNameParam;
 
+  // 同期ロールチェック: Approver / Admin 以外はダッシュボードに即リダイレクトする。
+  // API 403 レスポンスを待たず、ヘッダーのフラッシュ表示を防ぐ（issue-106 対応）。
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'approver' && currentUser.role !== 'admin') {
+      void navigate('/dashboard', {
+        state: {
+          toast: {
+            severity: 'error',
+            message: 'この画面にアクセスする権限がありません。',
+          },
+        },
+        replace: true,
+      });
+    }
+  }, [currentUser, navigate]);
+
   // 承認待ちレポート一覧データを取得する。
   const { data, isLoading, isError, error } = usePendingReports({
     page,
@@ -168,6 +188,12 @@ export default function ApprovalListPage() {
   const emptyMessage = isFiltered
     ? '条件に一致するレポートはありません。'
     : '承認待ちのレポートはありません。';
+
+  // currentUser が未取得、またはロール不一致の場合は何もレンダリングしない。
+  // ロール不一致時は上記 useEffect がリダイレクトを実行する。
+  if (!currentUser || (currentUser.role !== 'approver' && currentUser.role !== 'admin')) {
+    return null;
+  }
 
   // ローディング中はスケルトンを表示する。
   if (isLoading) {
