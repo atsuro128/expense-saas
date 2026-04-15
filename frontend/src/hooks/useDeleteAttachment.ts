@@ -28,9 +28,13 @@ export function useDeleteAttachment() {
         `/api/reports/${reportId}/items/${itemId}/attachments/${attId}`,
       );
     },
-    onSuccess: (_data, { reportId }) => {
-      // レポート詳細のキャッシュを無効化する（items 配列に添付一覧が含まれるため個別 invalidation は不要）。
+    onSuccess: (_data, { reportId, itemId }) => {
+      // レポート詳細のキャッシュを無効化する。
       void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+      // 添付一覧キャッシュを無効化して再取得する（useUploadAttachment と同一パターン）。
+      void queryClient.invalidateQueries({
+        queryKey: ['reports', reportId, 'items', itemId, 'attachments'],
+      });
     },
   });
 }

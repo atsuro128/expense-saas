@@ -7,6 +7,7 @@ import { useState } from 'react';
 import AttachmentList from './AttachmentList';
 import AttachmentUploader from './AttachmentUploader';
 import AppToast from '../../components/ui/AppToast';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useAttachments } from '../../hooks/useAttachments';
 import { useDeleteAttachment } from '../../hooks/useDeleteAttachment';
 import type { ApiResponse, Attachment } from '../../api/types';
@@ -35,6 +36,8 @@ function AttachmentAreaContent({
   canModify: boolean;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  // 確認ダイアログ用の状態: 削除対象の添付ファイル ID を保持する（null のとき非表示）。
+  const [confirmTargetId, setConfirmTargetId] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     open: boolean;
     severity: 'success' | 'error';
@@ -74,11 +77,19 @@ function AttachmentAreaContent({
     }
   };
 
-  // 削除コールバック。
+  // 削除ボタン押下: 確認ダイアログを表示する（report-detail.md §4.6 準拠）。
   const handleDelete = (attachmentId: string) => {
-    setDeletingId(attachmentId);
+    setConfirmTargetId(attachmentId);
+  };
+
+  // 確認ダイアログの「削除する」押下: 実際に削除 API を呼び出す。
+  const handleConfirmDelete = () => {
+    if (confirmTargetId === null) return;
+    const targetId = confirmTargetId;
+    setConfirmTargetId(null);
+    setDeletingId(targetId);
     deleteAttachment.mutate(
-      { reportId, itemId, attId: attachmentId },
+      { reportId, itemId, attId: targetId },
       {
         onSuccess: () => {
           setDeletingId(null);
@@ -90,6 +101,11 @@ function AttachmentAreaContent({
         },
       },
     );
+  };
+
+  // 確認ダイアログの「キャンセル」押下: ダイアログを閉じるだけで何もしない。
+  const handleCancelDelete = () => {
+    setConfirmTargetId(null);
   };
 
   return (
@@ -116,6 +132,17 @@ function AttachmentAreaContent({
         severity={toast.severity}
         message={toast.message}
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+      />
+      {/* 添付削除の確認ダイアログ（report-detail.md §4.6 準拠） */}
+      <ConfirmDialog
+        open={confirmTargetId !== null}
+        title="この添付ファイルを削除しますか?"
+        message="削除した添付ファイルは元に戻せません。"
+        confirmLabel="削除する"
+        confirmColor="error"
+        cancelLabel="キャンセル"
+        onConfirm={handleConfirmDelete}
+        onCancel={handleCancelDelete}
       />
     </div>
   );
