@@ -372,4 +372,35 @@ describe('ItemForm', () => {
     expect(amountInput).toHaveAttribute('readOnly');
     expect(descInput).toHaveAttribute('readOnly');
   });
+
+  // ITM-FE-098-7: view モードでカテゴリ Select をクリックしても listbox が開かない。
+  // MUI Select の開閉制御はトップレベル readOnly prop で行われる（SelectInput.js L134/L296/L456）。
+  // inputProps.readOnly だけでは SelectInput の開閉制御に効かず、クリックで開いてしまう問題の回帰テスト。
+  it('ITM-FE-098-7: mode=view のときカテゴリ Select をクリックしても listbox が開かない', async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemForm mode="view" {...defaultProps} defaultValues={mockItem} />,
+    );
+
+    // カテゴリ Select のトリガー要素（combobox ロール）を取得してクリックする。
+    const categorySelect = screen.getByRole('combobox');
+    await user.click(categorySelect);
+
+    // readOnly 時は MUI Select の onMouseDown が null になり、listbox が開かない。
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  // ITM-FE-098-8: add/edit モードではカテゴリ Select がクリックで listbox を開く（対照ケース）。
+  it('ITM-FE-098-8: mode=add のときカテゴリ Select をクリックすると listbox が開く', async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemForm mode="add" {...defaultProps} />,
+    );
+
+    // add モードではカテゴリ Select が通常通り開く。
+    const categorySelect = screen.getByRole('combobox');
+    await user.click(categorySelect);
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+  });
 });

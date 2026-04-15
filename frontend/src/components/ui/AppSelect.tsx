@@ -38,9 +38,10 @@ export interface AppSelectProps {
   disabled?: boolean;
   /**
    * 読み取り専用フラグ。
-   * true のとき MUI Select の inputProps.readOnly が設定され、
-   * ドロップダウンを開けなくなる（disabled と異なりグレーアウトしない）。
+   * true のとき MUI Select のトップレベル readOnly prop でドロップダウンを開けなくする。
+   * disabled と異なりグレーアウトしない。
    * 閲覧モード（mode='view'）でフィールドを disabled にせず readOnly にしたい場合に使用する。
+   * a11y 対応のため inputProps.readOnly も併せて設定する。
    */
   readOnly?: boolean;
   /**
@@ -61,7 +62,10 @@ export interface AppSelectProps {
  * AppSelect は MUI Select の共通ラッパー。
  * size="small" と fullWidth をデフォルトとして適用する。
  * 空選択肢のプレースホルダーを統一表示する。
- * readOnly=true のとき inputProps.readOnly を Select に渡し、ドロップダウンを開けなくする（案 A ①）。
+ * readOnly=true のとき Select のトップレベル readOnly prop でドロップダウンを開けなくする（案 A ①）。
+ * MUI SelectInput.js L134/L296/L456 が readOnly をトップレベル prop から直接参照するため、
+ * inputProps.readOnly のみでは SelectInput の開閉制御に効かない場合がある。
+ * トップレベル readOnly を明示的に渡すことで確実に開閉制御を行う。
  */
 export default function AppSelect({
   name,
@@ -101,6 +105,7 @@ export default function AppSelect({
         onChange={handleChange}
         displayEmpty
         SelectDisplayProps={selectDisplayProps}
+        readOnly={readOnly}
         inputProps={readOnly ? { readOnly: true } : undefined}
       >
         {/* 未選択時のプレースホルダー */}
