@@ -21,7 +21,8 @@ import { useCategories } from '../../hooks/useCategories';
 import ReportInfoCard from './ReportInfoCard';
 import ReportActionBar from './ReportActionBar';
 import ItemListSection from './ItemListSection';
-import ItemSlidePanel, { type PanelMode } from './ItemSlidePanel';
+import ItemSlidePanel from './ItemSlidePanel';
+import type { PanelMode } from './ItemSlidePanel';
 import type { ItemFormValues } from './ItemForm';
 import type { ExpenseItemWithAttachments } from '../../api/types';
 import { ApiClientError } from '../../api/client';
@@ -34,6 +35,15 @@ type WorkflowPendingAction = 'approve' | 'reject' | 'pay' | null;
 
 /** ワークフロー確認ダイアログの操作種別 */
 type WorkflowDialogAction = 'approve' | 'reject' | 'pay' | null;
+
+/**
+ * スライドパネルの統合状態。
+ * 'closed' のときパネルは閉じている。
+ * それ以外のとき対応するモードでパネルが開いている。
+ * panelOpen / panelMode を分離せず単一 state に集約することで、
+ * open 遷移が必ず closed → open になりアニメーションが一貫して発火する。
+ */
+type PanelState = 'closed' | PanelMode;
 
 /** トースト表示状態 */
 interface ToastState {
@@ -75,9 +85,10 @@ export default function ReportDetailPage() {
   // 明細削除確認ダイアログ用: 削除対象の明細 ID。
   const [deletingItemId, setDeletingItemId] = useState<string | null>(null);
 
-  // スライドパネルの状態。
-  const [panelOpen, setPanelOpen] = useState(false);
-  const [panelMode, setPanelMode] = useState<PanelMode>('add');
+  // スライドパネルの統合状態（'closed' | 'add' | 'edit' | 'view'）。
+  // 単一 state に集約することで open 遷移が必ず closed → open になり、
+  // Drawer のスライドアニメーションが全経路で一貫して発火する。
+  const [panelState, setPanelState] = useState<PanelState>('closed');
   const [selectedItem, setSelectedItem] = useState<ExpenseItemWithAttachments | null>(null);
   const [itemApiError, setItemApiError] = useState<string | null>(null);
 
@@ -334,38 +345,48 @@ export default function ReportDetailPage() {
 
   /**
    * 明細追加ボタン押下時の処理。
+   * panelState が 'closed' → 'add' に遷移するため、アニメーションが発火する。
    */
   const handleAddItem = () => {
     setSelectedItem(null);
-    setPanelMode('add');
     setItemApiError(null);
-    setPanelOpen(true);
+    setPanelState('add');
   };
 
   /**
    * 明細行クリック時の処理（閲覧モードでスライドパネルを開く）。
+   * 既にパネルが開いている場合は一度 'closed' に戻してから 'view' に遷移し、
+   * 必ず false → true の Drawer open 遷移を発火させてアニメーションを統一する。
    */
   const handleItemClick = (itemId: string) => {
     const item = report.items.find((it) => it.id === itemId) ?? null;
     setSelectedItem(item);
-    setPanelMode('view');
     setItemApiError(null);
     // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする。
     setFormKey((prev) => prev + 1);
-    setPanelOpen(true);
+    // 一度閉じてから開くことで open が false → true に遷移し、アニメーションが確実に発火する。
+    setPanelState('closed');
+    setTimeout(() => {
+      setPanelState('view');
+    }, 0);
   };
 
   /**
    * 明細編集ボタン押下時の処理。
+   * 既にパネルが開いている場合は一度 'closed' に戻してから 'edit' に遷移し、
+   * 必ず false → true の Drawer open 遷移を発火させてアニメーションを統一する。
    */
   const handleEditItem = (itemId: string) => {
     const item = report.items.find((it) => it.id === itemId) ?? null;
     setSelectedItem(item);
-    setPanelMode('edit');
     setItemApiError(null);
     // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする。
     setFormKey((prev) => prev + 1);
-    setPanelOpen(true);
+    // 一度閉じてから開くことで open が false → true に遷移し、アニメーションが確実に発火する。
+    setPanelState('closed');
+    setTimeout(() => {
+      setPanelState('edit');
+    }, 0);
   };
 
   /**
@@ -397,7 +418,7 @@ export default function ReportDetailPage() {
    */
   const handleItemSubmit = (data: ItemFormValues) => {
     setItemApiError(null);
-    if (panelMode === 'add') {
+    if (panelState === 'add') {
       createItem.mutate(
         {
           reportId: report.id,
@@ -408,13 +429,13 @@ export default function ReportDetailPage() {
         },
         {
           onSuccess: () => {
-            setPanelOpen(false);
+            setPanelState('closed');
             setToast({ open: true, severity: 'success', message: '明細を追加しました' });
           },
           onError: () => setItemApiError('明細の追加に失敗しました'),
         },
       );
-    } else if (panelMode === 'edit' && selectedItem) {
+    } else if (panelState === 'edit' && selectedItem) {
       updateItem.mutate(
         {
           reportId: report.id,
@@ -427,7 +448,7 @@ export default function ReportDetailPage() {
         },
         {
           onSuccess: () => {
-            setPanelOpen(false);
+            setPanelState('closed');
             setToast({ open: true, severity: 'success', message: '明細を更新しました' });
           },
           onError: () => setItemApiError('明細の更新に失敗しました'),
@@ -454,8 +475,8 @@ export default function ReportDetailPage() {
         onSuccess: () => {
           // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームをリセットする。
           setSelectedItem(null);
-          setPanelMode('add');
           setFormKey((prev) => prev + 1);
+          setPanelState('add');
           setToast({ open: true, severity: 'success', message: '明細を追加しました' });
         },
         onError: () => setItemApiError('明細の追加に失敗しました'),
@@ -516,20 +537,21 @@ export default function ReportDetailPage() {
         />
       </Box>
 
-      {/* 明細スライドパネル（formKey で再マウントしてフォームリセットを実現） */}
+      {/* 明細スライドパネル（formKey で再マウントしてフォームリセットを実現）。
+          open は panelState !== 'closed' で判定し、常に false → true の遷移を経てアニメーションが発火する。 */}
       <ItemSlidePanel
         key={formKey}
-        open={panelOpen}
-        mode={panelMode}
+        open={panelState !== 'closed'}
+        mode={panelState === 'closed' ? 'add' : panelState}
         reportId={report.id}
         item={selectedItem}
         reportStatus={report.status}
         isOwner={isOwner}
-        onClose={() => setPanelOpen(false)}
-        onSaveSuccess={() => setPanelOpen(false)}
+        onClose={() => setPanelState('closed')}
+        onSaveSuccess={() => setPanelState('closed')}
         onSaveAndContinue={() => {
           setSelectedItem(null);
-          setPanelMode('add');
+          setPanelState('add');
         }}
         categories={categoryOptions}
         apiError={itemApiError}
