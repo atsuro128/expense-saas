@@ -177,4 +177,48 @@ describe('AppSelect', () => {
     const combobox = screen.getByRole('combobox');
     expect(combobox).toHaveAttribute('aria-disabled', 'true');
   });
+
+  // AppSelect-R1: codex 指摘の回帰ケース。
+  // placeholder なし + { value: '' } option + 初期値 "" のとき、
+  // 空文字 option のラベルが combobox 内に表示される。
+  // PR #55 の displayEmpty={!!placeholder} 変更で「すべて」が消える回帰を防ぐ。
+  it('AppSelect-R1: placeholder なし + { value: "" } option + 初期値 "" のとき空文字 option のラベルが表示される', () => {
+    const optionsWithEmpty = [
+      { value: '', label: 'すべて' },
+      { value: 'a', label: 'A' },
+    ];
+    render(
+      <AppSelect
+        name="test"
+        label="テストラベル"
+        options={optionsWithEmpty}
+        value=""
+        onChange={() => undefined}
+      />,
+    );
+    // combobox 表示部（選択中の値を表示する箇所）に「すべて」が表示されること。
+    expect(screen.getByRole('combobox')).toHaveTextContent('すべて');
+  });
+
+  // AppSelect-R2: placeholder なし + { value: '' } option がない + 初期値 "" のとき、
+  // combobox 内に「すべて」等の選択肢ラベルが表示されないこと。
+  // issue-097 本来の意図（空文字 option がない場合は切り欠きを出さない）に対応する。
+  it('AppSelect-R2: placeholder なし + { value: "" } option がない + 初期値 "" のとき combobox 内に選択肢ラベルが表示されない', () => {
+    render(
+      <AppSelect
+        name="test"
+        label="テストラベル"
+        options={OPTIONS}
+        value=""
+        onChange={() => undefined}
+      />,
+    );
+    // value="" かつ空文字 option がない場合（displayEmpty=false）、
+    // combobox 内に OPTIONS のラベル（「選択肢A」「選択肢B」）が表示されないこと。
+    // MUI はこのケースで空白文字のみの要素を描画するため、
+    // テキストを持たないことを「すべて」等のラベルが存在しないで検証する。
+    const combobox = screen.getByRole('combobox');
+    expect(combobox).not.toHaveTextContent('選択肢A');
+    expect(combobox).not.toHaveTextContent('選択肢B');
+  });
 });
