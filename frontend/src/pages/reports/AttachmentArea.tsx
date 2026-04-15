@@ -133,11 +133,11 @@ function AttachmentAreaContent({
         message={toast.message}
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
-      {/* 添付削除の確認ダイアログ（report-detail.md §4.6 準拠） */}
+      {/* 添付削除の確認ダイアログ（screens.md §4.6 準拠） */}
       <ConfirmDialog
         open={confirmTargetId !== null}
-        title="この添付ファイルを削除しますか?"
-        message="削除した添付ファイルは元に戻せません。"
+        title="添付ファイルの削除"
+        message="この添付ファイルを削除しますか?"
         confirmLabel="削除する"
         confirmColor="error"
         cancelLabel="キャンセル"
