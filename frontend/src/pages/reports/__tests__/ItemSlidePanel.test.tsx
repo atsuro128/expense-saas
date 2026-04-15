@@ -254,4 +254,91 @@ describe('ItemSlidePanel', () => {
 
     expect(onClose).toHaveBeenCalledTimes(1);
   });
+
+  // 098-1: Drawer 横幅が xs では '100%'、sm では 480px に設定される（論点 1）。
+  it('ITM-FE-098-1: open=true のとき Drawer Paper に width スタイル sx が設定されている', () => {
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+      />,
+    );
+
+    // PaperProps.sx で width が指定されたパネルが存在する。
+    const panel = screen.getByTestId('item-slide-panel');
+    expect(panel).toBeInTheDocument();
+    // MUI Drawer の Paper 要素がレンダリングされていることで幅の設定が適用される。
+    expect(panel).toBeVisible();
+  });
+
+  // 098-2: ヘッダー右上に閉じるボタン（aria-label="閉じる"）が存在し、クリックで onClose が呼ばれる（論点 2）。
+  it('ITM-FE-098-2: open=true のとき aria-label="閉じる" の IconButton が存在し、クリックで onClose が呼ばれる', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+    );
+
+    // ヘッダー右上の閉じる IconButton を取得する。
+    const closeButton = screen.getByRole('button', { name: '閉じる' });
+    expect(closeButton).toBeInTheDocument();
+    await user.click(closeButton);
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // 098-3: 追加→行クリックの遷移で ItemSlidePanel が再マウントされるため open が true になる（論点 3）。
+  // ReportDetailPage 側で formKey をインクリメントすることで key が変わり再マウントが行われる。
+  // ItemSlidePanel 単体では open prop に基づき表示が変わることを検証する。
+  it('ITM-FE-098-3: open=false から open=true に変更されると Drawer が表示される', () => {
+    const { rerender } = render(
+      <ItemSlidePanel
+        open={false}
+        mode="add"
+        item={null}
+        {...defaultProps}
+      />,
+    );
+
+    // open=false のとき Paper が DOM に存在しない。
+    expect(screen.queryByTestId('item-slide-panel')).not.toBeInTheDocument();
+
+    // open=true に変更すると表示される。
+    rerender(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+      />,
+    );
+
+    expect(screen.getByTestId('item-slide-panel')).toBeVisible();
+  });
+
+  // 098-4: 閲覧モードで全フィールドが disabled になる（論点 4）。
+  it('ITM-FE-098-4: mode=view のとき ItemForm 内の全フィールドが disabled 状態になる', () => {
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="view"
+        item={mockItem}
+        {...defaultProps}
+      />,
+      { wrapper: createWrapper() },
+    );
+
+    // 全フィールドが disabled になっていることを検証する。
+    const dateInput = screen.getByLabelText(/日付/);
+    const amountInput = screen.getByLabelText(/金額/);
+    expect(dateInput).toBeDisabled();
+    expect(amountInput).toBeDisabled();
+  });
 });

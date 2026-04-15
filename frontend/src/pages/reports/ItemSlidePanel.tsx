@@ -109,7 +109,10 @@ export default function ItemSlidePanel({
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ 'data-testid': 'item-slide-panel' } as PaperProps}
+      PaperProps={{
+        'data-testid': 'item-slide-panel',
+        sx: { width: { xs: '100%', sm: 480 } },
+      } as PaperProps}
     >
       <div>
         <h2>{title}</h2>
