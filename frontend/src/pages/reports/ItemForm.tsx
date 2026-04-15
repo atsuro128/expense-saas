@@ -65,7 +65,8 @@ const itemFormSchema = z.object({
 
 /**
  * ItemForm は明細追加・編集・閲覧フォームコンポーネント。
- * mode='view' のとき全フィールドが readonly になる。
+ * mode='view' のとき全フィールドが readOnly（inputProps.readOnly）になる（案 A）。
+ * disabled は送信中（isPending）かつ閲覧モードでない場合のみ適用する。
  * mode='add' のとき「保存して続けて追加」ボタンも表示する。
  */
 export default function ItemForm({
@@ -109,28 +110,30 @@ export default function ItemForm({
       {/* API エラー表示 */}
       <FormAlert message={apiError} />
 
-      {/* 支出日。閲覧モード（isView）では全フィールドを disabled に統一して見た目を揃える（案 B）。 */}
+      {/* 支出日。閲覧モード（isView）では inputProps.readOnly で読み取り専用にする（案 A）。
+          disabled は送信中（isPending）かつ閲覧モードでない場合のみ適用する。 */}
       <AppTextField
         {...register('expenseDate')}
         label="日付"
         type="date"
         InputLabelProps={{ shrink: true }}
-        inputProps={{ 'aria-label': '日付' }}
-        disabled={isView || (isPending && !isView)}
+        inputProps={{ readOnly: isView, 'aria-label': '日付' }}
+        disabled={isPending && !isView}
         errorMessage={errors.expenseDate?.message}
       />
 
-      {/* 金額。閲覧モードでは disabled に統一。 */}
+      {/* 金額。閲覧モードでは readOnly、送信中は disabled。 */}
       <AppTextField
         {...register('amount', { valueAsNumber: true })}
         label="金額"
         type="number"
-        inputProps={{ 'aria-label': '金額' }}
-        disabled={isView || (isPending && !isView)}
+        inputProps={{ readOnly: isView, 'aria-label': '金額' }}
+        disabled={isPending && !isView}
         errorMessage={errors.amount?.message}
       />
 
-      {/* カテゴリ。閲覧モードでは disabled に統一（他フィールドと同パターン）。 */}
+      {/* カテゴリ。閲覧モードでは AppSelect の readOnly prop でドロップダウンを開かせない（案 A ①）。
+          disabled は送信中かつ閲覧モードでない場合のみ適用し、グレーアウトしない。 */}
       <Controller
         name="categoryId"
         control={control}
@@ -142,19 +145,20 @@ export default function ItemForm({
             value={field.value}
             onChange={field.onChange}
             errorMessage={errors.categoryId?.message}
-            disabled={isView || (isPending && !isView)}
+            disabled={isPending && !isView}
+            readOnly={isView}
           />
         )}
       />
 
-      {/* 摘要。閲覧モードでは disabled に統一。 */}
+      {/* 摘要。閲覧モードでは readOnly、送信中は disabled。 */}
       <AppTextField
         {...register('description')}
         label="摘要"
         multiline
         rows={3}
-        inputProps={{ 'aria-label': '摘要' }}
-        disabled={isView || (isPending && !isView)}
+        inputProps={{ readOnly: isView, 'aria-label': '摘要' }}
+        disabled={isPending && !isView}
         errorMessage={errors.description?.message}
       />
 

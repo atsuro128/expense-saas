@@ -37,6 +37,13 @@ export interface AppSelectProps {
   /** 無効化 */
   disabled?: boolean;
   /**
+   * 読み取り専用フラグ。
+   * true のとき MUI Select の inputProps.readOnly が設定され、
+   * ドロップダウンを開けなくなる（disabled と異なりグレーアウトしない）。
+   * 閲覧モード（mode='view'）でフィールドを disabled にせず readOnly にしたい場合に使用する。
+   */
+  readOnly?: boolean;
+  /**
    * FormControl の fullWidth を制御する。
    * デフォルト true（後方互換性維持）。
    * フィルタ等、幅を制限したい場合は false を指定する。
@@ -54,6 +61,7 @@ export interface AppSelectProps {
  * AppSelect は MUI Select の共通ラッパー。
  * size="small" と fullWidth をデフォルトとして適用する。
  * 空選択肢のプレースホルダーを統一表示する。
+ * readOnly=true のとき inputProps.readOnly を Select に渡し、ドロップダウンを開けなくする（案 A ①）。
  */
 export default function AppSelect({
   name,
@@ -65,6 +73,7 @@ export default function AppSelect({
   errorMessage,
   required = false,
   disabled = false,
+  readOnly = false,
   fullWidth = true,
   selectDisplayProps,
 }: AppSelectProps) {
@@ -92,6 +101,7 @@ export default function AppSelect({
         onChange={handleChange}
         displayEmpty
         SelectDisplayProps={selectDisplayProps}
+        inputProps={readOnly ? { readOnly: true } : undefined}
       >
         {/* 未選択時のプレースホルダー */}
         {placeholder && (

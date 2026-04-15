@@ -352,18 +352,24 @@ describe('ItemForm', () => {
     expect(screen.getByTestId('item-form')).toBeInTheDocument();
   });
 
-  // 098-4: mode='view' のとき全フィールド（日付・金額・摘要）が disabled になる（論点 4）。
-  it('ITM-FE-098-4: mode=view のとき全フィールドが disabled 状態になる', () => {
+  // 098-4: mode='view' のとき全フィールド（日付・金額・摘要）が readOnly になる（案 A）。
+  // disabled ではなく inputProps.readOnly で制御するため、値のコピーが可能でフォーカスも外れない。
+  it('ITM-FE-098-4: mode=view のとき全フィールドが readOnly 状態になる（disabled ではない）', () => {
     render(
       <ItemForm mode="view" {...defaultProps} defaultValues={mockItem} />,
     );
 
-    // 全フィールドが disabled になっていることを検証する（案 B: 全フィールド disabled 統一）。
+    // 全フィールドが readOnly になっていることを検証する（案 A: inputProps.readOnly 方式）。
+    // disabled ではないため値のコピーが可能で、フォーカス順序も通常通り。
     const dateInput = screen.getByLabelText(/日付/);
     const amountInput = screen.getByLabelText(/金額/);
     const descInput = screen.getByLabelText(/摘要/);
-    expect(dateInput).toBeDisabled();
-    expect(amountInput).toBeDisabled();
-    expect(descInput).toBeDisabled();
+    expect(dateInput).not.toBeDisabled();
+    expect(amountInput).not.toBeDisabled();
+    expect(descInput).not.toBeDisabled();
+    // readOnly 属性が設定されていることを検証する。
+    expect(dateInput).toHaveAttribute('readOnly');
+    expect(amountInput).toHaveAttribute('readOnly');
+    expect(descInput).toHaveAttribute('readOnly');
   });
 });
