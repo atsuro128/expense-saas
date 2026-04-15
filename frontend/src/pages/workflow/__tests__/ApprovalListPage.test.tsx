@@ -31,7 +31,7 @@
 // WFL-FE-026 → FilterResetButton.test.tsx: 'WFL-FE-026: calls_on_reset_on_click'
 // APR-FE-002 → 'APR-FE-002: sync_role_check_member_redirects' — issue-106 同期ロールチェック
 // APR-FE-003 → 'APR-FE-003: sync_role_check_approver_renders' — issue-106 同期ロールチェック
-// APR-FE-004 → 'APR-FE-004: sync_role_check_admin_renders' — issue-106 同期ロールチェック
+// APR-FE-004 → 'APR-FE-004: Admin ロールは即ダッシュボードへリダイレクトされる' — issue-106 同期ロールチェック（authz.md 正本: Approver のみ許可）
 
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -632,14 +632,13 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     expect(screen.getByTestId('pending-approvals-page')).toBeInTheDocument();
   });
 
-  // APR-FE-004: Admin ロールで mount すると、通常レンダリングされる（issue-106）。
-  it('APR-FE-004: sync_role_check_admin_renders — Admin ロールで通常レンダリングされる', () => {
+  // APR-FE-004: Admin ロールで mount すると、同期ロールチェックにより /dashboard にリダイレクトされる。
+  // authz.md L334-337 / screens/workflow-pending.md L23 の正本では Admin は Approver ルートのアクセス対象外。
+  // issue-106 本文の「Approver / Admin のみ可」は誤記であり PR #54 のレビューで指摘・修正済み。
+  it('APR-FE-004: Admin ロールは即ダッシュボードへリダイレクトされる', async () => {
     mockCurrentUserWithRole('admin');
     mockUsePendingReports.mockReturnValue({
-      data: {
-        data: [],
-        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 1 },
-      },
+      data: undefined,
       isLoading: false,
       isError: false,
       error: null,
@@ -648,7 +647,15 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
 
     renderPage();
 
-    // ページがレンダリングされ、ダッシュボードに遷移しないこと。
-    expect(screen.getByTestId('pending-approvals-page')).toBeInTheDocument();
+    // 同期ロールチェックにより ApprovalListPage は描画されず、ダッシュボードにリダイレクトされること。
+    await waitFor(() => {
+      expect(screen.queryByTestId('approval-list-page')).not.toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
   });
 });

@@ -1,6 +1,6 @@
 // 支払待ちレポート一覧ページ（PaymentListPage）。
 // SCR-WFL-002 に対応する。
-// Accounting / Admin ロールのユーザーが支払待ちのレポートを一覧表示する。
+// Accounting ロールのユーザーが支払待ちのレポートを一覧表示する。
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -61,7 +61,7 @@ const COLUMNS: GridColDef[] = [
 
 /**
  * PaymentListPage は支払待ちレポートの一覧を表示する画面。
- * Accounting / Admin ロール以外は即時リダイレクトする（同期ロールチェック）。
+ * Accounting ロール以外は即時リダイレクトする（同期ロールチェック）。
  * 403 エラー時はダッシュボードにリダイレクトする（フェイルセーフ）。
  * 500 エラー時は AppToast でエラーを表示する。
  */
@@ -129,10 +129,11 @@ export default function PaymentListPage() {
   // フィルタが適用されているかどうか。
   const isFiltered = !!applicantNameParam;
 
-  // 同期ロールチェック: Accounting / Admin 以外はダッシュボードに即リダイレクトする。
+  // 同期ロールチェック: Accounting 以外はダッシュボードに即リダイレクトする。
   // API 403 レスポンスを待たず、ヘッダーのフラッシュ表示を防ぐ（issue-106 対応）。
+  // authz.md L376-379 / screens/workflow-payable.md L23 に基づき Accounting のみ許可する。
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'accounting' && currentUser.role !== 'admin') {
+    if (currentUser && currentUser.role !== 'accounting') {
       void navigate('/dashboard', {
         state: {
           toast: {
@@ -191,7 +192,7 @@ export default function PaymentListPage() {
 
   // currentUser が未取得、またはロール不一致の場合は何もレンダリングしない。
   // ロール不一致時は上記 useEffect がリダイレクトを実行する。
-  if (!currentUser || (currentUser.role !== 'accounting' && currentUser.role !== 'admin')) {
+  if (!currentUser || currentUser.role !== 'accounting') {
     return null;
   }
 

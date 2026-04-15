@@ -1,6 +1,6 @@
 // 承認待ちレポート一覧ページ（ApprovalListPage）。
 // SCR-WFL-001 に対応する。
-// Approver / Admin ロールのユーザーが承認待ちのレポートを一覧表示する。
+// Approver ロールのユーザーが承認待ちのレポートを一覧表示する。
 
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
@@ -61,7 +61,7 @@ const COLUMNS: GridColDef[] = [
 
 /**
  * ApprovalListPage は承認待ちレポートの一覧を表示する画面。
- * Approver / Admin ロール以外は即時リダイレクトする（同期ロールチェック）。
+ * Approver ロール以外は即時リダイレクトする（同期ロールチェック）。
  * 403 エラー時はダッシュボードにリダイレクトする（フェイルセーフ）。
  * 500 エラー時は AppToast でエラーを表示する。
  */
@@ -129,10 +129,11 @@ export default function ApprovalListPage() {
   // フィルタが適用されているかどうか。
   const isFiltered = !!applicantNameParam;
 
-  // 同期ロールチェック: Approver / Admin 以外はダッシュボードに即リダイレクトする。
+  // 同期ロールチェック: Approver 以外はダッシュボードに即リダイレクトする。
   // API 403 レスポンスを待たず、ヘッダーのフラッシュ表示を防ぐ（issue-106 対応）。
+  // authz.md L334-337 / screens/workflow-pending.md L23 に基づき Approver のみ許可する。
   useEffect(() => {
-    if (currentUser && currentUser.role !== 'approver' && currentUser.role !== 'admin') {
+    if (currentUser && currentUser.role !== 'approver') {
       void navigate('/dashboard', {
         state: {
           toast: {
@@ -191,7 +192,7 @@ export default function ApprovalListPage() {
 
   // currentUser が未取得、またはロール不一致の場合は何もレンダリングしない。
   // ロール不一致時は上記 useEffect がリダイレクトを実行する。
-  if (!currentUser || (currentUser.role !== 'approver' && currentUser.role !== 'admin')) {
+  if (!currentUser || currentUser.role !== 'approver') {
     return null;
   }
 
