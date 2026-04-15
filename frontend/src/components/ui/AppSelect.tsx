@@ -82,7 +82,17 @@ export default function AppSelect({
       required={required}
       disabled={disabled}
     >
-      <InputLabel id={labelId}>{label}</InputLabel>
+      {/*
+       * placeholder がある場合のみ shrink を明示する。
+       * displayEmpty=true のとき MUI OutlinedInput は「表示要素あり」と見なし
+       * notched=true（ラベル幅ぶんの切り欠き）を常に開く。
+       * InputLabel 側も shrink=true にしてラベルを上部に固定しないと
+       * 「ラベルが内側にいるのに切り欠きが空いている」という視覚不整合が発生する。
+       * placeholder がない場合は shrink={undefined} にして MUI デフォルト挙動に戻す。
+       */}
+      <InputLabel id={labelId} shrink={placeholder ? true : undefined}>
+        {label}
+      </InputLabel>
       <Select
         labelId={labelId}
         id={name}
@@ -90,7 +100,7 @@ export default function AppSelect({
         value={value}
         label={label}
         onChange={handleChange}
-        displayEmpty
+        displayEmpty={!!placeholder}
         SelectDisplayProps={selectDisplayProps}
       >
         {/* 未選択時のプレースホルダー */}
