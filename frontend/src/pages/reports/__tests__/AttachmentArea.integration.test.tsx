@@ -239,8 +239,10 @@ describe('AttachmentArea 統合テスト', () => {
       expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
     });
 
-    // 削除ボタンをクリックする
+    // 削除ボタンをクリックして確認ダイアログを表示する（issue-103 修正: 2段階削除）
     await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+    // ConfirmDialog の「削除する」ボタンをクリックして実際の削除を実行する
+    await userEvent.click(screen.getByText('削除する'));
 
     // 削除成功後にトーストが表示されること
     await waitFor(() => {
@@ -307,8 +309,10 @@ describe('AttachmentArea 統合テスト', () => {
       expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
     });
 
-    // 削除ボタンをクリックする
+    // 削除ボタンをクリックして確認ダイアログを表示する（issue-103 修正: 2段階削除）
     await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+    // ConfirmDialog の「削除する」ボタンをクリックして実際の削除を実行する
+    await userEvent.click(screen.getByText('削除する'));
 
     // エラー時にエラートーストが表示されること
     await waitFor(() => {
