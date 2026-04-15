@@ -104,7 +104,7 @@ vi.mock('../../../components/ui/AppPagination', () => ({
   },
 }));
 
-import ApprovalListPage from '../ApprovalListPage';
+import ApprovalListPage, { PAGE_TEST_ID as APPROVAL_PAGE_TEST_ID } from '../ApprovalListPage';
 
 // usePendingReports Hook をモックする。
 vi.mock('../../../hooks/useReports', () => ({
@@ -648,8 +648,9 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     renderPage();
 
     // 同期ロールチェックにより ApprovalListPage は描画されず、ダッシュボードにリダイレクトされること。
+    // APPROVAL_PAGE_TEST_ID は実装側の PAGE_TEST_ID 定数を参照し、文字列不一致による false positive を防ぐ。
     await waitFor(() => {
-      expect(screen.queryByTestId('approval-list-page')).not.toBeInTheDocument();
+      expect(screen.queryByTestId(APPROVAL_PAGE_TEST_ID)).not.toBeInTheDocument();
       expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
     });
 

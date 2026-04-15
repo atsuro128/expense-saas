@@ -16,6 +16,9 @@ import SelfLabel from '../../components/ui/SelfLabel';
 import { usePayableReports } from '../../hooks/useReports';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
 
+/** ページ root 要素の data-testid。テストから参照するためエクスポートする。 */
+export const PAGE_TEST_ID = 'payable-reports-page';
+
 /** テーブルのカラム定義。openapi.yaml の PayableReport フィールドに準拠する。 */
 const COLUMNS: GridColDef[] = [
   {
