@@ -6,6 +6,7 @@
 // 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
 
 import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
 import { vi, beforeEach, afterEach } from 'vitest';
@@ -186,5 +187,170 @@ describe('AttachmentArea', () => {
     // canModify=false かつ deletingId が null なので初期状態では disabled でないが、
     // ダウンロードボタンが描画されていることを確認する
     expect(screen.getByTestId('attachment-download-att-001')).toBeInTheDocument();
+  });
+
+  // ATT-FE-007: 削除ボタン押下で ConfirmDialog が表示される（issue-103 修正）。
+  it('ATT-FE-007: 削除ボタン押下で確認ダイアログが表示される', async () => {
+    const Wrapper = createWrapper();
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [
+          {
+            id: 'att-001',
+            item_id: 'item-1',
+            file_name: 'receipt.jpg',
+            file_size: 245760,
+            mime_type: 'image/jpeg',
+            created_at: '2026-03-01T00:00:00Z',
+          },
+        ],
+        pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      }),
+    } as unknown as Response);
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 削除ボタンが描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
+    // 削除ボタンをクリックする
+    await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+
+    // 確認ダイアログが表示されること
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByText('この添付ファイルを削除しますか?')).toBeInTheDocument();
+  });
+
+  // ATT-FE-008: 確認ダイアログの「キャンセル」押下で mutate が呼ばれない（issue-103 修正）。
+  it('ATT-FE-008: ダイアログでキャンセルを押すと削除 API が呼ばれない', async () => {
+    const Wrapper = createWrapper();
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [
+          {
+            id: 'att-001',
+            item_id: 'item-1',
+            file_name: 'receipt.jpg',
+            file_size: 245760,
+            mime_type: 'image/jpeg',
+            created_at: '2026-03-01T00:00:00Z',
+          },
+        ],
+        pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      }),
+    } as unknown as Response);
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 削除ボタンが描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
+    const fetchCallCountBeforeDelete = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // 削除ボタンをクリックしてダイアログを表示する
+    await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // 「キャンセル」ボタンをクリックする
+    await userEvent.click(screen.getByText('キャンセル'));
+
+    // ダイアログが閉じられること
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // 削除 API は呼ばれていないこと（fetch 呼び出し数が増えていない）
+    const fetchCallCountAfterCancel = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+    expect(fetchCallCountAfterCancel).toBe(fetchCallCountBeforeDelete);
+  });
+
+  // ATT-FE-009: 確認ダイアログの「削除する」押下で削除 API が呼ばれる（issue-103 修正）。
+  it('ATT-FE-009: ダイアログで削除するを押すと削除 API が呼ばれる', async () => {
+    const Wrapper = createWrapper();
+    // 1回目: 一覧取得。2回目: 削除 API（204）。3回目以降: invalidate 後の再取得
+    globalThis.fetch = vi.fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          data: [
+            {
+              id: 'att-001',
+              item_id: 'item-1',
+              file_name: 'receipt.jpg',
+              file_size: 245760,
+              mime_type: 'image/jpeg',
+              created_at: '2026-03-01T00:00:00Z',
+            },
+          ],
+          pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+        }),
+      } as unknown as Response)
+      .mockResolvedValue({
+        ok: true,
+        status: 204,
+        headers: { get: () => null },
+        json: async () => ({}),
+      } as unknown as Response);
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 削除ボタンが描画されるまで待機する
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
+    // 削除ボタンをクリックしてダイアログを表示する
+    await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // 「削除する」ボタンをクリックする
+    await userEvent.click(screen.getByText('削除する'));
+
+    // 削除 API が呼ばれること
+    await waitFor(() => {
+      const deleteCalled = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([url, opts]) =>
+          typeof url === 'string' &&
+          url.includes('/api/reports/rpt-1/items/item-1/attachments/att-001') &&
+          (opts as RequestInit)?.method === 'DELETE',
+      );
+      expect(deleteCalled).toBe(true);
+    });
   });
 });

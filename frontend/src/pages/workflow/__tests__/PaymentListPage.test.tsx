@@ -28,12 +28,15 @@
 // WFL-FE-052 → usePayableReports.test.tsx: 'WFL-FE-052: fetches_payable_reports_with_params'
 // WFL-FE-053 → usePayableReports.test.tsx: 'WFL-FE-053: uses_correct_query_key'
 // WFL-FE-054 → usePayableReports.test.tsx: 'WFL-FE-054: respects_stale_time'
+// PAY-FE-002 → 'PAY-FE-002: sync_role_check_member_redirects' — issue-106 同期ロールチェック
+// PAY-FE-003 → 'PAY-FE-003: sync_role_check_accounting_renders' — issue-106 同期ロールチェック
+// PAY-FE-004 → 'PAY-FE-004: Admin/Approver/Member ロールは即ダッシュボードへリダイレクトされる' — issue-106 同期ロールチェック（authz.md 正本: Accounting のみ許可）
 
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { vi, describe, it, afterEach, expect } from 'vitest';
+import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
 
 // MUI X の ESM import 解決問題を回避するため AppDataGrid をモックする。
 // onRowClick は { row: rowData } 形式で呼び出す。
@@ -102,7 +105,7 @@ vi.mock('../../../components/ui/AppPagination', () => ({
   },
 }));
 
-import PaymentListPage from '../PaymentListPage';
+import PaymentListPage, { PAGE_TEST_ID as PAYMENT_PAGE_TEST_ID } from '../PaymentListPage';
 
 // usePayableReports Hook をモックする。
 vi.mock('../../../hooks/useReports', () => ({
@@ -116,9 +119,33 @@ vi.mock('../../../hooks/useReports', () => ({
   useDeleteReport: vi.fn(),
 }));
 
+// useCurrentUser Hook をモックする（同期ロールチェック用）。
+vi.mock('../../../hooks/useCurrentUser', () => ({
+  useCurrentUser: vi.fn(),
+}));
+
 import { usePayableReports } from '../../../hooks/useReports';
+import * as useCurrentUserModule from '../../../hooks/useCurrentUser';
 
 const mockUsePayableReports = vi.mocked(usePayableReports);
+
+/** useCurrentUser を指定ロールでスタブする。 */
+function mockCurrentUserWithRole(role: 'admin' | 'approver' | 'member' | 'accounting') {
+  vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+    data: {
+      data: {
+        id: 'user-001',
+        name: 'Test User',
+        email: 'test@example.com',
+        role,
+        tenant: { id: 'tenant-001', name: 'Test Company' },
+      },
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+}
 
 // テスト用の PayableReport データ。
 const mockPayableReports = [
@@ -192,6 +219,11 @@ function renderPage(initialEntry = '/workflow/payable') {
 }
 
 describe('PaymentListPage（PayableReportsPage）', () => {
+  beforeEach(() => {
+    // デフォルトは Accounting ロール。個別テストで上書き可能。
+    mockCurrentUserWithRole('accounting');
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -574,5 +606,103 @@ describe('PaymentListPage（PayableReportsPage）', () => {
 
     // AppDataGrid モックで payable-table-header-approved-at が描画されること。
     expect(screen.getByTestId('payable-table-header-approved-at')).toBeInTheDocument();
+  });
+
+  // PAY-FE-002: Member ロールで mount すると、同期ロールチェックにより /dashboard にリダイレクトされる（issue-106）。
+  it('PAY-FE-002: sync_role_check_member_redirects — Member ロールで即時ダッシュボードにリダイレクトされる', async () => {
+    mockCurrentUserWithRole('member');
+    mockUsePayableReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // 同期ロールチェックによりダッシュボードにリダイレクトされること。
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
+  });
+
+  // PAY-FE-003: Accounting ロールで mount すると、通常レンダリングされる（issue-106）。
+  it('PAY-FE-003: sync_role_check_accounting_renders — Accounting ロールで通常レンダリングされる', () => {
+    mockCurrentUserWithRole('accounting');
+    mockUsePayableReports.mockReturnValue({
+      data: {
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // ページがレンダリングされ、ダッシュボードに遷移しないこと。
+    expect(screen.getByTestId('payable-reports-page')).toBeInTheDocument();
+  });
+
+  // PAY-FE-004: Admin / Approver / Member の 3 ロールで mount すると、同期ロールチェックにより /dashboard にリダイレクトされる。
+  // authz.md L376-379 / screens/workflow-payable.md L23 の正本では PaymentListPage は Accounting のみアクセス可能。
+  // issue-106 本文の「Accounting / Admin のみ可」は誤記であり PR #54 のレビューで指摘・修正済み。
+  it('PAY-FE-004: Admin ロールは即ダッシュボードへリダイレクトされる', async () => {
+    mockCurrentUserWithRole('admin');
+    mockUsePayableReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // 同期ロールチェックにより PaymentListPage は描画されず、ダッシュボードにリダイレクトされること。
+    // PAYMENT_PAGE_TEST_ID は実装側の PAGE_TEST_ID 定数を参照し、文字列不一致による false positive を防ぐ。
+    await waitFor(() => {
+      expect(screen.queryByTestId(PAYMENT_PAGE_TEST_ID)).not.toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
+  });
+
+  // PAY-FE-005: Approver ロールで mount すると、同期ロールチェックにより /dashboard にリダイレクトされる。
+  it('PAY-FE-005: Approver ロールは即ダッシュボードへリダイレクトされる', async () => {
+    mockCurrentUserWithRole('approver');
+    mockUsePayableReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // 同期ロールチェックにより PaymentListPage は描画されず、ダッシュボードにリダイレクトされること。
+    // PAYMENT_PAGE_TEST_ID は実装側の PAGE_TEST_ID 定数を参照し、文字列不一致による false positive を防ぐ。
+    await waitFor(() => {
+      expect(screen.queryByTestId(PAYMENT_PAGE_TEST_ID)).not.toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
   });
 });

@@ -14,6 +14,10 @@ import PageSkeleton from '../../components/ui/PageSkeleton';
 import FilterResetButton from '../../components/ui/FilterResetButton';
 import SelfLabel from '../../components/ui/SelfLabel';
 import { usePayableReports } from '../../hooks/useReports';
+import { useCurrentUser } from '../../hooks/useCurrentUser';
+
+/** ページ root 要素の data-testid。テストから参照するためエクスポートする。 */
+export const PAGE_TEST_ID = 'payable-reports-page';
 
 /** テーブルのカラム定義。openapi.yaml の PayableReport フィールドに準拠する。 */
 const COLUMNS: GridColDef[] = [
@@ -60,11 +64,14 @@ const COLUMNS: GridColDef[] = [
 
 /**
  * PaymentListPage は支払待ちレポートの一覧を表示する画面。
- * 403 エラー時はダッシュボードにリダイレクトする。
+ * Accounting ロール以外は即時リダイレクトする（同期ロールチェック）。
+ * 403 エラー時はダッシュボードにリダイレクトする（フェイルセーフ）。
  * 500 エラー時は AppToast でエラーを表示する。
  */
 export default function PaymentListPage() {
   const navigate = useNavigate();
+  const { data: userData } = useCurrentUser();
+  const currentUser = userData?.data;
   const [searchParams, setSearchParams] = useSearchParams();
 
   // URL クエリパラメータからフィルタ初期値を取得する。
@@ -125,6 +132,23 @@ export default function PaymentListPage() {
   // フィルタが適用されているかどうか。
   const isFiltered = !!applicantNameParam;
 
+  // 同期ロールチェック: Accounting 以外はダッシュボードに即リダイレクトする。
+  // API 403 レスポンスを待たず、ヘッダーのフラッシュ表示を防ぐ（issue-106 対応）。
+  // authz.md L376-379 / screens/workflow-payable.md L23 に基づき Accounting のみ許可する。
+  useEffect(() => {
+    if (currentUser && currentUser.role !== 'accounting') {
+      void navigate('/dashboard', {
+        state: {
+          toast: {
+            severity: 'error',
+            message: 'この画面にアクセスする権限がありません。',
+          },
+        },
+        replace: true,
+      });
+    }
+  }, [currentUser, navigate]);
+
   // 支払待ちレポート一覧データを取得する。
   const { data, isLoading, isError, error } = usePayableReports({
     page,
@@ -168,6 +192,12 @@ export default function PaymentListPage() {
   const emptyMessage = isFiltered
     ? '条件に一致するレポートはありません。'
     : '支払待ちのレポートはありません。';
+
+  // currentUser が未取得、またはロール不一致の場合は何もレンダリングしない。
+  // ロール不一致時は上記 useEffect がリダイレクトを実行する。
+  if (!currentUser || currentUser.role !== 'accounting') {
+    return null;
+  }
 
   // ローディング中はスケルトンを表示する。
   if (isLoading) {

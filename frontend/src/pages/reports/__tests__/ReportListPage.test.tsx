@@ -323,4 +323,29 @@ describe('ReportListPage', () => {
       expect(screen.getByTestId('app-toast')).toHaveAttribute('data-severity', 'error');
     });
   });
+
+  // REGRESSION-ReportListPage-1: codex 指摘の回帰防止テスト。
+  // 初期状態（status=''）でステータスフィルタの combobox 内に「すべて」が表示されること。
+  // AppSelect の displayEmpty={!!placeholder} 変更（PR #55）で「すべて」が消える回帰を検出する。
+  it('REGRESSION-ReportListPage-1: フィルタ初期状態でステータス combobox に「すべて」が表示される', async () => {
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports');
+
+    // ステータスフィルタ（AppSelect）の combobox 表示部に「すべて」が表示されること。
+    // MUI Select は displayEmpty=true のとき value="" の MenuItem を表示する。
+    await waitFor(() => {
+      const statusCombobox = screen.getByRole('combobox');
+      expect(statusCombobox).toHaveTextContent('すべて');
+    });
+  });
 });
