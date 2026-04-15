@@ -3,6 +3,7 @@
 // レポートデータを取得し、ReportInfoCard・ReportActionBar・ItemListSection・ItemSlidePanel を統合する。
 
 import { useState } from 'react';
+import { flushSync } from 'react-dom';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
@@ -364,11 +365,13 @@ export default function ReportDetailPage() {
     setItemApiError(null);
     // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする。
     setFormKey((prev) => prev + 1);
-    // 一度閉じてから開くことで open が false → true に遷移し、アニメーションが確実に発火する。
-    setPanelState('closed');
-    setTimeout(() => {
-      setPanelState('view');
-    }, 0);
+    // flushSync で 'closed' を同期的にコミットしてから 'view' に遷移することで、
+    // Drawer の open prop が必ず false → true の遷移を経由し、アニメーションが確実に発火する。
+    // setTimeout(0) ハックを廃止し、race の余地を設計的に解消する。
+    flushSync(() => {
+      setPanelState('closed');
+    });
+    setPanelState('view');
   };
 
   /**
@@ -382,11 +385,13 @@ export default function ReportDetailPage() {
     setItemApiError(null);
     // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームに既存値をプリフィルする。
     setFormKey((prev) => prev + 1);
-    // 一度閉じてから開くことで open が false → true に遷移し、アニメーションが確実に発火する。
-    setPanelState('closed');
-    setTimeout(() => {
-      setPanelState('edit');
-    }, 0);
+    // flushSync で 'closed' を同期的にコミットしてから 'edit' に遷移することで、
+    // Drawer の open prop が必ず false → true の遷移を経由し、アニメーションが確実に発火する。
+    // setTimeout(0) ハックを廃止し、race の余地を設計的に解消する。
+    flushSync(() => {
+      setPanelState('closed');
+    });
+    setPanelState('edit');
   };
 
   /**
