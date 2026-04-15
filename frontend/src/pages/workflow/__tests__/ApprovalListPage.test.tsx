@@ -29,12 +29,15 @@
 // WFL-FE-024 → FilterResetButton.test.tsx: 'WFL-FE-024: enabled_when_filter_applied'
 // WFL-FE-025 → FilterResetButton.test.tsx: 'WFL-FE-025: disabled_when_no_filter'
 // WFL-FE-026 → FilterResetButton.test.tsx: 'WFL-FE-026: calls_on_reset_on_click'
+// APR-FE-002 → 'APR-FE-002: sync_role_check_member_redirects' — issue-106 同期ロールチェック
+// APR-FE-003 → 'APR-FE-003: sync_role_check_approver_renders' — issue-106 同期ロールチェック
+// APR-FE-004 → 'APR-FE-004: Admin ロールは即ダッシュボードへリダイレクトされる' — issue-106 同期ロールチェック（authz.md 正本: Approver のみ許可）
 
 import { render, screen, waitFor, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { vi, describe, it, afterEach, expect } from 'vitest';
+import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
 
 // MUI X の ESM import 解決問題を回避するため AppDataGrid をモックする。
 // onRowClick は { row: rowData } 形式で呼び出す。
@@ -101,7 +104,7 @@ vi.mock('../../../components/ui/AppPagination', () => ({
   },
 }));
 
-import ApprovalListPage from '../ApprovalListPage';
+import ApprovalListPage, { PAGE_TEST_ID as APPROVAL_PAGE_TEST_ID } from '../ApprovalListPage';
 
 // usePendingReports Hook をモックする。
 vi.mock('../../../hooks/useReports', () => ({
@@ -115,9 +118,33 @@ vi.mock('../../../hooks/useReports', () => ({
   useDeleteReport: vi.fn(),
 }));
 
+// useCurrentUser Hook をモックする（同期ロールチェック用）。
+vi.mock('../../../hooks/useCurrentUser', () => ({
+  useCurrentUser: vi.fn(),
+}));
+
 import { usePendingReports } from '../../../hooks/useReports';
+import * as useCurrentUserModule from '../../../hooks/useCurrentUser';
 
 const mockUsePendingReports = vi.mocked(usePendingReports);
+
+/** useCurrentUser を指定ロールでスタブする。 */
+function mockCurrentUserWithRole(role: 'admin' | 'approver' | 'member' | 'accounting') {
+  vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+    data: {
+      data: {
+        id: 'user-001',
+        name: 'Test User',
+        email: 'test@example.com',
+        role,
+        tenant: { id: 'tenant-001', name: 'Test Company' },
+      },
+    },
+    isLoading: false,
+    isError: false,
+    error: null,
+  } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+}
 
 // テスト用の PendingReport データ。
 const mockPendingReports = [
@@ -191,6 +218,11 @@ function renderPage(initialEntry = '/workflow/pending') {
 }
 
 describe('ApprovalListPage（PendingApprovalsPage）', () => {
+  beforeEach(() => {
+    // デフォルトは Approver ロール。個別テストで上書き可能。
+    mockCurrentUserWithRole('approver');
+  });
+
   afterEach(() => {
     vi.restoreAllMocks();
   });
@@ -553,6 +585,78 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     await waitFor(() => {
       const location = screen.getByTestId('location').textContent ?? '';
       expect(location).toContain('/reports/report-001');
+    });
+  });
+
+  // APR-FE-002: Member ロールで mount すると、同期ロールチェックにより /dashboard にリダイレクトされる（issue-106）。
+  it('APR-FE-002: sync_role_check_member_redirects — Member ロールで即時ダッシュボードにリダイレクトされる', async () => {
+    mockCurrentUserWithRole('member');
+    mockUsePendingReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // 同期ロールチェックによりダッシュボードにリダイレクトされること。
+    await waitFor(() => {
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
+    });
+  });
+
+  // APR-FE-003: Approver ロールで mount すると、通常レンダリングされる（issue-106）。
+  it('APR-FE-003: sync_role_check_approver_renders — Approver ロールで通常レンダリングされる', () => {
+    mockCurrentUserWithRole('approver');
+    mockUsePendingReports.mockReturnValue({
+      data: {
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // ページがレンダリングされ、ダッシュボードに遷移しないこと。
+    expect(screen.getByTestId('pending-approvals-page')).toBeInTheDocument();
+  });
+
+  // APR-FE-004: Admin ロールで mount すると、同期ロールチェックにより /dashboard にリダイレクトされる。
+  // authz.md L334-337 / screens/workflow-pending.md L23 の正本では Admin は Approver ルートのアクセス対象外。
+  // issue-106 本文の「Approver / Admin のみ可」は誤記であり PR #54 のレビューで指摘・修正済み。
+  it('APR-FE-004: Admin ロールは即ダッシュボードへリダイレクトされる', async () => {
+    mockCurrentUserWithRole('admin');
+    mockUsePendingReports.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // 同期ロールチェックにより ApprovalListPage は描画されず、ダッシュボードにリダイレクトされること。
+    // APPROVAL_PAGE_TEST_ID は実装側の PAGE_TEST_ID 定数を参照し、文字列不一致による false positive を防ぐ。
+    await waitFor(() => {
+      expect(screen.queryByTestId(APPROVAL_PAGE_TEST_ID)).not.toBeInTheDocument();
+      expect(screen.getByTestId('dashboard-page')).toBeInTheDocument();
+    });
+
+    // navigate の state にトーストメッセージが含まれること。
+    await waitFor(() => {
+      expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
     });
   });
 });
