@@ -65,7 +65,8 @@ const itemFormSchema = z.object({
 
 /**
  * ItemForm は明細追加・編集・閲覧フォームコンポーネント。
- * mode='view' のとき全フィールドが readonly になる。
+ * mode='view' のとき全フィールドが readOnly（inputProps.readOnly）になる（案 A）。
+ * disabled は送信中（isPending）かつ閲覧モードでない場合のみ適用する。
  * mode='add' のとき「保存して続けて追加」ボタンも表示する。
  */
 export default function ItemForm({
@@ -109,7 +110,8 @@ export default function ItemForm({
       {/* API エラー表示 */}
       <FormAlert message={apiError} />
 
-      {/* 支出日 */}
+      {/* 支出日。閲覧モード（isView）では inputProps.readOnly で読み取り専用にする（案 A）。
+          disabled は送信中（isPending）かつ閲覧モードでない場合のみ適用する。 */}
       <AppTextField
         {...register('expenseDate')}
         label="日付"
@@ -120,7 +122,7 @@ export default function ItemForm({
         errorMessage={errors.expenseDate?.message}
       />
 
-      {/* 金額 */}
+      {/* 金額。閲覧モードでは readOnly、送信中は disabled。 */}
       <AppTextField
         {...register('amount', { valueAsNumber: true })}
         label="金額"
@@ -130,7 +132,8 @@ export default function ItemForm({
         errorMessage={errors.amount?.message}
       />
 
-      {/* カテゴリ */}
+      {/* カテゴリ。閲覧モードでは AppSelect の readOnly prop でドロップダウンを開かせない（案 A ①）。
+          disabled は送信中かつ閲覧モードでない場合のみ適用し、グレーアウトしない。 */}
       <Controller
         name="categoryId"
         control={control}
@@ -142,12 +145,13 @@ export default function ItemForm({
             value={field.value}
             onChange={field.onChange}
             errorMessage={errors.categoryId?.message}
-            disabled={isView || (isPending && !isView)}
+            disabled={isPending && !isView}
+            readOnly={isView}
           />
         )}
       />
 
-      {/* 摘要 */}
+      {/* 摘要。閲覧モードでは readOnly、送信中は disabled。 */}
       <AppTextField
         {...register('description')}
         label="摘要"
