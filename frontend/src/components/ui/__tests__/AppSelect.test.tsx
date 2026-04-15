@@ -1,5 +1,6 @@
 // AppSelect コンポーネントのユニットテスト。
 // issue 097: outlined 切り欠きとラベル位置の整合性を検証する。
+// issue 098-4: readOnly prop の開閉制御を検証する。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -220,5 +221,69 @@ describe('AppSelect', () => {
     const combobox = screen.getByRole('combobox');
     expect(combobox).not.toHaveTextContent('選択肢A');
     expect(combobox).not.toHaveTextContent('選択肢B');
+  });
+
+  // AppSelect-readOnly-1: readOnly=true のとき、クリックしても listbox が開かない。
+  // MUI Select の開閉制御はトップレベル readOnly prop で行われる
+  // （InputBase.js の spread 順序により inputProps.readOnly も最終的に同じ挙動になるが、
+  // トップレベル prop のほうが公式 API であり意図が明確）。
+  it('AppSelect readOnly=true のとき、クリックしても listbox が開かない', async () => {
+    const user = userEvent.setup();
+    render(
+      <AppSelect
+        name="test-select"
+        label="テスト"
+        value="a"
+        onChange={() => undefined}
+        options={OPTIONS}
+        readOnly={true}
+      />,
+    );
+
+    // combobox（Select のトリガー要素）をクリックする。
+    const combobox = screen.getByRole('combobox');
+    await user.click(combobox);
+
+    // readOnly 時は MUI Select の onMouseDown が null になり、listbox が開かない。
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  // AppSelect-readOnly-2: readOnly=false のとき、クリックで listbox が開くこと。
+  it('AppSelect readOnly=false のとき、クリックで listbox が開く', async () => {
+    const user = userEvent.setup();
+    render(
+      <AppSelect
+        name="test-select"
+        label="テスト"
+        value="a"
+        onChange={() => undefined}
+        options={OPTIONS}
+        readOnly={false}
+      />,
+    );
+
+    const combobox = screen.getByRole('combobox');
+    await user.click(combobox);
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+  });
+
+  // AppSelect-readOnly-3: readOnly 未指定（デフォルト false）のとき、クリックで listbox が開く。
+  it('AppSelect readOnly 未指定のとき、クリックで listbox が開く（デフォルト動作）', async () => {
+    const user = userEvent.setup();
+    render(
+      <AppSelect
+        name="test-select"
+        label="テスト"
+        value="a"
+        onChange={() => undefined}
+        options={OPTIONS}
+      />,
+    );
+
+    const combobox = screen.getByRole('combobox');
+    await user.click(combobox);
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
   });
 });

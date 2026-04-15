@@ -2,9 +2,12 @@
 // 明細の追加・編集・閲覧をスライドパネルで提供する。
 // SCR-RPT-004 §6 に対応する。
 
-import Button from '@mui/material/Button';
+import Box from '@mui/material/Box';
 import Drawer from '@mui/material/Drawer';
+import IconButton from '@mui/material/IconButton';
 import type { PaperProps } from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import CloseIcon from '@mui/icons-material/Close';
 import type { ReportStatus, ExpenseItemWithAttachments } from '../../api/types';
 import ItemForm from './ItemForm';
 import type { ItemFormValues } from './ItemForm';
@@ -109,14 +112,30 @@ export default function ItemSlidePanel({
       anchor="right"
       open={open}
       onClose={onClose}
-      PaperProps={{ 'data-testid': 'item-slide-panel' } as PaperProps}
+      PaperProps={{
+        'data-testid': 'item-slide-panel',
+        sx: { width: { xs: '100%', sm: 480 } },
+      } as PaperProps}
     >
-      <div>
-        <h2>{title}</h2>
-        <Button variant="text" size="small" onClick={onClose}>
-          閉じる
-        </Button>
-      </div>
+      {/* ヘッダー: タイトル左・閉じるボタン右の flex レイアウト */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          px: 2,
+          py: 1.5,
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
+      >
+        <Typography variant="h6" component="h2">
+          {title}
+        </Typography>
+        <IconButton aria-label="閉じる" onClick={onClose} size="small">
+          <CloseIcon />
+        </IconButton>
+      </Box>
       <ItemForm
         mode={formMode}
         onSubmit={handleSubmit}

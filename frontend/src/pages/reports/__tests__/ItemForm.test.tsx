@@ -351,4 +351,56 @@ describe('ItemForm', () => {
     // カテゴリドロップダウンに 6 件の選択肢が表示される（ITM-FE-047）。スタブ実装のため現在は失敗する。
     expect(screen.getByTestId('item-form')).toBeInTheDocument();
   });
+
+  // 098-4: mode='view' のとき全フィールド（日付・金額・摘要）が readOnly になる（案 A）。
+  // disabled ではなく inputProps.readOnly で制御するため、値のコピーが可能でフォーカスも外れない。
+  it('ITM-FE-098-4: mode=view のとき全フィールドが readOnly 状態になる（disabled ではない）', () => {
+    render(
+      <ItemForm mode="view" {...defaultProps} defaultValues={mockItem} />,
+    );
+
+    // 全フィールドが readOnly になっていることを検証する（案 A: inputProps.readOnly 方式）。
+    // disabled ではないため値のコピーが可能で、フォーカス順序も通常通り。
+    const dateInput = screen.getByLabelText(/日付/);
+    const amountInput = screen.getByLabelText(/金額/);
+    const descInput = screen.getByLabelText(/摘要/);
+    expect(dateInput).not.toBeDisabled();
+    expect(amountInput).not.toBeDisabled();
+    expect(descInput).not.toBeDisabled();
+    // readOnly 属性が設定されていることを検証する。
+    expect(dateInput).toHaveAttribute('readOnly');
+    expect(amountInput).toHaveAttribute('readOnly');
+    expect(descInput).toHaveAttribute('readOnly');
+  });
+
+  // ITM-FE-098-7: view モードでカテゴリ Select をクリックしても listbox が開かない。
+  // MUI Select の開閉制御はトップレベル readOnly prop で行われる（SelectInput.js L134/L296/L456）。
+  // inputProps.readOnly だけでは SelectInput の開閉制御に効かず、クリックで開いてしまう問題の回帰テスト。
+  it('ITM-FE-098-7: mode=view のときカテゴリ Select をクリックしても listbox が開かない', async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemForm mode="view" {...defaultProps} defaultValues={mockItem} />,
+    );
+
+    // カテゴリ Select のトリガー要素（combobox ロール）を取得してクリックする。
+    const categorySelect = screen.getByRole('combobox');
+    await user.click(categorySelect);
+
+    // readOnly 時は MUI Select の onMouseDown が null になり、listbox が開かない。
+    expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+  });
+
+  // ITM-FE-098-8: add/edit モードではカテゴリ Select がクリックで listbox を開く（対照ケース）。
+  it('ITM-FE-098-8: mode=add のときカテゴリ Select をクリックすると listbox が開く', async () => {
+    const user = userEvent.setup();
+    render(
+      <ItemForm mode="add" {...defaultProps} />,
+    );
+
+    // add モードではカテゴリ Select が通常通り開く。
+    const categorySelect = screen.getByRole('combobox');
+    await user.click(categorySelect);
+
+    expect(screen.getByRole('listbox')).toBeInTheDocument();
+  });
 });
