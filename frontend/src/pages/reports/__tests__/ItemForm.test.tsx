@@ -351,4 +351,19 @@ describe('ItemForm', () => {
     // カテゴリドロップダウンに 6 件の選択肢が表示される（ITM-FE-047）。スタブ実装のため現在は失敗する。
     expect(screen.getByTestId('item-form')).toBeInTheDocument();
   });
+
+  // 098-4: mode='view' のとき全フィールド（日付・金額・摘要）が disabled になる（論点 4）。
+  it('ITM-FE-098-4: mode=view のとき全フィールドが disabled 状態になる', () => {
+    render(
+      <ItemForm mode="view" {...defaultProps} defaultValues={mockItem} />,
+    );
+
+    // 全フィールドが disabled になっていることを検証する（案 B: 全フィールド disabled 統一）。
+    const dateInput = screen.getByLabelText(/日付/);
+    const amountInput = screen.getByLabelText(/金額/);
+    const descInput = screen.getByLabelText(/摘要/);
+    expect(dateInput).toBeDisabled();
+    expect(amountInput).toBeDisabled();
+    expect(descInput).toBeDisabled();
+  });
 });

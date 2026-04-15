@@ -109,28 +109,28 @@ export default function ItemForm({
       {/* API エラー表示 */}
       <FormAlert message={apiError} />
 
-      {/* 支出日 */}
+      {/* 支出日。閲覧モード（isView）では全フィールドを disabled に統一して見た目を揃える（案 B）。 */}
       <AppTextField
         {...register('expenseDate')}
         label="日付"
         type="date"
         InputLabelProps={{ shrink: true }}
-        inputProps={{ readOnly: isView, 'aria-label': '日付' }}
-        disabled={isPending && !isView}
+        inputProps={{ 'aria-label': '日付' }}
+        disabled={isView || (isPending && !isView)}
         errorMessage={errors.expenseDate?.message}
       />
 
-      {/* 金額 */}
+      {/* 金額。閲覧モードでは disabled に統一。 */}
       <AppTextField
         {...register('amount', { valueAsNumber: true })}
         label="金額"
         type="number"
-        inputProps={{ readOnly: isView, 'aria-label': '金額' }}
-        disabled={isPending && !isView}
+        inputProps={{ 'aria-label': '金額' }}
+        disabled={isView || (isPending && !isView)}
         errorMessage={errors.amount?.message}
       />
 
-      {/* カテゴリ */}
+      {/* カテゴリ。閲覧モードでは disabled に統一（他フィールドと同パターン）。 */}
       <Controller
         name="categoryId"
         control={control}
@@ -147,14 +147,14 @@ export default function ItemForm({
         )}
       />
 
-      {/* 摘要 */}
+      {/* 摘要。閲覧モードでは disabled に統一。 */}
       <AppTextField
         {...register('description')}
         label="摘要"
         multiline
         rows={3}
-        inputProps={{ readOnly: isView, 'aria-label': '摘要' }}
-        disabled={isPending && !isView}
+        inputProps={{ 'aria-label': '摘要' }}
+        disabled={isView || (isPending && !isView)}
         errorMessage={errors.description?.message}
       />
 
