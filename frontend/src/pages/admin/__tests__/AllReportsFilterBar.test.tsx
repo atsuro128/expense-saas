@@ -170,4 +170,28 @@ describe('AllReportsFilterBar', () => {
     // ネイティブ select は HTML disabled 属性が付くため toBeDisabled() で検証する。
     expect(screen.getByRole('combobox', { name: '申請者' })).toBeDisabled();
   });
+
+  // REGRESSION-AllReportsFilterBar-1: codex 指摘の回帰防止テスト。
+  // 初期状態（status=''）で「全て」オプションがステータスフィルタ内に表示されること。
+  // AppSelect の displayEmpty 条件が誤った場合に空欄になる回帰を検出する。
+  it('REGRESSION-AllReportsFilterBar-1: フィルタ初期状態でステータスセレクトに「全て」が表示される', () => {
+    render(
+      <AllReportsFilterBar
+        filters={defaultFilters}
+        onFilterChange={mockOnFilterChange}
+        members={mockMembers}
+        membersLoading={false}
+      />
+    );
+
+    // ステータスセレクトの初期値（value=""）に対応する「全て」オプションが
+    // combobox 内の選択済み option として描画されていること。
+    // モック実装（ネイティブ select）では選択肢として option が存在することを確認する。
+    const statusSelect = screen.getByRole('combobox', { name: 'ステータス' });
+    expect(statusSelect).toBeInTheDocument();
+    // value="" の option「全て」が select 内に存在すること。
+    const allOption = statusSelect.querySelector('option[value=""]');
+    expect(allOption).toBeInTheDocument();
+    expect(allOption).toHaveTextContent('全て');
+  });
 });
