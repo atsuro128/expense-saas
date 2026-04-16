@@ -1,6 +1,6 @@
 // DashboardPage コンポーネントのユニットテスト。
 // DSH-FE-001〜DSH-FE-007 に対応する。
-// DSH-FE-008: issue 088（403 認可エラーフィードバック）のリダイレクトトースト表示確認テストを追加。
+// DSH-FE-039: issue 088（403 認可エラーフィードバック）のリダイレクトトースト表示確認テストを追加。
 
 import { type ReactNode } from 'react';
 import { render, screen, within, waitFor } from '@testing-library/react';
@@ -305,9 +305,9 @@ describe('DashboardPage', () => {
     expect(screen.getByText('サーバーエラーが発生しました')).toBeInTheDocument();
   });
 
-  // DSH-FE-008: location state にトースト情報が含まれている場合、AppToast が表示されること（issue 088）。
+  // DSH-FE-039: location state にトースト情報が含まれている場合、AppToast が表示されること（issue 088）。
   // 認可エラー（403）でダッシュボードにリダイレクトされた際、navigate state 経由でトーストを受信する。
-  it('DSH-FE-008: location state にトースト情報が含まれている場合 AppToast が表示される', async () => {
+  it('DSH-FE-039: location state にトースト情報が含まれている場合 AppToast が表示される', async () => {
     const locationState = {
       toast: {
         severity: 'error',
