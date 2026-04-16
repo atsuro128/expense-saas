@@ -1,3 +1,11 @@
+# ============================================================================
+# 注意: このワークフローは参考用デモです。
+# 実運用ではローカルテスト（devcontainer + ホスト側 Docker）を使用します。
+# - Frontend: devcontainer 内で npm run lint / tsc --noEmit / vitest / vite build
+# - Backend: ホスト側 docker compose up db-test → devcontainer から host gateway
+#   経由で go test -tags integration
+# - E2E: ホスト側 docker compose up + Playwright
+# ============================================================================
 name: CI
 
 on:
