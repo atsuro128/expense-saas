@@ -79,6 +79,13 @@ type CategoryRepository interface {
 	GetByID(ctx context.Context, tenantID, categoryID uuid.UUID) (*Category, error)
 }
 
+// MonthlySummary は1か月分の支出集計データを保持する。
+// ReportRepository.MonthlySummary メソッドの返却型として使用する。
+type MonthlySummary struct {
+	YearMonth   string `json:"year_month"`
+	TotalAmount int    `json:"total_amount"`
+}
+
 // ReportRepository は ExpenseReport エンティティの永続化操作を提供する。
 type ReportRepository interface {
 	// Create は新しい経費精算レポートを保存する。

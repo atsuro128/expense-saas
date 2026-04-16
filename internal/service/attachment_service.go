@@ -53,7 +53,7 @@ func NewAttachmentService(
 //  5. ファイルバリデーション（サイズ、MIME タイプ、マジックバイト）
 //  6. S3 アップロード
 //  7. DB メタデータ保存
-func (s *attachmentService) UploadAttachment(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, upload FileUpload) (*domain.AttachmentDTO, error) {
+func (s *attachmentService) UploadAttachment(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, upload FileUpload) (*AttachmentDTO, error) {
 	// レポートを取得する。
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
@@ -107,7 +107,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, actor domain.A
 		return nil, fmt.Errorf("attachmentService.UploadAttachment: save metadata: %w", err)
 	}
 
-	return &domain.AttachmentDTO{
+	return &AttachmentDTO{
 		ID:        att.AttachmentID,
 		ItemID:    att.ItemID,
 		FileName:  att.FileName,
@@ -124,7 +124,7 @@ func (s *attachmentService) UploadAttachment(ctx context.Context, actor domain.A
 //  2. 閲覧権限チェック（CanViewReport）
 //  3. 明細所属確認
 //  4. 添付一覧取得
-func (s *attachmentService) ListAttachments(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID) ([]domain.AttachmentDTO, error) {
+func (s *attachmentService) ListAttachments(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID) ([]AttachmentDTO, error) {
 	// レポートを取得する。
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
@@ -147,9 +147,9 @@ func (s *attachmentService) ListAttachments(ctx context.Context, actor domain.Ac
 		return nil, fmt.Errorf("attachmentService.ListAttachments: %w", err)
 	}
 
-	dtos := make([]domain.AttachmentDTO, len(attachments))
+	dtos := make([]AttachmentDTO, len(attachments))
 	for i, att := range attachments {
-		dtos[i] = domain.AttachmentDTO{
+		dtos[i] = AttachmentDTO{
 			ID:        att.AttachmentID,
 			ItemID:    att.ItemID,
 			FileName:  att.FileName,
@@ -168,7 +168,7 @@ func (s *attachmentService) ListAttachments(ctx context.Context, actor domain.Ac
 //  2. 閲覧権限チェック（CanViewReport）
 //  3. 添付メタデータ取得
 //  4. 署名付き URL 生成（有効期限 15 分）
-func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*domain.AttachmentDownload, error) {
+func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentDownload, error) {
 	// レポートを取得する。
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
@@ -192,7 +192,7 @@ func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor dom
 		return nil, fmt.Errorf("attachmentService.GetAttachmentDownload: presign: %w", err)
 	}
 
-	return &domain.AttachmentDownload{
+	return &AttachmentDownload{
 		DownloadURL: downloadURL,
 		FileName:    att.FileName,
 		MimeType:    att.MimeType,

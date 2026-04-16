@@ -9,7 +9,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 
-	"expense-saas/internal/domain"
 	"expense-saas/internal/middleware"
 	"expense-saas/internal/service"
 )
@@ -38,7 +37,7 @@ type itemResponse struct {
 }
 
 // toItemResponse は ExpenseItemDTO を API 契約準拠のレスポンスに変換する。
-func toItemResponse(dto *domain.ExpenseItemDTO) itemResponse {
+func toItemResponse(dto *service.ExpenseItemDTO) itemResponse {
 	return itemResponse{
 		ID:          dto.ID,
 		ReportID:    dto.ReportID,

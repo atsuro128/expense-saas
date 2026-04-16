@@ -68,7 +68,7 @@ func NewAuthService(
 // (c) トランザクション開始, (d) テナント作成, (e) ユーザー作成,
 // (f) メンバーシップ作成(role=admin), (g) リフレッシュトークン保存,
 // (h) コミット, (i) アクセストークン生成, (j) AuthResult 返却。
-func (s *authService) Signup(ctx context.Context, params SignupParams) (*domain.AuthResult, error) {
+func (s *authService) Signup(ctx context.Context, params SignupParams) (*AuthResult, error) {
 	// (a) メール重複チェック（性能のためトランザクション外で実行）。
 	existing, err := s.userRepo.GetByEmail(ctx, params.Email)
 	if err != nil && !errors.Is(err, domain.ErrResourceNotFound) {
@@ -148,7 +148,7 @@ func (s *authService) Signup(ctx context.Context, params SignupParams) (*domain.
 // Login はメールアドレスとパスワードでユーザーを認証し、認証トークンを返す。
 // (a) GetByEmail, (b) VerifyPassword, (c) ownerPool からコネクション取得・SetConn,
 // (d) GetByUserID(membership), (e) トークン生成・保存, (f) AuthResult 返却。
-func (s *authService) Login(ctx context.Context, email, password string) (*domain.AuthResult, error) {
+func (s *authService) Login(ctx context.Context, email, password string) (*AuthResult, error) {
 	// (a) メールでユーザーを取得する。存在しない場合は INVALID_CREDENTIALS（SEC-011）。
 	user, err := s.userRepo.GetByEmail(ctx, email)
 	if err != nil {
@@ -225,7 +225,7 @@ func (s *authService) Login(ctx context.Context, email, password string) (*domai
 // (a) VerifyRefreshToken, (b) ownerPool からコネクション取得・SetConn,
 // (c) GetByJTI, (d) is_revoked チェック,
 // (e) 旧トークン revoke, (f) 最新ロール・テナント取得, (g) 新トークン生成・保存。
-func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*domain.AuthResult, error) {
+func (s *authService) RefreshToken(ctx context.Context, refreshToken string) (*AuthResult, error) {
 	// (a) トークン検証。
 	rtClaims, err := s.tokenVerifier.VerifyRefreshToken(refreshToken)
 	if err != nil {
@@ -349,7 +349,7 @@ func (s *authService) Logout(ctx context.Context, refreshToken string) error {
 
 // GetMe は認証済みユーザーのプロフィールを返す。
 // (a) GetByID(user), (b) GetByID(tenant), (c) UserProfile 構築。
-func (s *authService) GetMe(ctx context.Context, actor domain.Actor) (*domain.UserProfile, error) {
+func (s *authService) GetMe(ctx context.Context, actor domain.Actor) (*UserProfile, error) {
 	// (a) ユーザー情報を取得する。
 	user, err := s.userRepo.GetByID(ctx, actor.UserID)
 	if err != nil {
@@ -363,7 +363,7 @@ func (s *authService) GetMe(ctx context.Context, actor domain.Actor) (*domain.Us
 	}
 
 	// (c) UserProfile 構築。
-	profile := &domain.UserProfile{
+	profile := &UserProfile{
 		ID:    user.UserID,
 		Name:  user.Name,
 		Email: user.Email,
@@ -506,8 +506,8 @@ func sha256Hex(s string) string {
 }
 
 // buildAuthResult は AuthResult を構築するヘルパー。
-func buildAuthResult(user *domain.User, tenant *domain.Tenant, role domain.Role, accessToken, refreshToken string) *domain.AuthResult {
-	result := &domain.AuthResult{
+func buildAuthResult(user *domain.User, tenant *domain.Tenant, role domain.Role, accessToken, refreshToken string) *AuthResult {
+	result := &AuthResult{
 		AccessToken:  accessToken,
 		RefreshToken: refreshToken,
 	}

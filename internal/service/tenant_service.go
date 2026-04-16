@@ -28,7 +28,7 @@ func NewTenantService(
 }
 
 // GetTenant は actor のテナント情報を返す（Admin 専用）。
-func (s *tenantService) GetTenant(ctx context.Context, actor domain.Actor) (*domain.TenantInfoDTO, error) {
+func (s *tenantService) GetTenant(ctx context.Context, actor domain.Actor) (*TenantInfoDTO, error) {
 	tenant, err := s.tenantRepo.GetByID(ctx, actor.TenantID)
 	if err != nil {
 		if errors.Is(err, domain.ErrResourceNotFound) {
@@ -36,7 +36,7 @@ func (s *tenantService) GetTenant(ctx context.Context, actor domain.Actor) (*dom
 		}
 		return nil, fmt.Errorf("tenantService.GetTenant: %w", err)
 	}
-	return &domain.TenantInfoDTO{
+	return &TenantInfoDTO{
 		ID:        tenant.TenantID,
 		Name:      tenant.CompanyName,
 		CreatedAt: tenant.CreatedAt,
@@ -44,19 +44,19 @@ func (s *tenantService) GetTenant(ctx context.Context, actor domain.Actor) (*dom
 }
 
 // ListTenantMembers は actor のテナントに所属する全メンバーの UserSummary 一覧を返す。
-func (s *tenantService) ListTenantMembers(ctx context.Context, actor domain.Actor) ([]domain.UserSummary, error) {
+func (s *tenantService) ListTenantMembers(ctx context.Context, actor domain.Actor) ([]UserSummary, error) {
 	memberships, err := s.membershipRepo.ListByTenantID(ctx, actor.TenantID)
 	if err != nil {
 		return nil, fmt.Errorf("tenantService.ListTenantMembers: %w", err)
 	}
 
-	summaries := make([]domain.UserSummary, 0, len(memberships))
+	summaries := make([]UserSummary, 0, len(memberships))
 	for _, m := range memberships {
 		user, err := s.userRepo.GetByID(ctx, m.UserID)
 		if err != nil {
 			return nil, fmt.Errorf("tenantService.ListTenantMembers: get user %s: %w", m.UserID, err)
 		}
-		summaries = append(summaries, domain.UserSummary{
+		summaries = append(summaries, UserSummary{
 			ID:   user.UserID,
 			Name: user.Name,
 		})
