@@ -869,7 +869,7 @@ func TestSubmitReport_EmptyReport_Unprocessable(t *testing.T) {
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 
-// RPT-057: テナント内に Approver が 0 人 → 422 NO_APPROVER_IN_TENANT（WFL-014）。
+// RPT-057: テナント内に Approver が 0 人 → 422 NO_APPROVER_IN_TENANT（WFL-051）。
 func TestSubmitReport_NoApproverInTenant_Unprocessable(t *testing.T) {
 	srv, pool := setupReportTest(t)
 
@@ -908,7 +908,7 @@ func TestSubmitReport_NoApproverInTenant_Unprocessable(t *testing.T) {
 		memberUserID.String(), noApproverTenantID.String(), "member")
 	rec := srv.Execute(req)
 
-	// 422 NO_APPROVER_IN_TENANT: テナントに Approver 不在（WFL-014）（RPT-057）。機能未実装のため現在は失敗する。
+	// 422 NO_APPROVER_IN_TENANT: テナントに Approver 不在（WFL-051）（RPT-057）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
 

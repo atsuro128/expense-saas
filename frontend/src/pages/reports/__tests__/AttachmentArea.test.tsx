@@ -189,8 +189,8 @@ describe('AttachmentArea', () => {
     expect(screen.getByTestId('attachment-download-att-001')).toBeInTheDocument();
   });
 
-  // ATT-FE-007: 削除ボタン押下で ConfirmDialog が表示される（issue-103 修正）。
-  it('ATT-FE-007: 削除ボタン押下で確認ダイアログが表示される', async () => {
+  // ATT-FE-054: 削除ボタン押下で ConfirmDialog が表示される（issue-103 修正）。
+  it('ATT-FE-054: 削除ボタン押下で確認ダイアログが表示される', async () => {
     const Wrapper = createWrapper();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -234,8 +234,8 @@ describe('AttachmentArea', () => {
     expect(screen.getByText('この添付ファイルを削除しますか?')).toBeInTheDocument();
   });
 
-  // ATT-FE-008: 確認ダイアログの「キャンセル」押下で mutate が呼ばれない（issue-103 修正）。
-  it('ATT-FE-008: ダイアログでキャンセルを押すと削除 API が呼ばれない', async () => {
+  // ATT-FE-055: 確認ダイアログの「キャンセル」押下で mutate が呼ばれない（issue-103 修正）。
+  it('ATT-FE-055: ダイアログでキャンセルを押すと削除 API が呼ばれない', async () => {
     const Wrapper = createWrapper();
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
@@ -290,8 +290,8 @@ describe('AttachmentArea', () => {
     expect(fetchCallCountAfterCancel).toBe(fetchCallCountBeforeDelete);
   });
 
-  // ATT-FE-009: 確認ダイアログの「削除する」押下で削除 API が呼ばれる（issue-103 修正）。
-  it('ATT-FE-009: ダイアログで削除するを押すと削除 API が呼ばれる', async () => {
+  // ATT-FE-056: 確認ダイアログの「削除する」押下で削除 API が呼ばれる（issue-103 修正）。
+  it('ATT-FE-056: ダイアログで削除するを押すと削除 API が呼ばれる', async () => {
     const Wrapper = createWrapper();
     // 1回目: 一覧取得。2回目: 削除 API（204）。3回目以降: invalidate 後の再取得
     globalThis.fetch = vi.fn()

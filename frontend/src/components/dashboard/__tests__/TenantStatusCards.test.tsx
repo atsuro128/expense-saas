@@ -57,7 +57,7 @@ describe('TenantStatusCards', () => {
 
   // DSH-FE-020: 各カードにステータスに対応する accentColor が渡されること。
   // props レベルで検証することで、色を入れ替えた場合にテストが確実に失敗する。
-  it('DSH-FE-020: 下書きカードに accentColor="default" が渡される', () => {
+  it('DSH-FE-020-a: 下書きカードに accentColor="default" が渡される', () => {
     renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -72,7 +72,7 @@ describe('TenantStatusCards', () => {
     expect(draftCard?.accentColor ?? 'default').toBe('default');
   });
 
-  it('DSH-FE-020: 提出済みカードに accentColor="info" が渡される', () => {
+  it('DSH-FE-020-b: 提出済みカードに accentColor="info" が渡される', () => {
     renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -87,7 +87,7 @@ describe('TenantStatusCards', () => {
     expect(submittedCard?.accentColor).toBe('info');
   });
 
-  it('DSH-FE-020: 承認済みカードに accentColor="success" が渡される', () => {
+  it('DSH-FE-020-c: 承認済みカードに accentColor="success" が渡される', () => {
     renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -102,7 +102,7 @@ describe('TenantStatusCards', () => {
     expect(approvedCard?.accentColor).toBe('success');
   });
 
-  it('DSH-FE-020: 却下カードに accentColor="error" が渡される', () => {
+  it('DSH-FE-020-d: 却下カードに accentColor="error" が渡される', () => {
     renderWithRouter(
       <TenantStatusCards
         draftCount={1}
@@ -117,7 +117,7 @@ describe('TenantStatusCards', () => {
     expect(rejectedCard?.accentColor).toBe('error');
   });
 
-  it('DSH-FE-020: 支払済みカードに accentColor="secondary" が渡される', () => {
+  it('DSH-FE-020-e: 支払済みカードに accentColor="secondary" が渡される', () => {
     renderWithRouter(
       <TenantStatusCards
         draftCount={1}
