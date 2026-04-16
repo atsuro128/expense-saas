@@ -139,3 +139,22 @@ describe('ReportActionBar - OwnerActions コールバック確認', () => {
     expect(screen.getByRole('button', { name: '編集' })).toBeInTheDocument();
   });
 });
+
+describe('ReportActionBar - 自己支払禁止', () => {
+  // RPT-FE-083b: status="approved" + isOwner=true + currentUserRole="accounting" のとき WorkflowActions が描画されない。
+  // authz.md §6 の自己支払禁止ルール（RBC-016）に準拠する。
+  it('RPT-FE-083b: approved + 所有者 + accounting のとき WorkflowActions が描画されない（自己支払禁止）', () => {
+    render(
+      <ReportActionBar
+        status="approved"
+        isOwner={true}
+        currentUserRole="accounting"
+      />,
+    );
+
+    // WorkflowActions が非表示であること（自己支払禁止）
+    expect(screen.queryByTestId('workflow-actions')).not.toBeInTheDocument();
+    // 支払完了ボタンが表示されないこと
+    expect(screen.queryByRole('button', { name: '支払完了' })).not.toBeInTheDocument();
+  });
+});
