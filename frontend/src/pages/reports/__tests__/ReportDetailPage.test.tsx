@@ -34,11 +34,27 @@ vi.mock('../../../hooks/useItems', () => ({
   useDeleteItem: vi.fn(),
 }));
 
+// useApproveReport / useRejectReport / useMarkAsPaid をモックする（ワークフロー操作テスト用）。
+vi.mock('../../../hooks/useApproveReport', () => ({
+  useApproveReport: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useRejectReport', () => ({
+  useRejectReport: vi.fn(),
+}));
+
+vi.mock('../../../hooks/useMarkAsPaid', () => ({
+  useMarkAsPaid: vi.fn(),
+}));
+
 // vi.mock 後に import することでモック済みの関数参照を取得する。
 import { useReport, useSubmitReport, useDeleteReport } from '../../../hooks/useReports';
 import { useCurrentUser } from '../../../hooks/useCurrentUser';
 import { useCategories } from '../../../hooks/useCategories';
 import { useCreateItem, useUpdateItem, useDeleteItem } from '../../../hooks/useItems';
+import { useApproveReport } from '../../../hooks/useApproveReport';
+import { useRejectReport } from '../../../hooks/useRejectReport';
+import { useMarkAsPaid } from '../../../hooks/useMarkAsPaid';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseSubmitReport = vi.mocked(useSubmitReport);
@@ -48,6 +64,9 @@ const mockUseCategories = vi.mocked(useCategories);
 const mockUseCreateItem = vi.mocked(useCreateItem);
 const mockUseUpdateItem = vi.mocked(useUpdateItem);
 const mockUseDeleteItem = vi.mocked(useDeleteItem);
+const mockUseApproveReport = vi.mocked(useApproveReport);
+const mockUseRejectReport = vi.mocked(useRejectReport);
+const mockUseMarkAsPaid = vi.mocked(useMarkAsPaid);
 
 // テスト用 draft 状態のレポート詳細データ（Test Member 所有、明細1件あり）。
 const mockDraftReportDetail = {
@@ -127,6 +146,13 @@ describe('ReportDetailPage', () => {
     mockUseUpdateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     mockUseDeleteItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // ワークフロー操作フックのデフォルトモックを設定する。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseApproveReport.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseMarkAsPaid.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
   });
 
   afterEach(() => {
@@ -729,5 +755,475 @@ describe('ReportDetailPage', () => {
 
     // 摘要フィールドに '新幹線代' がプリフィルされていること。
     expect(within(panel).getByDisplayValue('新幹線代')).toBeInTheDocument();
+  });
+
+  // -------------------------------------------------------------------------
+  // G-C01: 承認確認ダイアログ
+  // -------------------------------------------------------------------------
+
+  // WFL-FE-063-D: 承認ボタン押下で ConfirmDialog が表示され、「承認コメント」TextField が存在する
+  it('WFL-FE-063-D: 承認ボタン押下で ConfirmDialog が表示され、「承認コメント」TextField が存在する', async () => {
+    const user = userEvent.setup();
+
+    // Approver ロールで submitted ステータスのレポートを設定する。
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 承認ボタンをクリックする。
+    const approveButton = screen.getByRole('button', { name: '承認' });
+    await user.click(approveButton);
+
+    // ConfirmDialog が表示されること。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「承認コメント」TextField が存在すること。
+    expect(screen.getByLabelText(/承認コメント/)).toBeInTheDocument();
+  });
+
+  // WFL-FE-063-E: ConfirmDialog のコメント入力 + 「承認する」押下で useApproveReport.mutate が呼ばれる
+  it('WFL-FE-063-E: コメント入力後に「承認する」押下で useApproveReport.mutate が呼ばれる', async () => {
+    const user = userEvent.setup();
+
+    // Approver ロールで submitted ステータスのレポートを設定する。
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const approveMutate = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseApproveReport.mockReturnValue({ mutate: approveMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 承認ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '承認' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「承認コメント」TextField にコメントを入力する。
+    const commentField = screen.getByLabelText(/承認コメント/);
+    await user.type(commentField, '問題ありません');
+
+    // 「承認する」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '承認する' }));
+
+    // useApproveReport.mutate が呼ばれること。
+    await waitFor(() => {
+      expect(approveMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'test-report-id', comment: '問題ありません' }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  // WFL-FE-063-F: ConfirmDialog の「キャンセル」でダイアログが閉じミューテーション未実行
+  it('WFL-FE-063-F: 承認ダイアログのキャンセルでダイアログが閉じミューテーションが未実行', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const approveMutate = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseApproveReport.mockReturnValue({ mutate: approveMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 承認ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '承認' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「キャンセル」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: 'キャンセル' }));
+
+    // ダイアログが閉じること。
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // useApproveReport.mutate が呼ばれていないこと。
+    expect(approveMutate).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // G-C02: 却下確認ダイアログ
+  // -------------------------------------------------------------------------
+
+  // WFL-FE-064-D: 却下ボタン押下で ConfirmDialog が表示され、「却下理由」TextField(required) が存在する
+  it('WFL-FE-064-D: 却下ボタン押下で ConfirmDialog が表示され、「却下理由」TextField が存在する', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されること。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「却下理由」TextField が存在すること。
+    const reasonField = screen.getByLabelText(/却下理由/);
+    expect(reasonField).toBeInTheDocument();
+    // required 属性が設定されていること。
+    expect(reasonField).toBeRequired();
+  });
+
+  // WFL-FE-064-E: 却下理由未入力時は「却下する」ボタンが disabled である
+  it('WFL-FE-064-E: 却下理由未入力時は「却下する」ボタンが disabled である', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 却下理由が未入力の場合、「却下する」ボタンが disabled であること。
+    // ConfirmDialog の isConfirmDisabled ロジック: required=true && inputValue.trim() === ''
+    expect(screen.getByRole('button', { name: '却下する' })).toBeDisabled();
+  });
+
+  // WFL-FE-064-F: 却下理由入力 + 「却下する」押下で useRejectReport.mutate が reason 付きで呼ばれる
+  it('WFL-FE-064-F: 却下理由入力後に「却下する」押下で useRejectReport.mutate が reason 付きで呼ばれる', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const rejectMutate = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: rejectMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「却下理由」TextField に理由を入力する。
+    await user.type(screen.getByLabelText(/却下理由/), '経費の内容が不適切です');
+
+    // 「却下する」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下する' }));
+
+    // useRejectReport.mutate が reason 付きで呼ばれること。
+    await waitFor(() => {
+      expect(rejectMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'test-report-id', reason: '経費の内容が不適切です' }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  // WFL-FE-064-G: ConfirmDialog の「キャンセル」でダイアログが閉じミューテーション未実行
+  it('WFL-FE-064-G: 却下ダイアログのキャンセルでダイアログが閉じミューテーションが未実行', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const rejectMutate = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: rejectMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「キャンセル」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: 'キャンセル' }));
+
+    // ダイアログが閉じること。
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // useRejectReport.mutate が呼ばれていないこと。
+    expect(rejectMutate).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // G-C03: 支払完了確認ダイアログ
+  // -------------------------------------------------------------------------
+
+  // WFL-FE-065-D: 支払完了ボタン押下で ConfirmDialog が表示される
+  it('WFL-FE-065-D: 支払完了ボタン押下で ConfirmDialog が表示される', async () => {
+    const user = userEvent.setup();
+
+    // Accounting ロールで approved ステータスのレポートを設定する。
+    const accountingUser = {
+      ...mockCurrentUser,
+      id: 'accounting-user-id',
+      role: 'accounting' as const,
+    };
+    const approvedReport = {
+      ...mockDraftReportDetail,
+      status: 'approved' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: accountingUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: approvedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 支払完了ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '支払完了' }));
+
+    // ConfirmDialog が表示されること。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+  });
+
+  // WFL-FE-065-E: ConfirmDialog の「支払完了にする」押下で useMarkAsPaid.mutate が呼ばれる
+  it('WFL-FE-065-E: 「支払完了にする」押下で useMarkAsPaid.mutate が呼ばれる', async () => {
+    const user = userEvent.setup();
+
+    const accountingUser = {
+      ...mockCurrentUser,
+      id: 'accounting-user-id',
+      role: 'accounting' as const,
+    };
+    const approvedReport = {
+      ...mockDraftReportDetail,
+      status: 'approved' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const payMutate = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseMarkAsPaid.mockReturnValue({ mutate: payMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: accountingUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: approvedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 支払完了ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '支払完了' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「支払完了にする」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '支払完了にする' }));
+
+    // useMarkAsPaid.mutate が呼ばれること。
+    await waitFor(() => {
+      expect(payMutate).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 'test-report-id' }),
+        expect.any(Object),
+      );
+    });
+  });
+
+  // WFL-FE-065-F: ConfirmDialog の「キャンセル」でダイアログが閉じミューテーション未実行
+  it('WFL-FE-065-F: 支払完了ダイアログのキャンセルでダイアログが閉じミューテーションが未実行', async () => {
+    const user = userEvent.setup();
+
+    const accountingUser = {
+      ...mockCurrentUser,
+      id: 'accounting-user-id',
+      role: 'accounting' as const,
+    };
+    const approvedReport = {
+      ...mockDraftReportDetail,
+      status: 'approved' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const payMutate = vi.fn();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseMarkAsPaid.mockReturnValue({ mutate: payMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: accountingUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: approvedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 支払完了ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '支払完了' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「キャンセル」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: 'キャンセル' }));
+
+    // ダイアログが閉じること。
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // useMarkAsPaid.mutate が呼ばれていないこと。
+    expect(payMutate).not.toHaveBeenCalled();
   });
 });
