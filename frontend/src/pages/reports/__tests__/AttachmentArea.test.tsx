@@ -1,6 +1,6 @@
 // AttachmentArea コンポーネントのユニットテスト。
 // report-detail.md §AttachmentArea の Props 仕様に基づくテスト。
-// ATT-FE-001〜006 に対応する。
+// ATT-FE-001〜006、ATT-FE-054〜056 に対応する。
 //
 // 注意: AttachmentArea はスタブ実装のため、ATT-FE-001・ATT-FE-003・ATT-FE-005・ATT-FE-006 の
 // 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
