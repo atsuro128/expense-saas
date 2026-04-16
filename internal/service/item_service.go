@@ -43,7 +43,7 @@ func NewItemService(
 //  4. 金額バリデーション（0 以下は ErrInvalidAmount）
 //  5. カテゴリ存在チェック（存在しない場合は ErrResourceNotFound）
 //  6. 明細を永続化して DTO を返す
-func (s *itemService) CreateItem(ctx context.Context, actor domain.Actor, reportID uuid.UUID, params CreateItemParams) (*domain.ExpenseItemDTO, error) {
+func (s *itemService) CreateItem(ctx context.Context, actor domain.Actor, reportID uuid.UUID, params CreateItemParams) (*ExpenseItemDTO, error) {
 	// レポートを取得する。
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
@@ -97,7 +97,7 @@ func (s *itemService) CreateItem(ctx context.Context, actor domain.Actor, report
 //  4. カテゴリ存在チェック
 //  5. 明細フィールドを更新して楽観的ロック付きで永続化
 //  6. DTO を返す
-func (s *itemService) UpdateItem(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, params UpdateItemParams) (*domain.ExpenseItemDTO, error) {
+func (s *itemService) UpdateItem(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, params UpdateItemParams) (*ExpenseItemDTO, error) {
 	// レポートを取得する。
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
@@ -180,13 +180,13 @@ func (s *itemService) DeleteItem(ctx context.Context, actor domain.Actor, report
 // buildItemDTO は ExpenseItem エンティティから ExpenseItemDTO を構築する。
 // カテゴリ情報・添付ファイル情報を付加する。
 // 添付ファイルがない場合は null ではなく空スライスを設定する（FE の .length アクセスに対応）。
-func (s *itemService) buildItemDTO(ctx context.Context, actor domain.Actor, item *domain.ExpenseItem) (*domain.ExpenseItemDTO, error) {
+func (s *itemService) buildItemDTO(ctx context.Context, actor domain.Actor, item *domain.ExpenseItem) (*ExpenseItemDTO, error) {
 	// カテゴリ情報を取得する。
 	cat, err := s.categoryRepo.GetByID(ctx, actor.TenantID, item.CategoryID)
 	if err != nil {
 		return nil, fmt.Errorf("itemService.buildItemDTO (category): %w", err)
 	}
-	catDTO := domain.CategoryDTO{
+	catDTO := CategoryDTO{
 		ID:        cat.CategoryID,
 		Code:      cat.Code,
 		NameJa:    cat.NameJa,
@@ -200,9 +200,9 @@ func (s *itemService) buildItemDTO(ctx context.Context, actor domain.Actor, item
 	}
 
 	// 添付ファイルがない場合も null ではなく空スライスを設定する。
-	attDTOs := make([]domain.AttachmentDTO, len(attachments))
+	attDTOs := make([]AttachmentDTO, len(attachments))
 	for i, att := range attachments {
-		attDTOs[i] = domain.AttachmentDTO{
+		attDTOs[i] = AttachmentDTO{
 			ID:        att.AttachmentID,
 			ItemID:    att.ItemID,
 			FileName:  att.FileName,
@@ -212,7 +212,7 @@ func (s *itemService) buildItemDTO(ctx context.Context, actor domain.Actor, item
 		}
 	}
 
-	return &domain.ExpenseItemDTO{
+	return &ExpenseItemDTO{
 		ID:          item.ItemID,
 		ReportID:    item.ReportID,
 		ExpenseDate: item.ExpenseDate,

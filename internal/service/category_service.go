@@ -16,15 +16,15 @@ func NewCategoryService(categoryRepo domain.CategoryRepository) CategoryService 
 }
 
 // ListCategories は操作者のテナントで参照可能な有効カテゴリを返す。
-func (s *categoryService) ListCategories(ctx context.Context, actor domain.Actor) ([]domain.CategoryDTO, error) {
+func (s *categoryService) ListCategories(ctx context.Context, actor domain.Actor) ([]CategoryDTO, error) {
 	categories, err := s.categoryRepo.ListActive(ctx, actor.TenantID)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make([]domain.CategoryDTO, len(categories))
+	result := make([]CategoryDTO, len(categories))
 	for i, c := range categories {
-		result[i] = domain.CategoryDTO{
+		result[i] = CategoryDTO{
 			ID:        c.CategoryID,
 			Code:      c.Code,
 			NameJa:    c.NameJa,

@@ -33,20 +33,20 @@ func NewWorkflowService(
 }
 
 // ListPendingReports は承認待ちの提出済みレポートを一覧取得する。
-func (s *workflowService) ListPendingReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]domain.PendingReport, *domain.Pagination, error) {
+func (s *workflowService) ListPendingReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]PendingReport, *Pagination, error) {
 	reports, total, err := s.reportRepo.ListPending(ctx, actor.TenantID, params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("workflowService.ListPendingReports: %w", err)
 	}
 
 	// ユーザーキャッシュを構築する。
-	userCache := make(map[uuid.UUID]domain.UserSummary)
-	pendingReports := make([]domain.PendingReport, len(reports))
+	userCache := make(map[uuid.UUID]UserSummary)
+	pendingReports := make([]PendingReport, len(reports))
 	for i, r := range reports {
 		if _, ok := userCache[r.UserID]; !ok {
 			u, err := s.userRepo.GetByID(ctx, r.UserID)
 			if err == nil {
-				userCache[r.UserID] = domain.UserSummary{ID: u.UserID, Name: u.Name}
+				userCache[r.UserID] = UserSummary{ID: u.UserID, Name: u.Name}
 			}
 		}
 		submitter := userCache[r.UserID]
@@ -54,7 +54,7 @@ func (s *workflowService) ListPendingReports(ctx context.Context, actor domain.A
 		if r.SubmittedAt != nil {
 			submittedAt = *r.SubmittedAt
 		}
-		pendingReports[i] = domain.PendingReport{
+		pendingReports[i] = PendingReport{
 			ID:          r.ReportID,
 			Title:       r.Title,
 			TotalAmount: r.TotalAmount,
@@ -76,7 +76,7 @@ func (s *workflowService) ListPendingReports(ctx context.Context, actor domain.A
 	if totalPages == 0 {
 		totalPages = 1
 	}
-	pagination := &domain.Pagination{
+	pagination := &Pagination{
 		CurrentPage: page,
 		PerPage:     perPage,
 		TotalCount:  total,
@@ -87,7 +87,7 @@ func (s *workflowService) ListPendingReports(ctx context.Context, actor domain.A
 }
 
 // ApproveReport は提出済みレポートを承認済みステータスへ遷移させる。
-func (s *workflowService) ApproveReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, comment *string, updatedAt time.Time) (*domain.ExpenseReportDetail, error) {
+func (s *workflowService) ApproveReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, comment *string, updatedAt time.Time) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (s *workflowService) ApproveReport(ctx context.Context, actor domain.Actor,
 }
 
 // RejectReport は提出済みレポートを却下済みステータスへ遷移させる。
-func (s *workflowService) RejectReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, reason string, updatedAt time.Time) (*domain.ExpenseReportDetail, error) {
+func (s *workflowService) RejectReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, reason string, updatedAt time.Time) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
@@ -147,20 +147,20 @@ func (s *workflowService) RejectReport(ctx context.Context, actor domain.Actor, 
 }
 
 // ListPayableReports は支払待ちの承認済みレポートを一覧取得する。
-func (s *workflowService) ListPayableReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]domain.PayableReport, *domain.Pagination, error) {
+func (s *workflowService) ListPayableReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]PayableReport, *Pagination, error) {
 	reports, total, err := s.reportRepo.ListPayable(ctx, actor.TenantID, params)
 	if err != nil {
 		return nil, nil, fmt.Errorf("workflowService.ListPayableReports: %w", err)
 	}
 
 	// ユーザーキャッシュを構築する。
-	userCache := make(map[uuid.UUID]domain.UserSummary)
-	payableReports := make([]domain.PayableReport, len(reports))
+	userCache := make(map[uuid.UUID]UserSummary)
+	payableReports := make([]PayableReport, len(reports))
 	for i, r := range reports {
 		if _, ok := userCache[r.UserID]; !ok {
 			u, err := s.userRepo.GetByID(ctx, r.UserID)
 			if err == nil {
-				userCache[r.UserID] = domain.UserSummary{ID: u.UserID, Name: u.Name}
+				userCache[r.UserID] = UserSummary{ID: u.UserID, Name: u.Name}
 			}
 		}
 		submitter := userCache[r.UserID]
@@ -168,7 +168,7 @@ func (s *workflowService) ListPayableReports(ctx context.Context, actor domain.A
 		if r.ApprovedAt != nil {
 			approvedAt = *r.ApprovedAt
 		}
-		payableReports[i] = domain.PayableReport{
+		payableReports[i] = PayableReport{
 			ID:          r.ReportID,
 			Title:       r.Title,
 			TotalAmount: r.TotalAmount,
@@ -190,7 +190,7 @@ func (s *workflowService) ListPayableReports(ctx context.Context, actor domain.A
 	if totalPages == 0 {
 		totalPages = 1
 	}
-	pagination := &domain.Pagination{
+	pagination := &Pagination{
 		CurrentPage: page,
 		PerPage:     perPage,
 		TotalCount:  total,
@@ -201,7 +201,7 @@ func (s *workflowService) ListPayableReports(ctx context.Context, actor domain.A
 }
 
 // MarkReportAsPaid は承認済みレポートを支払済みステータスへ遷移させる。
-func (s *workflowService) MarkReportAsPaid(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*domain.ExpenseReportDetail, error) {
+func (s *workflowService) MarkReportAsPaid(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
@@ -231,21 +231,21 @@ func (s *workflowService) MarkReportAsPaid(ctx context.Context, actor domain.Act
 }
 
 // buildWorkflowDetail はワークフロー操作後のレポート詳細を構築する（items は空）。
-func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.Actor, report *domain.ExpenseReport) (*domain.ExpenseReportDetail, error) {
+func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.Actor, report *domain.ExpenseReport) (*ExpenseReportDetail, error) {
 	// 提出者情報を取得する。
 	submitter, err := s.userRepo.GetByID(ctx, report.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("workflowService.buildWorkflowDetail (submitter): %w", err)
 	}
 
-	detail := &domain.ExpenseReportDetail{
+	detail := &ExpenseReportDetail{
 		ID:                report.ReportID,
 		Title:             report.Title,
 		PeriodStart:       report.PeriodStart,
 		PeriodEnd:         report.PeriodEnd,
 		Status:            report.Status,
 		TotalAmount:       report.TotalAmount,
-		Submitter:         domain.UserSummary{ID: submitter.UserID, Name: submitter.Name},
+		Submitter:         UserSummary{ID: submitter.UserID, Name: submitter.Name},
 		ReferenceReportID: report.ReferenceReportID,
 		SubmittedAt:       report.SubmittedAt,
 		ApprovedAt:        report.ApprovedAt,
@@ -253,7 +253,7 @@ func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.
 		RejectedAt:        report.RejectedAt,
 		RejectionReason:   report.RejectionReason,
 		PaidAt:            report.PaidAt,
-		Items:             []domain.ExpenseItemDTO{},
+		Items:             []ExpenseItemDTO{},
 		CreatedAt:         report.CreatedAt,
 		UpdatedAt:         report.UpdatedAt,
 	}
@@ -262,7 +262,7 @@ func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.
 	if report.ApprovedBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.ApprovedBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.ApprovedBy = &us
 		}
 	}
@@ -271,7 +271,7 @@ func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.
 	if report.RejectedBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.RejectedBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.RejectedBy = &us
 		}
 	}
@@ -280,7 +280,7 @@ func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.
 	if report.PaidBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.PaidBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.PaidBy = &us
 		}
 	}
@@ -289,7 +289,7 @@ func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.
 	if report.SubmittedBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.SubmittedBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.SubmittedBy = &us
 		}
 	}
