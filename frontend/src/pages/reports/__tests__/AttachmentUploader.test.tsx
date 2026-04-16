@@ -1,6 +1,7 @@
 // AttachmentUploader コンポーネントのユニットテスト。
 // report-detail.md §AttachmentUploader の Props 仕様に基づくテスト。
 // ATT-FE-016〜028 に対応する。
+// issue-100 修正対応: CircularProgress 表示・VisuallyHiddenInput・DnD 視覚フィードバックのテストを追加。
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach, afterEach } from 'vitest';
@@ -43,8 +44,9 @@ describe('AttachmentUploader', () => {
     vi.restoreAllMocks();
   });
 
-  // ATT-FE-016: isPending=false のとき「+ ファイルを追加」ボタンが表示される。
-  it('ATT-FE-016: アップロード中でないとき「+ ファイルを追加」テキストが表示される', () => {
+  // ATT-FE-016: isPending=false のとき「ファイルを追加」ボタンが表示される。
+  // issue-100: ボタン文言を「ファイルを追加」に変更（AddIcon が「+」を担う）。
+  it('ATT-FE-016: アップロード中でないとき「ファイルを追加」テキストが表示される', () => {
     const onUploadSuccess = vi.fn();
 
     renderWithQueryClient(
@@ -55,7 +57,7 @@ describe('AttachmentUploader', () => {
       />,
     );
 
-    expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('+ ファイルを追加');
+    expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('ファイルを追加');
   });
 
   // ATT-FE-017: アップロード中のとき「アップロード中...」テキストが表示される（Hook の isPending に基づく）。
@@ -439,7 +441,7 @@ describe('AttachmentUploader', () => {
     });
   });
 
-  // ATT-FE-028: アップロード中のときファイル入力と「+ ファイルを追加」ボタンが disabled になる。
+  // ATT-FE-028: アップロード中のときファイル入力と「ファイルを追加」ボタンが disabled になる。
   // Hook の isPending が true の間は disabled になること（ATT-FE-017 でカバー済み）。
   it('ATT-FE-028: アップロード中のときファイル入力が disabled になる', async () => {
     const onUploadSuccess = vi.fn();
@@ -484,7 +486,114 @@ describe('AttachmentUploader', () => {
       expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
     });
 
+    // アップロード中は DnD でも handleFile が再実行されないこと（ATT-FE-028 要件）。
+    const secondFile = createMockFile('second.jpg', 2048, 'image/jpeg');
+    fireEvent.drop(screen.getByTestId('attachment-uploader'), {
+      dataTransfer: { files: [secondFile], types: ['Files'] },
+    });
+    // fetch が 1 回目のアップロード分しか呼ばれていないこと。
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
     // fetch の解決を待つ。
     resolveFetch();
+  });
+
+  // ATT-FE-051: isPending=true のとき CircularProgress がボタン内に表示される（issue-100 SMK-012 対応）。
+  it('ATT-FE-051: アップロード中のとき CircularProgress がボタン内に表示される', async () => {
+    const onUploadSuccess = vi.fn();
+    // fetch を遅延させてアップロード中状態を維持する。
+    let resolveFetch!: () => void;
+    globalThis.fetch = vi.fn().mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = () =>
+          resolve({
+            ok: true,
+            status: 201,
+            headers: { get: () => null },
+            json: async () => ({
+              data: {
+                id: 'att-new',
+                item_id: 'item-001',
+                file_name: 'receipt.jpg',
+                file_size: 1024,
+                mime_type: 'image/jpeg',
+                created_at: '2026-04-01T00:00:00Z',
+              },
+            }),
+          } as unknown as Response);
+      }),
+    );
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // アップロード中は CircularProgress（role="progressbar"）がボタン内に表示されること。
+    await waitFor(() => {
+      expect(screen.getByRole('progressbar')).toBeInTheDocument();
+    });
+
+    // fetch の解決を待つ。
+    resolveFetch();
+  });
+
+  // ATT-FE-052: visually-hidden な input が 1 つだけ DOM に存在する（issue-100 重複ボタン解消確認）。
+  it('ATT-FE-052: visually-hidden な file input が 1 つだけ DOM に存在する', () => {
+    const onUploadSuccess = vi.fn();
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    // attachment-file-input の data-testid を持つ input が 1 つだけ存在すること。
+    const fileInputs = screen.getAllByTestId('attachment-file-input');
+    expect(fileInputs).toHaveLength(1);
+    expect(fileInputs[0]).toHaveAttribute('type', 'file');
+
+    // ボタン（attachment-upload-button）が 1 つだけ存在すること。
+    const buttons = screen.getAllByTestId('attachment-upload-button');
+    expect(buttons).toHaveLength(1);
+  });
+
+  // ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる（視覚フィードバック確認）。
+  it('ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる', () => {
+    const onUploadSuccess = vi.fn();
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const dropZone = screen.getByTestId('attachment-drop-zone');
+
+    // 初期状態では data-drag-over が false であること。
+    expect(dropZone).toHaveAttribute('data-drag-over', 'false');
+
+    // dragover イベントを発火する。
+    fireEvent.dragOver(dropZone);
+
+    // dragover 中は data-drag-over が true になること（視覚フィードバック）。
+    expect(dropZone).toHaveAttribute('data-drag-over', 'true');
+
+    // dragleave イベントを発火する。
+    fireEvent.dragLeave(dropZone);
+
+    // dragleave 後は data-drag-over が false に戻ること。
+    expect(dropZone).toHaveAttribute('data-drag-over', 'false');
   });
 });
