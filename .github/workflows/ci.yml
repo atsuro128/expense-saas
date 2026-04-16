@@ -1,21 +1,12 @@
 # ============================================================================
-# 注意: このワークフローは参考用デモです。
-# 実運用ではローカルテスト（devcontainer + ホスト側 Docker）を使用します。
-# - Frontend: devcontainer 内で npm run lint / tsc --noEmit / vitest / vite build
-# - Backend: ホスト側 docker compose up db-test → devcontainer から host gateway
-#   経由で go test -tags integration
-# - E2E: ホスト側 docker compose up + Playwright
+# 注意: このワークフローは GitHub Hosted Runner 向けの参考実装です。
+# 実運用ではローカルテスト（/test スキル）を使用します。
+# 手動実行（workflow_dispatch）でのみ起動できます。
 # ============================================================================
 name: CI
 
 on:
-  pull_request:
-    branches: [master]
-
-# ブランチ保護設定（手動で GitHub の Settings > Branches から設定すること）:
-#   - Required status checks: lint-backend, lint-frontend, test-backend, test-frontend, build-backend, build-frontend
-#   - Require branches to be up to date before merging: ON
-#   - Restrict who can push to matching branches: ON（直接プッシュを禁止）
+  workflow_dispatch:
 
 jobs:
   lint-backend:
