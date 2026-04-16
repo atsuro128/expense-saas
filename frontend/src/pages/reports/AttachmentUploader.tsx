@@ -119,8 +119,10 @@ export default function AttachmentUploader({
   };
 
   // ドロップゾーンの dragleave イベントハンドラ（視覚フィードバックを解除）。
+  // 子要素間の移動で発火する dragleave を無視し、ドロップゾーン外への離脱のみ反応する。
   const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    if (e.currentTarget.contains(e.relatedTarget as Node)) return;
     setIsDragOver(false);
   };
 

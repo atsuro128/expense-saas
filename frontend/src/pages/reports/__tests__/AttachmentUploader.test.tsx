@@ -490,8 +490,8 @@ describe('AttachmentUploader', () => {
     resolveFetch();
   });
 
-  // ATT-FE-029: isPending=true のとき CircularProgress がボタン内に表示される（issue-100 SMK-012 対応）。
-  it('ATT-FE-029: アップロード中のとき CircularProgress がボタン内に表示される', async () => {
+  // ATT-FE-051: isPending=true のとき CircularProgress がボタン内に表示される（issue-100 SMK-012 対応）。
+  it('ATT-FE-051: アップロード中のとき CircularProgress がボタン内に表示される', async () => {
     const onUploadSuccess = vi.fn();
     // fetch を遅延させてアップロード中状態を維持する。
     let resolveFetch!: () => void;
@@ -537,8 +537,8 @@ describe('AttachmentUploader', () => {
     resolveFetch();
   });
 
-  // ATT-FE-030: visually-hidden な input が 1 つだけ DOM に存在する（issue-100 重複ボタン解消確認）。
-  it('ATT-FE-030: visually-hidden な file input が 1 つだけ DOM に存在する', () => {
+  // ATT-FE-052: visually-hidden な input が 1 つだけ DOM に存在する（issue-100 重複ボタン解消確認）。
+  it('ATT-FE-052: visually-hidden な file input が 1 つだけ DOM に存在する', () => {
     const onUploadSuccess = vi.fn();
 
     renderWithQueryClient(
@@ -559,8 +559,8 @@ describe('AttachmentUploader', () => {
     expect(buttons).toHaveLength(1);
   });
 
-  // ATT-FE-031: dragover 時にドロップゾーンの data-drag-over 属性が true になる（視覚フィードバック確認）。
-  it('ATT-FE-031: dragover 時にドロップゾーンの data-drag-over 属性が true になる', () => {
+  // ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる（視覚フィードバック確認）。
+  it('ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる', () => {
     const onUploadSuccess = vi.fn();
 
     renderWithQueryClient(
