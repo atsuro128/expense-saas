@@ -115,6 +115,7 @@ export default function AttachmentUploader({
   // ドロップゾーンの dragover イベントハンドラ（デフォルト動作を防ぎ、視覚フィードバックを有効化）。
   const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    if (isPending) return;
     setIsDragOver(true);
   };
 
@@ -130,6 +131,7 @@ export default function AttachmentUploader({
   const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     setIsDragOver(false);
+    if (isPending) return;
     const file = e.dataTransfer.files[0];
     if (!file) return;
     handleFile(file);

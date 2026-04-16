@@ -486,6 +486,14 @@ describe('AttachmentUploader', () => {
       expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
     });
 
+    // アップロード中は DnD でも handleFile が再実行されないこと（ATT-FE-028 要件）。
+    const secondFile = createMockFile('second.jpg', 2048, 'image/jpeg');
+    fireEvent.drop(screen.getByTestId('attachment-uploader'), {
+      dataTransfer: { files: [secondFile], types: ['Files'] },
+    });
+    // fetch が 1 回目のアップロード分しか呼ばれていないこと。
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+
     // fetch の解決を待つ。
     resolveFetch();
   });
