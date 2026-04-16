@@ -1,6 +1,6 @@
 // AllReportsPage のユニットテスト。
 // TNT-FE-016〜023 に対応する。
-// TNT-FE-024〜025: issue 088（403 認可エラーフィードバック）の navigate toast state 確認テストを追加。
+// TNT-FE-046〜047: issue 088（403 認可エラーフィードバック）の navigate toast state 確認テストを追加。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -416,8 +416,8 @@ describe('AllReportsPage', () => {
     });
   });
 
-  // TNT-FE-024: ロール不一致時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示されること（issue 088）。
-  it('TNT-FE-024: ロール不一致時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示される', async () => {
+  // TNT-FE-046: ロール不一致時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示されること（issue 088）。
+  it('TNT-FE-046: ロール不一致時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
       data: { data: { id: 'user3', name: 'Test Member', email: 'member@example.com', role: 'member', tenant: { id: 'tenant1', name: 'Test Company A' } } },
       isLoading: false,
@@ -452,8 +452,8 @@ describe('AllReportsPage', () => {
     });
   });
 
-  // TNT-FE-025: 403 エラー時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示されること（issue 088）。
-  it('TNT-FE-025: 403 エラー時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示される', async () => {
+  // TNT-FE-047: 403 エラー時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示されること（issue 088）。
+  it('TNT-FE-047: 403 エラー時に navigate が state.toast 付きで呼ばれ、リダイレクト先でメッセージが表示される', async () => {
     vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
       data: { data: mockAdminUser },
       isLoading: false,
