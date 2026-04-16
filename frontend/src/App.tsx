@@ -20,6 +20,7 @@ import ApprovalListPage from './pages/workflow/ApprovalListPage';
 import PaymentListPage from './pages/workflow/PaymentListPage';
 import AllReportsPage from './pages/admin/AllReportsPage';
 import TenantPage from './pages/admin/TenantPage';
+import NotFoundPage from './pages/error/NotFoundPage';
 
 export default function App() {
   return (
@@ -47,6 +48,9 @@ export default function App() {
             <Route path="/payments" element={<PaymentListPage />} />
             {/* SCR-ADM-002: テナント設定画面 */}
             <Route path="/settings/tenant" element={<TenantPage />} />
+            {/* どのルートにもマッチしないパスは 404 ページを表示する（issue 096）。
+                PrivateRoute 内に配置することで未ログイン時は /login にリダイレクトされる。 */}
+            <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Route>
       </Routes>
