@@ -42,7 +42,7 @@ type attachmentDownloadResponse struct {
 }
 
 // toAttachmentResponse は AttachmentDTO を API 契約準拠のレスポンスに変換する。
-func toAttachmentResponse(dto *domain.AttachmentDTO) attachmentResponse {
+func toAttachmentResponse(dto *service.AttachmentDTO) attachmentResponse {
 	return attachmentResponse{
 		ID:        dto.ID,
 		ItemID:    dto.ItemID,
@@ -54,7 +54,7 @@ func toAttachmentResponse(dto *domain.AttachmentDTO) attachmentResponse {
 }
 
 // toAttachmentDownloadResponse は AttachmentDownload を API 契約準拠のレスポンスに変換する。
-func toAttachmentDownloadResponse(dl *domain.AttachmentDownload) attachmentDownloadResponse {
+func toAttachmentDownloadResponse(dl *service.AttachmentDownload) attachmentDownloadResponse {
 	return attachmentDownloadResponse{
 		DownloadURL: dl.DownloadURL,
 		FileName:    dl.FileName,

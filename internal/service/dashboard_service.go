@@ -31,8 +31,8 @@ func NewDashboardService(
 //   - Approver: Member フィールド + pending_approval_count + monthly_summary
 //   - Accounting: Member フィールド + pending_payment_count + monthly_summary
 //   - Admin: tenant_* 系フィールド + monthly_summary（my_* 系は設定しない）
-func (s *dashboardService) GetDashboard(ctx context.Context, actor domain.Actor) (*domain.DashboardData, error) {
-	data := &domain.DashboardData{}
+func (s *dashboardService) GetDashboard(ctx context.Context, actor domain.Actor) (*DashboardData, error) {
+	data := &DashboardData{}
 
 	switch actor.Role {
 	case domain.RoleMember:
@@ -76,7 +76,7 @@ func (s *dashboardService) GetDashboard(ctx context.Context, actor domain.Actor)
 
 // fillMemberFields は Member / Approver / Accounting 共通フィールドを設定する。
 // my_draft_count, my_submitted_count, my_rejected_count, recent_reports を設定する。
-func (s *dashboardService) fillMemberFields(ctx context.Context, tenantID, userID uuid.UUID, data *domain.DashboardData) error {
+func (s *dashboardService) fillMemberFields(ctx context.Context, tenantID, userID uuid.UUID, data *DashboardData) error {
 	// ユーザー別ステータス集計を取得する。
 	counts, err := s.reportRepo.CountByStatus(ctx, tenantID, &userID)
 	if err != nil {
@@ -97,9 +97,9 @@ func (s *dashboardService) fillMemberFields(ctx context.Context, tenantID, userI
 		return fmt.Errorf("dashboardService.fillMemberFields: ListRecentReports: %w", err)
 	}
 
-	recentReports := make([]domain.RecentReport, len(recent))
+	recentReports := make([]RecentReport, len(recent))
 	for i, r := range recent {
-		recentReports[i] = domain.RecentReport{
+		recentReports[i] = RecentReport{
 			ID:          r.ReportID,
 			Title:       r.Title,
 			PeriodStart: r.PeriodStart,
@@ -118,7 +118,7 @@ func (s *dashboardService) fillMemberFields(ctx context.Context, tenantID, userI
 
 // fillApproverFields は Approver 専用フィールド（pending_approval_count）を設定する。
 // テナント全体の submitted 件数からアクター自身の submitted 件数を引いた値を設定する。
-func (s *dashboardService) fillApproverFields(ctx context.Context, tenantID, actorUserID uuid.UUID, data *domain.DashboardData) error {
+func (s *dashboardService) fillApproverFields(ctx context.Context, tenantID, actorUserID uuid.UUID, data *DashboardData) error {
 	// テナント全体の submitted 件数を取得する。
 	allCounts, err := s.reportRepo.CountByStatus(ctx, tenantID, nil)
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *dashboardService) fillApproverFields(ctx context.Context, tenantID, act
 
 // fillAccountingFields は Accounting 専用フィールド（pending_payment_count）を設定する。
 // テナント全体の approved 件数を返す。
-func (s *dashboardService) fillAccountingFields(ctx context.Context, tenantID uuid.UUID, data *domain.DashboardData) error {
+func (s *dashboardService) fillAccountingFields(ctx context.Context, tenantID uuid.UUID, data *DashboardData) error {
 	allCounts, err := s.reportRepo.CountByStatus(ctx, tenantID, nil)
 	if err != nil {
 		return fmt.Errorf("dashboardService.fillAccountingFields: CountByStatus: %w", err)
@@ -155,7 +155,7 @@ func (s *dashboardService) fillAccountingFields(ctx context.Context, tenantID uu
 
 // fillAdminFields は Admin 専用フィールド（tenant_* カウント群および tenant_member_count）を設定する。
 // Admin はテナント全体集計のみを取得するため、my_* 系フィールドは設定しない。
-func (s *dashboardService) fillAdminFields(ctx context.Context, tenantID uuid.UUID, data *domain.DashboardData) error {
+func (s *dashboardService) fillAdminFields(ctx context.Context, tenantID uuid.UUID, data *DashboardData) error {
 	// テナント全体のステータス別集計を取得する。
 	allCounts, err := s.reportRepo.CountByStatus(ctx, tenantID, nil)
 	if err != nil {
@@ -186,7 +186,7 @@ func (s *dashboardService) fillAdminFields(ctx context.Context, tenantID uuid.UU
 
 // fillMonthlySummary は直近3ヶ月の月別集計（monthly_summary）を設定する。
 // テナント全体の集計（userID = nil）を使用する。
-func (s *dashboardService) fillMonthlySummary(ctx context.Context, tenantID uuid.UUID, data *domain.DashboardData) error {
+func (s *dashboardService) fillMonthlySummary(ctx context.Context, tenantID uuid.UUID, data *DashboardData) error {
 	summary, err := s.reportRepo.MonthlySummary(ctx, tenantID, nil, 3)
 	if err != nil {
 		return fmt.Errorf("dashboardService.fillMonthlySummary: MonthlySummary: %w", err)

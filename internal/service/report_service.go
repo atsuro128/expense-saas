@@ -44,7 +44,7 @@ func NewReportService(
 // CreateReport は操作者が所有する新規経費レポートを作成する。
 // reference_report_id が指定されている場合は再申請として扱い、参照元の明細をコピーする。
 // 参照元は rejected 状態でなければならない。
-func (s *reportService) CreateReport(ctx context.Context, actor domain.Actor, params CreateReportParams) (*domain.ExpenseReportDetail, error) {
+func (s *reportService) CreateReport(ctx context.Context, actor domain.Actor, params CreateReportParams) (*ExpenseReportDetail, error) {
 	// 再申請の場合は参照元レポートを検証する。
 	if params.ReferenceReportID != nil {
 		refReport, err := s.reportRepo.GetByID(ctx, actor.TenantID, *params.ReferenceReportID)
@@ -105,7 +105,7 @@ func (s *reportService) CreateReport(ctx context.Context, actor domain.Actor, pa
 }
 
 // GetReport は単一レポートの詳細を取得する。
-func (s *reportService) GetReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID) (*domain.ExpenseReportDetail, error) {
+func (s *reportService) GetReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
@@ -119,7 +119,7 @@ func (s *reportService) GetReport(ctx context.Context, actor domain.Actor, repor
 }
 
 // ListMyReports は操作者が所有するレポートをページネーション付きで一覧取得する。
-func (s *reportService) ListMyReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]domain.ExpenseReportSummary, *domain.Pagination, error) {
+func (s *reportService) ListMyReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]ExpenseReportSummary, *Pagination, error) {
 	// 自分のレポートに絞り込む。
 	params.UserID = &actor.UserID
 
@@ -128,7 +128,7 @@ func (s *reportService) ListMyReports(ctx context.Context, actor domain.Actor, p
 		return nil, nil, fmt.Errorf("reportService.ListMyReports: %w", err)
 	}
 
-	summaries := make([]domain.ExpenseReportSummary, len(reports))
+	summaries := make([]ExpenseReportSummary, len(reports))
 	for i, r := range reports {
 		summaries[i] = toSummary(r)
 	}
@@ -138,7 +138,7 @@ func (s *reportService) ListMyReports(ctx context.Context, actor domain.Actor, p
 }
 
 // ListAllReports はテナント内の全レポートを一覧取得する（Admin / Accounting 専用）。
-func (s *reportService) ListAllReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]domain.ExpenseReportSummary, *domain.Pagination, error) {
+func (s *reportService) ListAllReports(ctx context.Context, actor domain.Actor, params domain.ReportListParams) ([]ExpenseReportSummary, *Pagination, error) {
 	// PerPage のデフォルト値を設定する。
 	if params.PerPage <= 0 {
 		params.PerPage = 20
@@ -156,16 +156,16 @@ func (s *reportService) ListAllReports(ctx context.Context, actor domain.Actor, 
 	}
 
 	// Submitter 情報を付与するためユーザーキャッシュを構築する。
-	userCache := make(map[uuid.UUID]domain.UserSummary)
+	userCache := make(map[uuid.UUID]UserSummary)
 
-	summaries := make([]domain.ExpenseReportSummary, len(reports))
+	summaries := make([]ExpenseReportSummary, len(reports))
 	for i, r := range reports {
 		sum := toSummary(r)
 		// Submitter 情報を取得・キャッシュする。
 		if _, ok := userCache[r.UserID]; !ok {
 			user, err := s.userRepo.GetByID(ctx, r.UserID)
 			if err == nil {
-				userCache[r.UserID] = domain.UserSummary{ID: user.UserID, Name: user.Name}
+				userCache[r.UserID] = UserSummary{ID: user.UserID, Name: user.Name}
 			}
 		}
 		if submitter, ok := userCache[r.UserID]; ok {
@@ -180,7 +180,7 @@ func (s *reportService) ListAllReports(ctx context.Context, actor domain.Actor, 
 
 // UpdateReport は下書きレポートの変更可能フィールドを更新する。
 // 楽観的ロック: params.UpdatedAt と DB の updated_at が一致しない場合は ErrConflict を返す。
-func (s *reportService) UpdateReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, params UpdateReportParams) (*domain.ExpenseReportDetail, error) {
+func (s *reportService) UpdateReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, params UpdateReportParams) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
@@ -237,7 +237,7 @@ func (s *reportService) DeleteReport(ctx context.Context, actor domain.Actor, re
 }
 
 // SubmitReport は下書きレポートを提出済みステータスへ遷移させる。
-func (s *reportService) SubmitReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*domain.ExpenseReportDetail, error) {
+func (s *reportService) SubmitReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
@@ -283,21 +283,21 @@ func (s *reportService) SubmitReport(ctx context.Context, actor domain.Actor, re
 
 // buildDetail はレポートエンティティから ExpenseReportDetail を構築する。
 // 明細・添付ファイル・ユーザー情報を含む完全な表現を返す。
-func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, report *domain.ExpenseReport) (*domain.ExpenseReportDetail, error) {
+func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, report *domain.ExpenseReport) (*ExpenseReportDetail, error) {
 	// 提出者情報を取得する。
 	submitter, err := s.userRepo.GetByID(ctx, report.UserID)
 	if err != nil {
 		return nil, fmt.Errorf("reportService.buildDetail (submitter): %w", err)
 	}
 
-	detail := &domain.ExpenseReportDetail{
+	detail := &ExpenseReportDetail{
 		ID:                report.ReportID,
 		Title:             report.Title,
 		PeriodStart:       report.PeriodStart,
 		PeriodEnd:         report.PeriodEnd,
 		Status:            report.Status,
 		TotalAmount:       report.TotalAmount,
-		Submitter:         domain.UserSummary{ID: submitter.UserID, Name: submitter.Name},
+		Submitter:         UserSummary{ID: submitter.UserID, Name: submitter.Name},
 		ReferenceReportID: report.ReferenceReportID,
 		SubmittedAt:       report.SubmittedAt,
 		ApprovedAt:        report.ApprovedAt,
@@ -313,7 +313,7 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 	if report.SubmittedBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.SubmittedBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.SubmittedBy = &us
 		}
 	}
@@ -322,7 +322,7 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 	if report.ApprovedBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.ApprovedBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.ApprovedBy = &us
 		}
 	}
@@ -331,7 +331,7 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 	if report.RejectedBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.RejectedBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.RejectedBy = &us
 		}
 	}
@@ -340,7 +340,7 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 	if report.PaidBy != nil {
 		u, err := s.userRepo.GetByID(ctx, *report.PaidBy)
 		if err == nil {
-			us := domain.UserSummary{ID: u.UserID, Name: u.Name}
+			us := UserSummary{ID: u.UserID, Name: u.Name}
 			detail.PaidBy = &us
 		}
 	}
@@ -352,15 +352,15 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 	}
 
 	// カテゴリキャッシュを構築する。
-	categoryCache := make(map[uuid.UUID]domain.CategoryDTO)
+	categoryCache := make(map[uuid.UUID]CategoryDTO)
 
-	itemDTOs := make([]domain.ExpenseItemDTO, len(items))
+	itemDTOs := make([]ExpenseItemDTO, len(items))
 	for i, item := range items {
 		// カテゴリ情報を解決する。
 		if _, ok := categoryCache[item.CategoryID]; !ok {
 			cat, err := s.categoryRepo.GetByID(ctx, actor.TenantID, item.CategoryID)
 			if err == nil {
-				categoryCache[item.CategoryID] = domain.CategoryDTO{
+				categoryCache[item.CategoryID] = CategoryDTO{
 					ID:        cat.CategoryID,
 					Code:      cat.Code,
 					NameJa:    cat.NameJa,
@@ -377,9 +377,9 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 			return nil, fmt.Errorf("reportService.buildDetail (attachments): %w", err)
 		}
 
-		attDTOs := make([]domain.AttachmentDTO, len(attachments))
+		attDTOs := make([]AttachmentDTO, len(attachments))
 		for j, att := range attachments {
-			attDTOs[j] = domain.AttachmentDTO{
+			attDTOs[j] = AttachmentDTO{
 				ID:        att.AttachmentID,
 				ItemID:    att.ItemID,
 				FileName:  att.FileName,
@@ -389,7 +389,7 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 			}
 		}
 
-		itemDTOs[i] = domain.ExpenseItemDTO{
+		itemDTOs[i] = ExpenseItemDTO{
 			ID:          item.ItemID,
 			ReportID:    item.ReportID,
 			ExpenseDate: item.ExpenseDate,
@@ -407,8 +407,8 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 }
 
 // toSummary はレポートエンティティから ExpenseReportSummary を構築する。
-func toSummary(r domain.ExpenseReport) domain.ExpenseReportSummary {
-	return domain.ExpenseReportSummary{
+func toSummary(r domain.ExpenseReport) ExpenseReportSummary {
+	return ExpenseReportSummary{
 		ID:          r.ReportID,
 		Title:       r.Title,
 		PeriodStart: r.PeriodStart,
@@ -422,7 +422,7 @@ func toSummary(r domain.ExpenseReport) domain.ExpenseReportSummary {
 }
 
 // buildPagination は総件数・ページ番号・1ページあたり件数からページネーション情報を構築する。
-func buildPagination(total, page, perPage int) *domain.Pagination {
+func buildPagination(total, page, perPage int) *Pagination {
 	if perPage <= 0 {
 		perPage = 20
 	}
@@ -433,7 +433,7 @@ func buildPagination(total, page, perPage int) *domain.Pagination {
 	if totalPages == 0 {
 		totalPages = 1
 	}
-	return &domain.Pagination{
+	return &Pagination{
 		CurrentPage: page,
 		PerPage:     perPage,
 		TotalCount:  total,
