@@ -110,8 +110,13 @@ export interface Attachment {
   created_at: string;
 }
 
-export interface AttachmentDownload {
-  download_url: string;
+/**
+ * AttachmentAccess は /download・/preview エンドポイントが共通して返すレスポンス型。
+ * openapi.yaml AttachmentAccess スキーマに対応する。
+ * url フィールドの Content-Disposition（attachment / inline）は発行エンドポイントで決まる。
+ */
+export interface AttachmentAccess {
+  url: string;
   file_name: string;
   mime_type: MimeType;
   file_size: number;
