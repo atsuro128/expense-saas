@@ -1,6 +1,7 @@
 // AttachmentArea コンポーネント。
 // 明細スライドパネル内の添付ファイル管理領域。
-// AttachmentList と AttachmentUploader を統合する。
+// AttachmentList と AttachmentUploader を統合する orchestration コンポーネント。
+// プレビュー・ダウンロードの window.open 呼び出しはここが担当する（presentational の AttachmentList は呼ばない）。
 // report-detail.md §AttachmentArea に対応する。
 
 import { useState } from 'react';
@@ -10,7 +11,7 @@ import AppToast from '../../components/ui/AppToast';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useAttachments } from '../../hooks/useAttachments';
 import { useDeleteAttachment } from '../../hooks/useDeleteAttachment';
-import type { ApiResponse, Attachment } from '../../api/types';
+import type { ApiResponse, Attachment, AttachmentAccess } from '../../api/types';
 import { api } from '../../api/client';
 
 export interface AttachmentAreaProps {
@@ -60,21 +61,55 @@ function AttachmentAreaContent({
     showToast('success', 'ファイルをアップロードしました');
   };
 
-  // ダウンロードコールバック。署名付き URL を取得してブラウザでダウンロードを開始する。
-  const handleDownload = async (attachmentId: string) => {
-    try {
-      const res = await api.get<ApiResponse<{ download_url: string; file_name: string }>>(
-        `/api/reports/${reportId}/items/${itemId}/attachments/${attachmentId}`,
-      );
-      const link = document.createElement('a');
-      link.href = res.data.download_url;
-      link.download = res.data.file_name;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch {
-      showToast('error', 'ダウンロードに失敗しました');
+  /**
+   * プレビューコールバック。
+   * ポップアップブロック回避のため、クリック同期で空タブを先に開き、
+   * 非同期で署名付き URL を取得後に location を差し替える。
+   * files.md §4.5 のパターンに準拠。
+   */
+  const handlePreview = (attachmentId: string) => {
+    // クリック同期で空タブを先に開く（ポップアップブロック回避）。
+    const newWindow = window.open('about:blank', '_blank');
+    if (!newWindow) {
+      showToast('error', 'ポップアップがブロックされました。ブラウザ設定を確認してください');
+      return;
     }
+    api
+      .get<ApiResponse<AttachmentAccess>>(
+        `/api/reports/${reportId}/items/${itemId}/attachments/${attachmentId}/preview`,
+      )
+      .then((res) => {
+        newWindow.location.href = res.data.url;
+      })
+      .catch(() => {
+        newWindow.close();
+        showToast('error', 'プレビューの取得に失敗しました');
+      });
+  };
+
+  /**
+   * ダウンロードコールバック。
+   * プレビューと同じクリック同期パターンを採用する。
+   * 署名付き URL の Content-Disposition: attachment により、ブラウザがダウンロードを開始する。
+   */
+  const handleDownload = (attachmentId: string) => {
+    // クリック同期で空タブを先に開く（ポップアップブロック回避）。
+    const newWindow = window.open('about:blank', '_blank');
+    if (!newWindow) {
+      showToast('error', 'ポップアップがブロックされました。ブラウザ設定を確認してください');
+      return;
+    }
+    api
+      .get<ApiResponse<AttachmentAccess>>(
+        `/api/reports/${reportId}/items/${itemId}/attachments/${attachmentId}/download`,
+      )
+      .then((res) => {
+        newWindow.location.href = res.data.url;
+      })
+      .catch(() => {
+        newWindow.close();
+        showToast('error', 'ダウンロードの取得に失敗しました');
+      });
   };
 
   // 削除ボタン押下: 確認ダイアログを表示する（report-detail.md §4.6 準拠）。
@@ -113,9 +148,8 @@ function AttachmentAreaContent({
       <AttachmentList
         attachments={attachments}
         canDelete={canModify}
-        onDownload={(id) => {
-          void handleDownload(id);
-        }}
+        onPreview={handlePreview}
+        onDownload={handleDownload}
         onDelete={handleDelete}
         deletingId={deletingId}
       />
