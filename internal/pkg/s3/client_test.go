@@ -106,7 +106,7 @@ func TestPresignGetObject_EndpointInURL(t *testing.T) {
 			t.Fatalf("NewClientFromEnv() error = %v", err)
 		}
 
-		url, _, err := c.PresignGetObject(context.Background(), "test/file.pdf", "receipt.pdf", "application/pdf", time.Hour)
+		url, _, err := c.PresignGetObject(context.Background(), "test/file.pdf", "receipt.pdf", "application/pdf", `attachment; filename="receipt.pdf"`, time.Hour)
 		if err != nil {
 			t.Fatalf("PresignGetObject() error = %v", err)
 		}
@@ -137,7 +137,7 @@ func TestPresignGetObject_EndpointInURL(t *testing.T) {
 			t.Fatalf("NewClientFromEnv() error = %v", err)
 		}
 
-		url, _, err := c.PresignGetObject(context.Background(), "test/file.pdf", "receipt.pdf", "application/pdf", time.Hour)
+		url, _, err := c.PresignGetObject(context.Background(), "test/file.pdf", "receipt.pdf", "application/pdf", `attachment; filename="receipt.pdf"`, time.Hour)
 		if err != nil {
 			t.Fatalf("PresignGetObject() error = %v", err)
 		}

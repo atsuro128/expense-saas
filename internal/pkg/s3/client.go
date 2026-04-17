@@ -110,12 +110,11 @@ func (c *Client) Upload(ctx context.Context, key string, data io.Reader, content
 	return nil
 }
 
-// PresignGetObject は署名付きダウンロード URL を生成する。
-// ResponseContentType を付与し、Content-Disposition で元ファイル名を返す。
-func (c *Client) PresignGetObject(ctx context.Context, key, fileName, mimeType string, expiry time.Duration) (string, time.Time, error) {
+// PresignGetObject は署名付き URL を生成する。
+// disposition は ResponseContentDisposition に設定する値（service 層で組み立てた
+// "attachment; filename=..." または "inline; filename=..." をそのまま渡す）。
+func (c *Client) PresignGetObject(ctx context.Context, key, fileName, mimeType, disposition string, expiry time.Duration) (string, time.Time, error) {
 	expiresAt := time.Now().UTC().Add(expiry)
-
-	disposition := fmt.Sprintf(`attachment; filename="%s"`, fileName)
 
 	req, err := c.presignClient.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket:                     aws.String(c.bucket),

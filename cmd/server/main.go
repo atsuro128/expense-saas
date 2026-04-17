@@ -207,7 +207,8 @@ func main() {
 			all.With(middleware.RateLimitByUser(bgCtx, 10, time.Minute)).
 				Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
-			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.GetAttachmentDownload)
+			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}/download", attachmentHandler.GetAttachmentDownload)
+			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}/preview", attachmentHandler.GetAttachmentPreview)
 			all.Delete("/api/reports/{id}/items/{itemId}/attachments/{attId}", attachmentHandler.DeleteAttachment)
 		})
 
