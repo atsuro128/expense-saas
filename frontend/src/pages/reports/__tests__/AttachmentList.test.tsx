@@ -1,6 +1,8 @@
 // AttachmentList コンポーネントのユニットテスト。
 // report-detail.md §AttachmentList の Props 仕様に基づくテスト。
 // ATT-FE-007〜015 に対応する。
+// プレビューコールバックとダウンロードコールバックの分離を検証する（T4）。
+// window.open 呼び出しは presentational の責務外のため検証しない。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -45,6 +47,7 @@ describe('AttachmentList', () => {
   // ATT-FE-007: ファイル情報（ファイル名・ファイルサイズ）が表示される。
   // ファイルサイズは formatFileSize でフォーマットされた文字列（例: "240 KB"）で表示される。
   it('ATT-FE-007: ファイル名とファイルサイズがフォーマット済みで表示される', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -52,6 +55,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={[sampleAttachments[0]!]}
         canDelete={true}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -67,6 +71,7 @@ describe('AttachmentList', () => {
 
   // ATT-FE-007b: ファイルサイズが 1MB 以上の場合は "X.X MB" 形式で表示される。
   it('ATT-FE-007b: file_size が 1MB 以上のとき "X.X MB" 形式で表示される', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
     const largeFile: Attachment = {
@@ -82,6 +87,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={[largeFile]}
         canDelete={false}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -95,6 +101,7 @@ describe('AttachmentList', () => {
 
   // ATT-FE-008: attachments が空の場合、添付ファイルの行要素が描画されない。
   it('ATT-FE-008: attachments が空の場合、空状態メッセージが表示される', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -102,6 +109,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={[]}
         canDelete={false}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -113,6 +121,7 @@ describe('AttachmentList', () => {
 
   // ATT-FE-009: 複数件の添付ファイルがそれぞれファイル名・ファイルサイズとともに表示される。
   it('ATT-FE-009: 3件の添付ファイルがそれぞれ表示される', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -120,6 +129,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={threeAttachments}
         canDelete={true}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -134,8 +144,10 @@ describe('AttachmentList', () => {
     expect(screen.getByTestId('attachment-size-att-003')).toBeInTheDocument();
   });
 
-  // ATT-FE-010: ファイル名クリックで onDownload が呼ばれる。
-  it('ATT-FE-010: ファイル名クリックで onDownload が呼ばれる', async () => {
+  // ATT-FE-010: ファイル名クリックで onPreview が呼ばれる（T4 新仕様）。
+  // presentational コンポーネントは window.open を含まず、onPreview コールバックを呼ぶだけ。
+  it('ATT-FE-010: ファイル名クリックで onPreview が呼ばれる', async () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -143,6 +155,33 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={sampleAttachments}
         canDelete={false}
+        onPreview={onPreview}
+        onDownload={onDownload}
+        onDelete={onDelete}
+        deletingId={null}
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId('attachment-preview-att-001'));
+
+    expect(onPreview).toHaveBeenCalledWith('att-001');
+    expect(onPreview).toHaveBeenCalledTimes(1);
+    // ダウンロードコールバックは呼ばれないこと。
+    expect(onDownload).not.toHaveBeenCalled();
+  });
+
+  // ATT-FE-010b: ↓ アイコンクリックで onDownload が呼ばれる（T4 新仕様）。
+  // presentational コンポーネントは window.open を含まず、onDownload コールバックを呼ぶだけ。
+  it('ATT-FE-010b: ↓ アイコンクリックで onDownload が呼ばれる', async () => {
+    const onPreview = vi.fn();
+    const onDownload = vi.fn();
+    const onDelete = vi.fn();
+
+    render(
+      <AttachmentList
+        attachments={sampleAttachments}
+        canDelete={false}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -153,10 +192,13 @@ describe('AttachmentList', () => {
 
     expect(onDownload).toHaveBeenCalledWith('att-001');
     expect(onDownload).toHaveBeenCalledTimes(1);
+    // プレビューコールバックは呼ばれないこと。
+    expect(onPreview).not.toHaveBeenCalled();
   });
 
   // ATT-FE-011: canDelete=true のとき削除ボタンが表示される。
   it('ATT-FE-011: canDelete=true のとき削除ボタンが表示される', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -164,6 +206,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={sampleAttachments}
         canDelete={true}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -176,6 +219,7 @@ describe('AttachmentList', () => {
 
   // ATT-FE-012: canDelete=false のとき削除ボタンが非表示。
   it('ATT-FE-012: canDelete=false のとき削除ボタンが非表示', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -183,6 +227,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={sampleAttachments}
         canDelete={false}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -190,12 +235,15 @@ describe('AttachmentList', () => {
     );
 
     expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
-    // ファイル名のダウンロードボタンは表示される
+    // ファイル名のプレビューボタンは表示される。
+    expect(screen.getByTestId('attachment-preview-att-001')).toBeInTheDocument();
+    // ↓ アイコンボタンも表示される。
     expect(screen.getByTestId('attachment-download-att-001')).toBeInTheDocument();
   });
 
   // ATT-FE-013: 削除ボタンクリックで onDelete が呼ばれる。
   it('ATT-FE-013: 削除ボタンクリックで onDelete が呼ばれる', async () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -203,6 +251,7 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={sampleAttachments}
         canDelete={true}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId={null}
@@ -217,6 +266,7 @@ describe('AttachmentList', () => {
 
   // ATT-FE-014: deletingId が設定されているとき、該当するファイルの行がグレーアウトされる。
   it('ATT-FE-014: deletingId と一致する添付のボタンが disabled になる', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -224,20 +274,25 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={sampleAttachments}
         canDelete={true}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId="att-001"
       />,
     );
 
-    // att-001 のダウンロードボタンが disabled
+    // att-001 のプレビューボタンが disabled。
+    expect(screen.getByTestId('attachment-preview-att-001')).toBeDisabled();
+    // att-001 の ↓ アイコンが disabled。
     expect(screen.getByTestId('attachment-download-att-001')).toBeDisabled();
-    // att-002 のボタンは enabled
+    // att-002 のボタンは enabled。
+    expect(screen.getByTestId('attachment-preview-att-002')).not.toBeDisabled();
     expect(screen.getByTestId('attachment-download-att-002')).not.toBeDisabled();
   });
 
   // ATT-FE-015: deletingId と一致する添付の削除ボタンが disabled になる。
   it('ATT-FE-015: deletingId="att-001" のとき att-001 の削除ボタンが disabled になる', () => {
+    const onPreview = vi.fn();
     const onDownload = vi.fn();
     const onDelete = vi.fn();
 
@@ -245,15 +300,16 @@ describe('AttachmentList', () => {
       <AttachmentList
         attachments={sampleAttachments}
         canDelete={true}
+        onPreview={onPreview}
         onDownload={onDownload}
         onDelete={onDelete}
         deletingId="att-001"
       />,
     );
 
-    // att-001 の削除ボタンが disabled
+    // att-001 の削除ボタンが disabled。
     expect(screen.getByTestId('attachment-delete-att-001')).toBeDisabled();
-    // att-002 の削除ボタンは enabled
+    // att-002 の削除ボタンは enabled。
     expect(screen.getByTestId('attachment-delete-att-002')).not.toBeDisabled();
   });
 });
