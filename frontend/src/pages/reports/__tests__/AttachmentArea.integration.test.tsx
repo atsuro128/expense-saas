@@ -290,13 +290,29 @@ describe('AttachmentArea 統合テスト', () => {
     expect(screen.getByRole('alert')).toHaveTextContent(/エラー|失敗/);
   });
 
-  // ATT-FE-049: ↓ アイコンクリックで /download API を呼び、window.open('about:blank') → location.href 差し替え（新仕様）。
-  it('ATT-FE-049: ↓ アイコンクリックで window.open が呼ばれ /download API で location.href が差し替えられる', async () => {
+  // ATT-FE-049: ↓ アイコンクリックで /download API を呼び、動的 <a download> 要素でダウンロードを起動する（UX 修正後）。
+  // window.open は呼ばれない（タブを開かないダウンロードパターン）。
+  // attachments.md L515: document.body.appendChild → link.click() → document.body.removeChild の順でスパイが呼ばれる。
+  it('ATT-FE-049: ↓ アイコンクリックで /download API が呼ばれ、<a download> 要素でダウンロードが起動される', async () => {
     const { Wrapper } = createWrapper();
 
-    // window.open のモック: 空タブオブジェクトを返す。
-    const mockWindowObj = { location: { href: '' }, close: vi.fn() };
-    vi.spyOn(window, 'open').mockReturnValue(mockWindowObj as unknown as Window);
+    // window.open のスパイを張り、呼ばれないことを確認する（ダウンロードはタブを開かない）。
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    // <a> 要素の click メソッドをスパイするため、createElement をモック実装で差し替える。
+    // 生成される <a> 要素の click を vi.fn() に置き換えることで直接スパイが可能になる。
+    const clickSpy = vi.fn();
+    const createElementMock = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tagName: string) => {
+        const el = Document.prototype.createElement.call(document, tagName);
+        if (tagName === 'a') {
+          (el as HTMLAnchorElement).click = clickSpy;
+        }
+        return el;
+      });
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+    const removeChildSpy = vi.spyOn(document.body, 'removeChild');
 
     // 1回目: 一覧取得 API
     // 2回目: /download URL 取得 API
@@ -332,8 +348,8 @@ describe('AttachmentArea 統合テスト', () => {
     // ↓ アイコンをクリックする。
     await userEvent.click(screen.getByTestId('attachment-download-att-001'));
 
-    // window.open('about:blank', '_blank') がクリック時に呼ばれること。
-    expect(window.open).toHaveBeenCalledWith('about:blank', '_blank');
+    // window.open は呼ばれないこと（タブを開かないダウンロードパターン）。
+    expect(openSpy).not.toHaveBeenCalled();
 
     // /download API が呼ばれること。
     await waitFor(() => {
@@ -346,12 +362,44 @@ describe('AttachmentArea 統合テスト', () => {
       expect(downloadApiCalled).toBe(true);
     });
 
-    // 取得した URL で newWindow.location.href が更新されること。
+    // document.createElement('a') が呼ばれること。
     await waitFor(() => {
-      expect(mockWindowObj.location.href).toBe(
-        'https://s3.example.com/signed-download?token=abc123',
-      );
+      const anchorCreateCall = createElementMock.mock.calls.find(([tag]) => tag === 'a');
+      expect(anchorCreateCall).toBeDefined();
     });
+
+    // appendChild された <a> 要素の href・download 属性が正しく設定されていること。
+    const appendedAnchor = appendChildSpy.mock.calls
+      .map(([el]) => el)
+      .find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+    expect(appendedAnchor).toBeDefined();
+    expect(appendedAnchor?.href).toBe('https://s3.example.com/signed-download?token=abc123');
+    expect(appendedAnchor?.download).toBe('receipt.jpg');
+
+    // link.click() が 1 回呼ばれること（attachments.md ATT-FE-049 の期待結果）。
+    await waitFor(() => {
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // removeChild が呼ばれること（クリック後に DOM から削除される）。
+    await waitFor(() => {
+      expect(removeChildSpy).toHaveBeenCalled();
+    });
+
+    // appendChild → click → removeChild の呼び出し順を検証する。
+    const appendAnchorInvocationOrder = appendChildSpy.mock.invocationCallOrder[
+      appendChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    const clickInvocationOrder = clickSpy.mock.invocationCallOrder[0];
+    const removeAnchorInvocationOrder = removeChildSpy.mock.invocationCallOrder[
+      removeChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    expect(appendAnchorInvocationOrder).toBeLessThan(clickInvocationOrder!);
+    expect(clickInvocationOrder!).toBeLessThan(removeAnchorInvocationOrder!);
   });
 
   // ATT-FE-049b: ファイル名クリックで /preview API を呼び、window.open → location.href 差し替え（新規）。
@@ -450,13 +498,13 @@ describe('AttachmentArea 統合テスト', () => {
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
   });
 
-  // ATT-FE-049d: API エラー時に newWindow.close() が呼ばれ、エラートーストが表示される（新規）。
-  it('ATT-FE-049d: API エラー時に newWindow.close() が呼ばれエラートーストが表示される', async () => {
+  // ATT-FE-049d: API エラー時にエラートーストが表示される（UX 修正後）。
+  // window.open は呼ばれないため、newWindow.close() 検証は不要。
+  it('ATT-FE-049d: ↓ アイコン押下時の API エラーでエラートーストが表示される（タブは開かない）', async () => {
     const { Wrapper } = createWrapper();
 
-    // window.open のモック: 空タブオブジェクトを返す。
-    const mockWindowObj = { location: { href: '' }, close: vi.fn() };
-    vi.spyOn(window, 'open').mockReturnValue(mockWindowObj as unknown as Window);
+    // window.open のスパイを張り、呼ばれないことを確認する（ダウンロードはタブを開かない）。
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
 
     // 1回目: 一覧取得 API
     // 2回目: /download API（500 エラー）
@@ -486,10 +534,8 @@ describe('AttachmentArea 統合テスト', () => {
     // ↓ アイコンをクリックする。
     await userEvent.click(screen.getByTestId('attachment-download-att-001'));
 
-    // API エラー時に newWindow.close() が呼ばれること。
-    await waitFor(() => {
-      expect(mockWindowObj.close).toHaveBeenCalled();
-    });
+    // window.open は呼ばれないこと（タブを開かないダウンロードパターン）。
+    expect(openSpy).not.toHaveBeenCalled();
 
     // エラートーストが表示されること。
     await waitFor(() => {
