@@ -1,12 +1,46 @@
 // AttachmentList コンポーネントのユニットテスト。
 // report-detail.md §AttachmentList の Props 仕様に基づくテスト。
 // ATT-FE-007〜015 に対応する。
+// 新構造: AttachmentList が per-item hook orchestration を内包するため、
+//   useAttachmentDownloadUrl・useAttachmentPreviewUrl を vi.mock する。
+// window.open の呼び出しは AttachmentItemRow 内部で担当するため、
+//   callback 経由の検証ではなく data-testid ベースで振る舞いを確認する。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
+import { type ReactNode } from 'react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Attachment } from '../../../api/types';
 import AttachmentList from '../AttachmentList';
+
+// per-item hook を mock して fetch 呼び出しを排除する。
+// mockRefetchDownload は url と file_name を含む返り値を返す（<a download> 検証に使用）。
+const mockRefetchDownload = vi.fn().mockResolvedValue({
+  data: { data: { url: 'https://s3.example.com/signed-download?token=abc', file_name: 'receipt.jpg' } },
+});
+const mockRefetchPreview = vi.fn().mockResolvedValue({ data: { data: { url: '' } } });
+
+vi.mock('../../../hooks/useAttachmentDownloadUrl', () => ({
+  useAttachmentDownloadUrl: () => ({ refetch: mockRefetchDownload }),
+}));
+
+vi.mock('../../../hooks/useAttachmentPreviewUrl', () => ({
+  useAttachmentPreviewUrl: () => ({ refetch: mockRefetchPreview }),
+}));
+
+// QueryClientProvider でラップするためのヘルパー。
+function createWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}
 
 // テスト用添付ファイルデータ。
 const sampleAttachments: Attachment[] = [
@@ -41,21 +75,41 @@ const threeAttachments: Attachment[] = [
   },
 ];
 
+// テスト共通のデフォルト Props。
+const defaultProps = {
+  reportId: 'rpt-001',
+  itemId: 'item-001',
+};
+
 describe('AttachmentList', () => {
+  afterEach(() => {
+    // vi.spyOn で作成したスパイのみ元に戻す（vi.fn() のモック実装は保持する）。
+    // vi.restoreAllMocks() は vi.fn().mockResolvedValue() もリセットしてしまうため使用しない。
+    vi.restoreAllMocks();
+    // モジュールスコープの vi.fn() モックの実装を再設定する。
+    mockRefetchDownload.mockResolvedValue({
+      data: {
+        data: { url: 'https://s3.example.com/signed-download?token=abc', file_name: 'receipt.jpg' },
+      },
+    });
+    mockRefetchPreview.mockResolvedValue({ data: { data: { url: '' } } });
+  });
+
   // ATT-FE-007: ファイル情報（ファイル名・ファイルサイズ）が表示される。
   // ファイルサイズは formatFileSize でフォーマットされた文字列（例: "240 KB"）で表示される。
   it('ATT-FE-007: ファイル名とファイルサイズがフォーマット済みで表示される', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={[sampleAttachments[0]!]}
         canDelete={true}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     expect(screen.getByText('receipt.jpg')).toBeInTheDocument();
@@ -67,8 +121,7 @@ describe('AttachmentList', () => {
 
   // ATT-FE-007b: ファイルサイズが 1MB 以上の場合は "X.X MB" 形式で表示される。
   it('ATT-FE-007b: file_size が 1MB 以上のとき "X.X MB" 形式で表示される', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
     const largeFile: Attachment = {
       id: 'att-large',
       item_id: 'item-001',
@@ -80,12 +133,14 @@ describe('AttachmentList', () => {
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={[largeFile]}
         canDelete={false}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     // file_size=2859424 バイト → "2.7 MB" と表示されること。
@@ -95,17 +150,18 @@ describe('AttachmentList', () => {
 
   // ATT-FE-008: attachments が空の場合、添付ファイルの行要素が描画されない。
   it('ATT-FE-008: attachments が空の場合、空状態メッセージが表示される', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={[]}
         canDelete={false}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     expect(screen.getByTestId('attachment-list-empty')).toBeInTheDocument();
@@ -113,17 +169,18 @@ describe('AttachmentList', () => {
 
   // ATT-FE-009: 複数件の添付ファイルがそれぞれファイル名・ファイルサイズとともに表示される。
   it('ATT-FE-009: 3件の添付ファイルがそれぞれ表示される', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={threeAttachments}
         canDelete={true}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     expect(screen.getByText('receipt.jpg')).toBeInTheDocument();
@@ -134,40 +191,129 @@ describe('AttachmentList', () => {
     expect(screen.getByTestId('attachment-size-att-003')).toBeInTheDocument();
   });
 
-  // ATT-FE-010: ファイル名クリックで onDownload が呼ばれる。
-  it('ATT-FE-010: ファイル名クリックで onDownload が呼ばれる', async () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+  // ATT-FE-010: ファイル名クリックで window.open が呼ばれる（per-item hook 内包）。
+  // AttachmentItemRow が内部で useAttachmentPreviewUrl を保持し、クリック時に
+  // window.open('about:blank', '_blank') を同期で開く。
+  it('ATT-FE-010: ファイル名クリックで window.open が呼ばれる', async () => {
+    const Wrapper = createWrapper();
+    const mockWindowObj = { location: { href: '' }, close: vi.fn() };
+    vi.spyOn(window, 'open').mockReturnValue(mockWindowObj as unknown as Window);
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={sampleAttachments}
         canDelete={false}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
+    );
+
+    await userEvent.click(screen.getByTestId('attachment-preview-att-001'));
+
+    // クリック同期で window.open('about:blank', '_blank') が呼ばれること。
+    expect(window.open).toHaveBeenCalledWith('about:blank', '_blank');
+  });
+
+  // ATT-FE-010b: ↓ アイコンクリックで動的 <a download> 要素が生成・クリック・削除される。
+  // window.open は呼ばれない（タブを開かないダウンロードパターン）。
+  // attachments.md L443: document.body.appendChild → link.click() → document.body.removeChild の順でスパイが呼ばれる。
+  it('ATT-FE-010b: ↓ アイコンクリックで <a download> 要素が生成・クリック・削除される', async () => {
+    const Wrapper = createWrapper();
+
+    // window.open のスパイを張り、呼ばれないことを確認する（ダウンロードはタブを開かない）。
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    // <a> 要素の click メソッドをスパイするため、createElement をモック実装で差し替える。
+    // 生成される <a> 要素の click を vi.fn() に置き換えることで直接スパイが可能になる。
+    const clickSpy = vi.fn();
+    const createElementMock = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tagName: string) => {
+        const el = Document.prototype.createElement.call(document, tagName);
+        if (tagName === 'a') {
+          (el as HTMLAnchorElement).click = clickSpy;
+        }
+        return el;
+      });
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+    const removeChildSpy = vi.spyOn(document.body, 'removeChild');
+
+    render(
+      <AttachmentList
+        {...defaultProps}
+        attachments={sampleAttachments}
+        canDelete={false}
+        deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
+      />,
+      { wrapper: Wrapper },
     );
 
     await userEvent.click(screen.getByTestId('attachment-download-att-001'));
 
-    expect(onDownload).toHaveBeenCalledWith('att-001');
-    expect(onDownload).toHaveBeenCalledTimes(1);
+    // <a> 要素が appendChild されるまで waitFor で待機する（非同期 refetch 完了を待つ）。
+    await vi.waitFor(() => {
+      const appendedAnchor = appendChildSpy.mock.calls
+        .map(([el]) => el)
+        .find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+      expect(appendedAnchor).toBeDefined();
+    });
+
+    // document.createElement('a') が呼ばれること。
+    const anchorCreateCall = createElementMock.mock.calls.find(([tag]) => tag === 'a');
+    expect(anchorCreateCall).toBeDefined();
+
+    // appendChild された <a> 要素の href・download 属性が設定されていること。
+    const appendedAnchor = appendChildSpy.mock.calls
+      .map(([el]) => el)
+      .find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+    expect(appendedAnchor).toBeDefined();
+    expect(appendedAnchor?.href).toBe('https://s3.example.com/signed-download?token=abc');
+    expect(appendedAnchor?.download).toBe('receipt.jpg');
+
+    // link.click() が 1 回呼ばれること（attachments.md ATT-FE-010b の期待結果）。
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+
+    // removeChild も呼ばれること（クリック後に DOM から削除される）。
+    expect(removeChildSpy).toHaveBeenCalled();
+
+    // appendChild → click → removeChild の呼び出し順を検証する。
+    const appendAnchorInvocationOrder = appendChildSpy.mock.invocationCallOrder[
+      appendChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    const clickInvocationOrder = clickSpy.mock.invocationCallOrder[0];
+    const removeAnchorInvocationOrder = removeChildSpy.mock.invocationCallOrder[
+      removeChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    expect(appendAnchorInvocationOrder).toBeLessThan(clickInvocationOrder!);
+    expect(clickInvocationOrder!).toBeLessThan(removeAnchorInvocationOrder!);
+
+    // window.open は呼ばれないこと（タブを開かないダウンロードパターン）。
+    expect(openSpy).not.toHaveBeenCalled();
   });
 
   // ATT-FE-011: canDelete=true のとき削除ボタンが表示される。
   it('ATT-FE-011: canDelete=true のとき削除ボタンが表示される', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={sampleAttachments}
         canDelete={true}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     const deleteButtons = screen.getAllByRole('button', { name: '削除' });
@@ -176,37 +322,42 @@ describe('AttachmentList', () => {
 
   // ATT-FE-012: canDelete=false のとき削除ボタンが非表示。
   it('ATT-FE-012: canDelete=false のとき削除ボタンが非表示', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={sampleAttachments}
         canDelete={false}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     expect(screen.queryByRole('button', { name: '削除' })).not.toBeInTheDocument();
-    // ファイル名のダウンロードボタンは表示される
+    // ファイル名のプレビューボタンは表示される。
+    expect(screen.getByTestId('attachment-preview-att-001')).toBeInTheDocument();
+    // ↓ アイコンボタンも表示される。
     expect(screen.getByTestId('attachment-download-att-001')).toBeInTheDocument();
   });
 
   // ATT-FE-013: 削除ボタンクリックで onDelete が呼ばれる。
   it('ATT-FE-013: 削除ボタンクリックで onDelete が呼ばれる', async () => {
-    const onDownload = vi.fn();
+    const Wrapper = createWrapper();
     const onDelete = vi.fn();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={sampleAttachments}
         canDelete={true}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId={null}
+        onDelete={onDelete}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
     await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
@@ -217,43 +368,48 @@ describe('AttachmentList', () => {
 
   // ATT-FE-014: deletingId が設定されているとき、該当するファイルの行がグレーアウトされる。
   it('ATT-FE-014: deletingId と一致する添付のボタンが disabled になる', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={sampleAttachments}
         canDelete={true}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId="att-001"
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
-    // att-001 のダウンロードボタンが disabled
+    // att-001 のプレビューボタンが disabled。
+    expect(screen.getByTestId('attachment-preview-att-001')).toBeDisabled();
+    // att-001 の ↓ アイコンが disabled。
     expect(screen.getByTestId('attachment-download-att-001')).toBeDisabled();
-    // att-002 のボタンは enabled
+    // att-002 のボタンは enabled。
+    expect(screen.getByTestId('attachment-preview-att-002')).not.toBeDisabled();
     expect(screen.getByTestId('attachment-download-att-002')).not.toBeDisabled();
   });
 
   // ATT-FE-015: deletingId と一致する添付の削除ボタンが disabled になる。
   it('ATT-FE-015: deletingId="att-001" のとき att-001 の削除ボタンが disabled になる', () => {
-    const onDownload = vi.fn();
-    const onDelete = vi.fn();
+    const Wrapper = createWrapper();
 
     render(
       <AttachmentList
+        {...defaultProps}
         attachments={sampleAttachments}
         canDelete={true}
-        onDownload={onDownload}
-        onDelete={onDelete}
         deletingId="att-001"
+        onDelete={vi.fn()}
+        onError={vi.fn()}
       />,
+      { wrapper: Wrapper },
     );
 
-    // att-001 の削除ボタンが disabled
+    // att-001 の削除ボタンが disabled。
     expect(screen.getByTestId('attachment-delete-att-001')).toBeDisabled();
-    // att-002 の削除ボタンは enabled
+    // att-002 の削除ボタンは enabled。
     expect(screen.getByTestId('attachment-delete-att-002')).not.toBeDisabled();
   });
 });

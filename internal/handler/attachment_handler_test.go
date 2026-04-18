@@ -3,16 +3,17 @@ package handler_test
 // ハンドラ層統合テスト — 添付ファイル CRUD エンドポイント。
 // 実際のルーターを通してリクエストを送り、HTTP ステータスとレスポンスボディを検証する。
 //
-// 対応テストケース: ATT-001〜ATT-054
+// 対応テストケース: ATT-001〜ATT-060、CRS-010b
 // 実行には PostgreSQL が必要（-tags=integration）。
 //
 // 実行コマンド:
 //   go test ./internal/handler/... -v -tags=integration -run TestUploadAttachment
 //   go test ./internal/handler/... -v -tags=integration -run TestListAttachments
 //   go test ./internal/handler/... -v -tags=integration -run TestGetAttachmentDownload
+//   go test ./internal/handler/... -v -tags=integration -run TestGetAttachmentPreview
 //   go test ./internal/handler/... -v -tags=integration -run TestDeleteAttachment
 //
-// Traceability: test_cases/attachments.md（ATT-001〜ATT-054）
+// Traceability: test_cases/attachments.md（ATT-001〜ATT-060）、cross-cutting.md（CRS-010b）
 // ATT-001 → TestUploadAttachment_Success_JPEG
 // ATT-002 → TestUploadAttachment_Success_PNG
 // ATT-003 → TestUploadAttachment_Success_PDF
@@ -67,6 +68,13 @@ package handler_test
 // ATT-052 → TestDeleteAttachment_NotFound
 // ATT-053 → TestDeleteAttachment_ReportNotFound
 // ATT-054 → TestDeleteAttachment_AlreadyDeleted
+// ATT-055 → TestGetAttachmentPreview_Success_Owner
+// ATT-056 → TestGetAttachmentPreview_Success_Admin
+// ATT-057 → TestGetAttachmentPreview_Success_Accounting
+// ATT-058 → TestGetAttachmentPreview_Success_Approver_SubmittedReport
+// ATT-059 → TestGetAttachmentPreview_Forbidden_Member_OtherOwner
+// ATT-060 → TestGetAttachmentPreview_AttachmentNotFound
+// CRS-010b → TestTenantIsolation_GetAttachmentPreview_OtherTenant_404
 
 import (
 	"bytes"
@@ -763,7 +771,7 @@ func TestListAttachments_ItemNotFound(t *testing.T) {
 }
 
 // =============================================================================
-// 3. GET /api/reports/{id}/items/{itemId}/attachments/{attId} — getAttachmentDownload
+// 3. GET /api/reports/{id}/items/{itemId}/attachments/{attId}/download — getAttachmentDownload
 // =============================================================================
 
 // --- 3-1. 正常系 ---
@@ -781,12 +789,27 @@ func TestGetAttachmentDownload_Success_Owner(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
 	)
 
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 200 OK: 署名付き URL を含むレスポンスが返る（ATT-030）。機能未実装のため現在は失敗する。
+	// 200 OK: 署名付き URL を含むレスポンスが返る（ATT-030）。
 	testutil.AssertStatus(t, rec, http.StatusOK)
+	var body struct {
+		Data struct {
+			URL      string `json:"url"`
+			FileName string `json:"file_name"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("ATT-030: レスポンスのデコード失敗: %v", err)
+	}
+	if body.Data.URL == "" {
+		t.Error("ATT-030: data.url が空")
+	}
+	if body.Data.FileName != "receipt.jpg" {
+		t.Errorf("ATT-030: data.file_name = %q, want %q", body.Data.FileName, "receipt.jpg")
+	}
 }
 
 // ATT-031: Admin が submitted レポートの添付の署名付き URL を取得 → 200 OK。
@@ -803,11 +826,11 @@ func TestGetAttachmentDownload_Success_Admin(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeApplicationPDF),
 	)
 
-	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
 
-	// 200 OK: Admin は同一テナントの全レポートの添付をダウンロード可能（ATT-031）。機能未実装のため現在は失敗する。
+	// 200 OK: Admin は同一テナントの全レポートの添付をダウンロード可能（ATT-031）。
 	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
@@ -825,11 +848,11 @@ func TestGetAttachmentDownload_Success_Accounting(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImagePng),
 	)
 
-	url := "/api/reports/" + testutil.ReportApprovedID + "/items/" + itemID.String() + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportApprovedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	rec := srv.Execute(req)
 
-	// 200 OK: Accounting は同一テナントの全レポートの添付をダウンロード可能（ATT-032）。機能未実装のため現在は失敗する。
+	// 200 OK: Accounting は同一テナントの全レポートの添付をダウンロード可能（ATT-032）。
 	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
@@ -847,11 +870,11 @@ func TestGetAttachmentDownload_Success_Approver_SubmittedReport(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeApplicationPDF),
 	)
 
-	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 200 OK: Approver は submitted レポートの添付をダウンロード可能（ATT-033）。機能未実装のため現在は失敗する。
+	// 200 OK: Approver は submitted レポートの添付をダウンロード可能（ATT-033）。
 	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
@@ -867,13 +890,23 @@ func TestGetAttachmentDownload_ExpiresAt_15min(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
 	)
 
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 200 OK: expires_at が現在時刻から 15 分後（ATT-034）。機能未実装のため現在は失敗する。
+	// 200 OK: expires_at が現在時刻から 15 分後（ATT-034）。
 	testutil.AssertStatus(t, rec, http.StatusOK)
-	// expires_at の検証は機能実装後に行う（現在は NOT_IMPLEMENTED のため スキップ）。
+	var body struct {
+		Data struct {
+			ExpiresAt string `json:"expires_at"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("ATT-034: レスポンスのデコード失敗: %v", err)
+	}
+	if body.Data.ExpiresAt == "" {
+		t.Error("ATT-034: data.expires_at が空")
+	}
 }
 
 // --- 3-2. 署名付き URL 認可チェック ---
@@ -890,7 +923,7 @@ func TestGetAttachmentDownload_Unauthorized_NoToken(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
 	)
 
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/download"
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, nil)
 	if err != nil {
 		t.Fatalf("TestGetAttachmentDownload_Unauthorized_NoToken: NewRequest: %v", err)
@@ -915,12 +948,12 @@ func TestGetAttachmentDownload_Forbidden_Member_OtherOwner(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
 	)
 
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/download"
 	// Test Approver は draft レポートの所有者でない → 閲覧不可。
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 403 FORBIDDEN: 閲覧権限がない場合は署名付き URL を発行しない（ATT-036）。機能未実装のため現在は失敗する。
+	// 403 FORBIDDEN: 閲覧権限がない場合は署名付き URL を発行しない（ATT-036）。
 	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
@@ -946,28 +979,22 @@ func TestGetAttachmentDownload_Forbidden_Member_NotOwner(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeApplicationPDF),
 	)
 
-	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/download"
 	// 別の Member は所有者でない → 閲覧不可。
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, anotherMemberID.String(), testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 403 FORBIDDEN: Member は自分が作成したレポートの添付のみ閲覧可能（ATT-037）。機能未実装のため現在は失敗する。
+	// 403 FORBIDDEN: Member は自分が作成したレポートの添付のみ閲覧可能（ATT-037）。
 	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
 // ATT-038: 認可拒否時に S3 署名付き URL 生成処理が呼び出されないことを確認。
 //
-// 検証の限界:
-//   ハンドラ統合テストレベルでは S3 クライアントをモックとして注入する手段がなく、
-//   S3 の PresignGetObject が「実際に呼ばれたかどうか」を直接検証することはできない。
-//   代わりに、403 FORBIDDEN レスポンスが返ることと、レスポンスボディに
-//   download_url フィールドが含まれないことで「URL 発行処理が到達していない」ことを
-//   ハンドラ HTTP レベルで検証する。
-//
-// Step 10 での検証方針:
-//   AttachmentService に S3StorageClient インターフェースを注入し、
-//   テストではモック実装を使って PresignGetObject の呼び出し回数を
-//   アサートする（サービス層のユニットテストで対応予定）。
+// ハンドラ統合テストレベルでは S3 クライアントをモックとして注入する手段がなく、
+// PresignGetObject が「実際に呼ばれたかどうか」を直接検証することはできない。
+// 代わりに 403 FORBIDDEN レスポンスが返ることと、レスポンスボディに url フィールドが
+// 含まれないことで「URL 発行処理が到達していない」ことをハンドラ HTTP レベルで検証する。
+// PresignGetObject 呼び出し有無の直接検証は attachment_service_test.go（T2）で行う。
 func TestGetAttachmentDownload_AuthzCheckedBeforeUrlIssue(t *testing.T) {
 	srv, pool := setupAttachmentTest(t)
 
@@ -979,25 +1006,24 @@ func TestGetAttachmentDownload_AuthzCheckedBeforeUrlIssue(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
 	)
 
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/download"
 	// Test Approver は draft レポートの所有者でない → 閲覧不可。
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 403 FORBIDDEN が返ること（ATT-038）。機能未実装のため現在は失敗する。
+	// 403 FORBIDDEN が返ること（ATT-038）。
 	testutil.AssertStatus(t, rec, http.StatusForbidden)
 
-	// レスポンスボディに download_url フィールドが含まれないこと。
-	// 403 の場合はエラーレスポンスが返るため、download_url は存在しないはず。
+	// レスポンスボディに url フィールドが含まれないこと（AttachmentAccess スキーマ移行後）。
 	var body struct {
 		Data *struct {
-			DownloadURL *string `json:"download_url"`
+			URL *string `json:"url"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err == nil {
-		// パースが成功した場合、data.download_url が nil であること
-		if body.Data != nil && body.Data.DownloadURL != nil {
-			t.Errorf("ATT-038: download_url が含まれていてはならないが、%q が返された（S3 URL 生成が実行されている）", *body.Data.DownloadURL)
+		// パースが成功した場合、data.url が nil であること。
+		if body.Data != nil && body.Data.URL != nil {
+			t.Errorf("ATT-038: url が含まれていてはならないが、%q が返された（S3 URL 生成が実行されている）", *body.Data.URL)
 		}
 	}
 }
@@ -1016,12 +1042,12 @@ func TestGetAttachmentDownload_Approver_DraftReport_Forbidden(t *testing.T) {
 		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
 	)
 
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String()
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/download"
 	// Approver の閲覧範囲は submitted レポートのみ（自分のレポートを除く）。
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 403 FORBIDDEN: Approver は draft レポートを閲覧不可（ATT-039）。機能未実装のため現在は失敗する。
+	// 403 FORBIDDEN: Approver は draft レポートを閲覧不可（ATT-039）。
 	testutil.AssertStatus(t, rec, http.StatusForbidden)
 }
 
@@ -1032,11 +1058,11 @@ func TestGetAttachmentDownload_AttachmentNotFound(t *testing.T) {
 	srv, _ := setupAttachmentTest(t)
 
 	nonExistentAttID := "00000000-0000-0000-0000-000000000099"
-	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + nonExistentAttID
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + nonExistentAttID + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 404 RESOURCE_NOT_FOUND: 添付が存在しない（ATT-040）。機能未実装のため現在は失敗する。
+	// 404 RESOURCE_NOT_FOUND: 添付が存在しない（ATT-040）。
 	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
 
@@ -1046,11 +1072,11 @@ func TestGetAttachmentDownload_ReportNotFound(t *testing.T) {
 
 	nonExistentReportID := "00000000-0000-0000-0000-000000000099"
 	nonExistentAttID := "00000000-0000-0000-0000-000000000088"
-	url := "/api/reports/" + nonExistentReportID + "/items/" + testutil.ItemDraftID + "/attachments/" + nonExistentAttID
+	url := "/api/reports/" + nonExistentReportID + "/items/" + testutil.ItemDraftID + "/attachments/" + nonExistentAttID + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 404 RESOURCE_NOT_FOUND: レポートが存在しない（ATT-041）。機能未実装のため現在は失敗する。
+	// 404 RESOURCE_NOT_FOUND: レポートが存在しない（ATT-041）。
 	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }
 
@@ -1389,7 +1415,7 @@ func TestTenantIsolation_GetAttachmentDownload_OtherTenant_404(t *testing.T) {
 	)
 
 	// テナントA の userMember がテナントB の添付のダウンロード URL を取得する。
-	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments/" + attBID.String()
+	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments/" + attBID.String() + "/download"
 	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
@@ -1416,5 +1442,195 @@ func TestTenantIsolation_DeleteAttachment_OtherTenant_404(t *testing.T) {
 	rec := srv.Execute(req)
 
 	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-011）。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
+}
+
+// =============================================================================
+// 5. GET /api/reports/{id}/items/{itemId}/attachments/{attId}/preview — getAttachmentPreview
+// =============================================================================
+
+// --- 5-1. 正常系 ---
+
+// ATT-055: 所有者がプレビュー用署名付き URL を取得 → 200 OK、data.url を含む。
+func TestGetAttachmentPreview_Success_Owner(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+	reportID := testutil.MustParseUUID(testutil.ReportDraftID)
+	itemID := testutil.MustParseUUID(testutil.ItemDraftID)
+	attID := testutil.CreateAttachment(t, pool, tenantID, reportID, itemID,
+		testutil.WithAttachmentFileName("receipt.jpg"),
+		testutil.WithAttachmentFileSize(245760),
+		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
+	)
+
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/preview"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 200 OK: プレビュー用署名付き URL を含む AttachmentAccess スキーマが返る（ATT-055）。
+	testutil.AssertStatus(t, rec, http.StatusOK)
+	var body struct {
+		Data struct {
+			URL      string `json:"url"`
+			FileName string `json:"file_name"`
+			MimeType string `json:"mime_type"`
+			FileSize int    `json:"file_size"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&body); err != nil {
+		t.Fatalf("ATT-055: レスポンスのデコード失敗: %v", err)
+	}
+	if body.Data.URL == "" {
+		t.Error("ATT-055: data.url が空")
+	}
+	if body.Data.FileName != "receipt.jpg" {
+		t.Errorf("ATT-055: data.file_name = %q, want %q", body.Data.FileName, "receipt.jpg")
+	}
+	if body.Data.MimeType != "image/jpeg" {
+		t.Errorf("ATT-055: data.mime_type = %q, want %q", body.Data.MimeType, "image/jpeg")
+	}
+}
+
+// ATT-056: Admin が submitted レポートの添付のプレビュー URL を取得 → 200 OK。
+func TestGetAttachmentPreview_Success_Admin(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+	reportID := testutil.MustParseUUID(testutil.ReportSubmittedID)
+	var categoryID = testutil.GetTransportCategoryID(t, pool)
+	itemID := testutil.CreateItem(t, pool, tenantID, reportID, categoryID)
+	attID := testutil.CreateAttachment(t, pool, tenantID, reportID, itemID,
+		testutil.WithAttachmentFileName("invoice.pdf"),
+		testutil.WithAttachmentFileSize(102400),
+		testutil.WithAttachmentMimeType(domain.MimeTypeApplicationPDF),
+	)
+
+	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/preview"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserAdminID, testutil.TenantAID, "admin")
+	rec := srv.Execute(req)
+
+	// 200 OK: Admin は同一テナントの全レポートの添付をプレビュー可能（ATT-056）。
+	testutil.AssertStatus(t, rec, http.StatusOK)
+}
+
+// ATT-057: Accounting が approved レポートの添付のプレビュー URL を取得 → 200 OK。
+func TestGetAttachmentPreview_Success_Accounting(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+	reportID := testutil.MustParseUUID(testutil.ReportApprovedID)
+	var categoryID = testutil.GetTransportCategoryID(t, pool)
+	itemID := testutil.CreateItem(t, pool, tenantID, reportID, categoryID)
+	attID := testutil.CreateAttachment(t, pool, tenantID, reportID, itemID,
+		testutil.WithAttachmentFileName("photo.png"),
+		testutil.WithAttachmentFileSize(51200),
+		testutil.WithAttachmentMimeType(domain.MimeTypeImagePng),
+	)
+
+	url := "/api/reports/" + testutil.ReportApprovedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/preview"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserAccountingID, testutil.TenantAID, "accounting")
+	rec := srv.Execute(req)
+
+	// 200 OK: Accounting は同一テナントの全レポートの添付をプレビュー可能（ATT-057）。
+	testutil.AssertStatus(t, rec, http.StatusOK)
+}
+
+// ATT-058: Approver が submitted レポートの添付のプレビュー URL を取得 → 200 OK。
+func TestGetAttachmentPreview_Success_Approver_SubmittedReport(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+	reportID := testutil.MustParseUUID(testutil.ReportSubmittedID)
+	var categoryID = testutil.GetTransportCategoryID(t, pool)
+	itemID := testutil.CreateItem(t, pool, tenantID, reportID, categoryID)
+	attID := testutil.CreateAttachment(t, pool, tenantID, reportID, itemID,
+		testutil.WithAttachmentFileName("invoice.pdf"),
+		testutil.WithAttachmentFileSize(102400),
+		testutil.WithAttachmentMimeType(domain.MimeTypeApplicationPDF),
+	)
+
+	url := "/api/reports/" + testutil.ReportSubmittedID + "/items/" + itemID.String() + "/attachments/" + attID.String() + "/preview"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
+	rec := srv.Execute(req)
+
+	// 200 OK: Approver は submitted レポートの添付をプレビュー可能（ATT-058）。
+	testutil.AssertStatus(t, rec, http.StatusOK)
+}
+
+// --- 5-2. 認可エラー ---
+
+// ATT-059: Approver が draft レポートの添付のプレビュー URL を取得 → 403 FORBIDDEN。
+// 閲覧権限がない場合はプレビュー用署名付き URL を発行しない（getAttachmentDownload と同一認可ロジック）。
+func TestGetAttachmentPreview_Forbidden_Member_OtherOwner(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+	reportID := testutil.MustParseUUID(testutil.ReportDraftID)
+	itemID := testutil.MustParseUUID(testutil.ItemDraftID)
+	attID := testutil.CreateAttachment(t, pool, tenantID, reportID, itemID,
+		testutil.WithAttachmentFileName("receipt.jpg"),
+		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
+	)
+
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + attID.String() + "/preview"
+	// Test Approver は draft レポートの所有者でない → 閲覧不可。
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserApproverID, testutil.TenantAID, "approver")
+	rec := srv.Execute(req)
+
+	// 403 FORBIDDEN: 閲覧権限がない場合はプレビュー用 URL を発行しない（ATT-059）。
+	testutil.AssertStatus(t, rec, http.StatusForbidden)
+
+	// レスポンスボディに url フィールドが含まれないこと。
+	var body struct {
+		Data *struct {
+			URL *string `json:"url"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err == nil {
+		if body.Data != nil && body.Data.URL != nil {
+			t.Errorf("ATT-059: url が含まれていてはならないが、%q が返された", *body.Data.URL)
+		}
+	}
+}
+
+// --- 5-3. リソース不存在 ---
+
+// ATT-060: 存在しない attachment_id でプレビュー URL を取得 → 404 RESOURCE_NOT_FOUND。
+func TestGetAttachmentPreview_AttachmentNotFound(t *testing.T) {
+	srv, _ := setupAttachmentTest(t)
+
+	nonExistentAttID := "00000000-0000-0000-0000-000000000099"
+	url := "/api/reports/" + testutil.ReportDraftID + "/items/" + testutil.ItemDraftID + "/attachments/" + nonExistentAttID + "/preview"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 404 RESOURCE_NOT_FOUND: 添付が存在しない（ATT-060）。
+	testutil.AssertStatus(t, rec, http.StatusNotFound)
+}
+
+// =============================================================================
+// テナント分離（プレビュー）
+// =============================================================================
+
+// CRS-010b: 他テナントの添付プレビュー URL 取得 → 404 RESOURCE_NOT_FOUND。
+func TestTenantIsolation_GetAttachmentPreview_OtherTenant_404(t *testing.T) {
+	srv, pool := setupAttachmentTest(t)
+
+	tenantBID := testutil.MustParseUUID(testutil.TenantBID)
+	memberBID := testutil.MustParseUUID(testutil.UserMemberBID)
+	reportBID := testutil.CreateReport(t, pool, tenantBID, memberBID)
+	itemBID := testutil.CreateItem(t, pool, tenantBID, reportBID, testutil.GetTransportCategoryID(t, pool))
+	attBID := testutil.CreateAttachment(t, pool, tenantBID, reportBID, itemBID,
+		testutil.WithAttachmentFileName("receipt-b.jpg"),
+		testutil.WithAttachmentMimeType(domain.MimeTypeImageJpeg),
+	)
+
+	// テナントA の userMember がテナントB の添付のプレビュー URL を取得する。
+	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String() + "/attachments/" + attBID.String() + "/preview"
+	req := srv.AuthRequest(t, http.MethodGet, url, nil, testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 404 RESOURCE_NOT_FOUND: RLS によりテナントBのリソースは不可視（CRS-010b）。
 	testutil.AssertStatus(t, rec, http.StatusNotFound)
 }

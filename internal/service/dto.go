@@ -67,14 +67,14 @@ type AttachmentDTO struct {
 	CreatedAt time.Time       `json:"created_at"`
 }
 
-// AttachmentDownload は GET /api/reports/{id}/items/{itemId}/attachments/{attId}
-// が返す署名済みダウンロード URL を含む。
-type AttachmentDownload struct {
-	DownloadURL string          `json:"download_url"`
-	FileName    string          `json:"file_name"`
-	MimeType    domain.MimeType `json:"mime_type"`
-	FileSize    int             `json:"file_size"`
-	ExpiresAt   time.Time       `json:"expires_at"`
+// AttachmentAccess は /download および /preview エンドポイントが返す署名付き URL 情報。
+// url フィールドの Content-Disposition は発行エンドポイントで決まる（download: attachment、preview: inline）。
+type AttachmentAccess struct {
+	URL      string          `json:"url"`
+	FileName string          `json:"file_name"`
+	MimeType domain.MimeType `json:"mime_type"`
+	FileSize int             `json:"file_size"`
+	ExpiresAt time.Time      `json:"expires_at"`
 }
 
 // ExpenseItemDTO は API レスポンスで使用する経費明細の表現。
