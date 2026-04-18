@@ -15,9 +15,10 @@ import (
 type StorageClient interface {
 	// Upload はオブジェクトをストレージにアップロードする。
 	Upload(ctx context.Context, key string, data io.Reader, contentType string) error
-	// PresignGetObject は指定オブジェクトのダウンロード用署名付き URL を生成する。
-	// expires は URL の有効期限、expiresAt は有効期限の絶対日時を返す。
-	PresignGetObject(ctx context.Context, key, fileName, mimeType string, expiry time.Duration) (url string, expiresAt time.Time, err error)
+	// PresignGetObject は指定オブジェクトの署名付き URL を生成する。
+	// disposition は ResponseContentDisposition に設定する値（"attachment; filename=..." または "inline; filename=..."）。
+	// expiry は URL の有効期限、expiresAt は有効期限の絶対日時を返す。
+	PresignGetObject(ctx context.Context, key, fileName, mimeType, disposition string, expiry time.Duration) (url string, expiresAt time.Time, err error)
 	// Delete はオブジェクトをストレージから削除する。
 	Delete(ctx context.Context, key string) error
 }
@@ -74,8 +75,10 @@ type AttachmentService interface {
 	UploadAttachment(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID, upload FileUpload) (*AttachmentDTO, error)
 	// ListAttachments は経費項目に紐づく有効な添付ファイルを全件取得する。
 	ListAttachments(ctx context.Context, actor domain.Actor, reportID, itemID uuid.UUID) ([]AttachmentDTO, error)
-	// GetAttachmentDownload はファイルダウンロード用の S3 署名付き URL を返す。
-	GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentDownload, error)
+	// GetAttachmentDownload はダウンロード用の署名付き URL（Content-Disposition: attachment）を返す。
+	GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentAccess, error)
+	// GetAttachmentPreview はプレビュー用の署名付き URL（Content-Disposition: inline）を返す。
+	GetAttachmentPreview(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentAccess, error)
 	// DeleteAttachment は添付ファイルを論理削除する。
 	DeleteAttachment(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) error
 }

@@ -31,14 +31,14 @@ type attachmentResponse struct {
 	CreatedAt time.Time        `json:"created_at"`
 }
 
-// attachmentDownloadResponse は GET /attachments/{attId} のレスポンス構造体。
-// openapi.yaml の AttachmentDownload スキーマに準拠する。
-type attachmentDownloadResponse struct {
-	DownloadURL string          `json:"download_url"`
-	FileName    string          `json:"file_name"`
-	MimeType    domain.MimeType `json:"mime_type"`
-	FileSize    int             `json:"file_size"`
-	ExpiresAt   time.Time       `json:"expires_at"`
+// attachmentAccessResponse は /attachments/{attId}/download および /attachments/{attId}/preview のレスポンス構造体。
+// openapi.yaml の AttachmentAccess スキーマに準拠する。
+type attachmentAccessResponse struct {
+	URL      string          `json:"url"`
+	FileName string          `json:"file_name"`
+	MimeType domain.MimeType `json:"mime_type"`
+	FileSize int             `json:"file_size"`
+	ExpiresAt time.Time      `json:"expires_at"`
 }
 
 // toAttachmentResponse は AttachmentDTO を API 契約準拠のレスポンスに変換する。
@@ -53,14 +53,14 @@ func toAttachmentResponse(dto *service.AttachmentDTO) attachmentResponse {
 	}
 }
 
-// toAttachmentDownloadResponse は AttachmentDownload を API 契約準拠のレスポンスに変換する。
-func toAttachmentDownloadResponse(dl *service.AttachmentDownload) attachmentDownloadResponse {
-	return attachmentDownloadResponse{
-		DownloadURL: dl.DownloadURL,
-		FileName:    dl.FileName,
-		MimeType:    dl.MimeType,
-		FileSize:    dl.FileSize,
-		ExpiresAt:   dl.ExpiresAt,
+// toAttachmentAccessResponse は AttachmentAccess を API 契約準拠のレスポンスに変換する。
+func toAttachmentAccessResponse(acc *service.AttachmentAccess) attachmentAccessResponse {
+	return attachmentAccessResponse{
+		URL:       acc.URL,
+		FileName:  acc.FileName,
+		MimeType:  acc.MimeType,
+		FileSize:  acc.FileSize,
+		ExpiresAt: acc.ExpiresAt,
 	}
 }
 
@@ -193,7 +193,8 @@ func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Reque
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{"data": responses})
 }
 
-// GetAttachmentDownload は GET /api/reports/{id}/items/{itemId}/attachments/{attId} を処理します。
+// GetAttachmentDownload は GET /api/reports/{id}/items/{itemId}/attachments/{attId}/download を処理します。
+// 署名付き URL には Content-Disposition: attachment が設定され、ブラウザはダウンロードを開始します。
 func (h *AttachmentHandler) GetAttachmentDownload(w http.ResponseWriter, r *http.Request) {
 	actor, ok := actorFromRequest(r)
 	if !ok {
@@ -219,13 +220,50 @@ func (h *AttachmentHandler) GetAttachmentDownload(w http.ResponseWriter, r *http
 		return
 	}
 
-	dl, err := h.svc.GetAttachmentDownload(r.Context(), actor, reportID, itemID, attID)
+	acc, err := h.svc.GetAttachmentDownload(r.Context(), actor, reportID, itemID, attID)
 	if err != nil {
 		respondDomainError(w, err)
 		return
 	}
 
-	resp := toAttachmentDownloadResponse(dl)
+	resp := toAttachmentAccessResponse(acc)
+	middleware.RespondJSON(w, http.StatusOK, map[string]any{"data": resp})
+}
+
+// GetAttachmentPreview は GET /api/reports/{id}/items/{itemId}/attachments/{attId}/preview を処理します。
+// 署名付き URL には Content-Disposition: inline が設定され、ブラウザはファイルをインライン表示します。
+func (h *AttachmentHandler) GetAttachmentPreview(w http.ResponseWriter, r *http.Request) {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		return
+	}
+
+	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		return
+	}
+
+	attID, err := uuid.Parse(chi.URLParam(r, "attId"))
+	if err != nil {
+		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid attachment id")
+		return
+	}
+
+	acc, err := h.svc.GetAttachmentPreview(r.Context(), actor, reportID, itemID, attID)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	resp := toAttachmentAccessResponse(acc)
 	middleware.RespondJSON(w, http.StatusOK, map[string]any{"data": resp})
 }
 

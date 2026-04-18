@@ -161,21 +161,32 @@ func (s *attachmentService) ListAttachments(ctx context.Context, actor domain.Ac
 	return dtos, nil
 }
 
-// GetAttachmentDownload は添付ファイルのダウンロード用署名付き URL を返す。
+// GetAttachmentDownload は添付ファイルのダウンロード用署名付き URL を返す（Content-Disposition: attachment）。
+func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentAccess, error) {
+	return s.generatePresignedURL(ctx, actor, reportID, itemID, attachmentID, "attachment")
+}
+
+// GetAttachmentPreview は添付ファイルのプレビュー用署名付き URL を返す（Content-Disposition: inline）。
+func (s *attachmentService) GetAttachmentPreview(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentAccess, error) {
+	return s.generatePresignedURL(ctx, actor, reportID, itemID, attachmentID, "inline")
+}
+
+// generatePresignedURL は認可チェック後に指定された dispositionType で署名付き URL を生成する共通処理。
+// dispositionType は "attachment" または "inline" を渡す。実際の disposition 値は att.FileName を取得後に組み立てる。
 //
 // 処理手順:
 //  1. レポート取得
-//  2. 閲覧権限チェック（CanViewReport）
+//  2. 閲覧権限チェック（CanViewReport）—認可確認後にのみ URL を発行する
 //  3. 添付メタデータ取得
 //  4. 署名付き URL 生成（有効期限 15 分）
-func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID) (*AttachmentDownload, error) {
+func (s *attachmentService) generatePresignedURL(ctx context.Context, actor domain.Actor, reportID, itemID, attachmentID uuid.UUID, dispositionType string) (*AttachmentAccess, error) {
 	// レポートを取得する。
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)
 	if err != nil {
 		return nil, err
 	}
 
-	// 閲覧権限チェック（認可確認後に URL を発行する）。
+	// 閲覧権限チェック（認可確認前に URL を発行しない）。
 	if err := s.authorizer.CanViewReport(actor, report); err != nil {
 		return nil, err
 	}
@@ -186,18 +197,21 @@ func (s *attachmentService) GetAttachmentDownload(ctx context.Context, actor dom
 		return nil, err
 	}
 
+	// att.FileName が判明した後で disposition を組み立てる。
+	disposition := fmt.Sprintf(`%s; filename="%s"`, dispositionType, att.FileName)
+
 	// 署名付き URL を生成する（ATT-012: 有効期限 15 分）。
-	downloadURL, expiresAt, err := s.storage.PresignGetObject(ctx, att.S3Key, att.FileName, string(att.MimeType), attachmentDownloadExpiry)
+	presignedURL, expiresAt, err := s.storage.PresignGetObject(ctx, att.S3Key, att.FileName, string(att.MimeType), disposition, attachmentDownloadExpiry)
 	if err != nil {
-		return nil, fmt.Errorf("attachmentService.GetAttachmentDownload: presign: %w", err)
+		return nil, fmt.Errorf("attachmentService.generatePresignedURL: presign: %w", err)
 	}
 
-	return &AttachmentDownload{
-		DownloadURL: downloadURL,
-		FileName:    att.FileName,
-		MimeType:    att.MimeType,
-		FileSize:    att.FileSize,
-		ExpiresAt:   expiresAt,
+	return &AttachmentAccess{
+		URL:       presignedURL,
+		FileName:  att.FileName,
+		MimeType:  att.MimeType,
+		FileSize:  att.FileSize,
+		ExpiresAt: expiresAt,
 	}, nil
 }
 
