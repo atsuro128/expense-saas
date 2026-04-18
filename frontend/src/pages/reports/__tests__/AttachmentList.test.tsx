@@ -8,15 +8,17 @@
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { vi } from 'vitest';
+import { vi, afterEach } from 'vitest';
 import { type ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { Attachment } from '../../../api/types';
 import AttachmentList from '../AttachmentList';
 
 // per-item hook を mock して fetch 呼び出しを排除する。
-// refetch を返す最小限のスタブで、クリックテストで window.open が呼ばれることを確認できる。
-const mockRefetchDownload = vi.fn().mockResolvedValue({ data: { data: { url: '' } } });
+// mockRefetchDownload は url と file_name を含む返り値を返す（<a download> 検証に使用）。
+const mockRefetchDownload = vi.fn().mockResolvedValue({
+  data: { data: { url: 'https://s3.example.com/signed-download?token=abc', file_name: 'receipt.jpg' } },
+});
 const mockRefetchPreview = vi.fn().mockResolvedValue({ data: { data: { url: '' } } });
 
 vi.mock('../../../hooks/useAttachmentDownloadUrl', () => ({
@@ -80,6 +82,19 @@ const defaultProps = {
 };
 
 describe('AttachmentList', () => {
+  afterEach(() => {
+    // vi.spyOn で作成したスパイのみ元に戻す（vi.fn() のモック実装は保持する）。
+    // vi.restoreAllMocks() は vi.fn().mockResolvedValue() もリセットしてしまうため使用しない。
+    vi.restoreAllMocks();
+    // モジュールスコープの vi.fn() モックの実装を再設定する。
+    mockRefetchDownload.mockResolvedValue({
+      data: {
+        data: { url: 'https://s3.example.com/signed-download?token=abc', file_name: 'receipt.jpg' },
+      },
+    });
+    mockRefetchPreview.mockResolvedValue({ data: { data: { url: '' } } });
+  });
+
   // ATT-FE-007: ファイル情報（ファイル名・ファイルサイズ）が表示される。
   // ファイルサイズは formatFileSize でフォーマットされた文字列（例: "240 KB"）で表示される。
   it('ATT-FE-007: ファイル名とファイルサイズがフォーマット済みで表示される', () => {
@@ -202,11 +217,18 @@ describe('AttachmentList', () => {
     expect(window.open).toHaveBeenCalledWith('about:blank', '_blank');
   });
 
-  // ATT-FE-010b: ↓ アイコンクリックで window.open が呼ばれる（per-item hook 内包）。
-  it('ATT-FE-010b: ↓ アイコンクリックで window.open が呼ばれる', async () => {
+  // ATT-FE-010b: ↓ アイコンクリックで動的 <a download> 要素が生成・クリック・削除される。
+  // window.open は呼ばれない（タブを開かないダウンロードパターン）。
+  it('ATT-FE-010b: ↓ アイコンクリックで <a download> 要素が生成・クリック・削除される', async () => {
     const Wrapper = createWrapper();
-    const mockWindowObj = { location: { href: '' }, close: vi.fn() };
-    vi.spyOn(window, 'open').mockReturnValue(mockWindowObj as unknown as Window);
+
+    // window.open のスパイを張り、呼ばれないことを確認する（ダウンロードはタブを開かない）。
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    // document.createElement をスパイしてアンカー要素の生成を検出する。
+    const createElementSpy = vi.spyOn(document, 'createElement');
+    const appendChildSpy = vi.spyOn(document.body, 'appendChild');
+    const removeChildSpy = vi.spyOn(document.body, 'removeChild');
 
     render(
       <AttachmentList
@@ -222,8 +244,31 @@ describe('AttachmentList', () => {
 
     await userEvent.click(screen.getByTestId('attachment-download-att-001'));
 
-    // クリック同期で window.open('about:blank', '_blank') が呼ばれること。
-    expect(window.open).toHaveBeenCalledWith('about:blank', '_blank');
+    // <a> 要素が appendChild されるまで waitFor で待機する（非同期 refetch 完了を待つ）。
+    await vi.waitFor(() => {
+      const appendedAnchor = appendChildSpy.mock.calls
+        .map(([el]) => el)
+        .find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+      expect(appendedAnchor).toBeDefined();
+    });
+
+    // document.createElement('a') が呼ばれること。
+    const anchorCreateCall = createElementSpy.mock.calls.find(([tag]) => tag === 'a');
+    expect(anchorCreateCall).toBeDefined();
+
+    // appendChild された <a> 要素の href・download 属性が設定されていること。
+    const appendedAnchor = appendChildSpy.mock.calls
+      .map(([el]) => el)
+      .find((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+    expect(appendedAnchor).toBeDefined();
+    expect(appendedAnchor?.href).toBe('https://s3.example.com/signed-download?token=abc');
+    expect(appendedAnchor?.download).toBe('receipt.jpg');
+
+    // removeChild も呼ばれること（クリック後に DOM から削除される）。
+    expect(removeChildSpy).toHaveBeenCalled();
+
+    // window.open は呼ばれないこと（タブを開かないダウンロードパターン）。
+    expect(openSpy).not.toHaveBeenCalled();
   });
 
   // ATT-FE-011: canDelete=true のとき削除ボタンが表示される。

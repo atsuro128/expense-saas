@@ -1,7 +1,8 @@
 // AttachmentList コンポーネント。
 // 添付ファイル一覧を表示する。各ファイルの per-item hook orchestration も担当する。
 // report-detail.md §AttachmentList に対応する。
-// プレビュー・ダウンロードの window.open 呼び出しは AttachmentItemRow が内部で担当する。
+// プレビューは window.open('about:blank', '_blank') パターン（AttachmentItemRow が担当）。
+// ダウンロードは動的 <a download> 要素クリックパターン（タブを開かない）。
 // hook rule 違反を避けるため、per-item で AttachmentItemRow コンポーネントに分割する。
 
 import Button from '@mui/material/Button';
@@ -51,8 +52,8 @@ interface AttachmentItemRowProps {
  * AttachmentItemRow は添付ファイル 1 件分の行を描画する内部コンポーネント。
  * useAttachmentDownloadUrl・useAttachmentPreviewUrl を per-item で保持し、
  * クリック時に refetch() を呼んで署名付き URL を取得する（enabled: false + 明示的 refetch 方式）。
- * window.open('about:blank', '_blank') をクリック同期で先に開き、URL 取得後に差し替える
- * パターン（files.md §4.5）を実装する。
+ * プレビューは window.open('about:blank', '_blank') → location.href 差し替えパターン（files.md §4.5）。
+ * ダウンロードは動的 <a download> 要素クリックパターン（タブを開かない）。
  * フックのルール（ループ・条件分岐内での hook 呼び出し禁止）を遵守するため、
  * 添付 1 件ごとにコンポーネントを分割してトップレベルで hook を呼ぶ。
  */
@@ -109,27 +110,27 @@ function AttachmentItemRow({
 
   /**
    * ダウンロードハンドラ。
-   * プレビューと同じクリック同期パターンを採用する。
-   * 署名付き URL の Content-Disposition: attachment により、ブラウザがダウンロードを開始する。
+   * 動的 <a download> 要素クリックによるダウンロード（タブを開かない）。
+   * refetch() で署名付き URL を取得後、動的生成した <a> 要素の href に URL、
+   * download 属性にファイル名を設定し、DOM 追加 → click() → 削除を順に実行する。
+   * 失敗時は onError コールバックでエラートーストを表示する。
    */
   const handleDownload = () => {
-    // クリック同期で空タブを先に開く（ポップアップブロック回避）。
-    const newWindow = window.open('about:blank', '_blank');
-    if (!newWindow) {
-      onError('ポップアップがブロックされました。ブラウザ設定を確認してください');
-      return;
-    }
     refetchDownload()
       .then((res) => {
         if (res.data?.data.url) {
-          newWindow.location.href = res.data.data.url;
+          // 動的 <a download> 要素を生成してクリック（タブを開かずダウンロードを起動）。
+          const link = document.createElement('a');
+          link.href = res.data.data.url;
+          link.download = res.data.data.file_name;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
         } else {
-          newWindow.close();
           onError('ダウンロードの取得に失敗しました');
         }
       })
       .catch(() => {
-        newWindow.close();
         onError('ダウンロードの取得に失敗しました');
       });
   };
