@@ -1,8 +1,9 @@
 // AttachmentList コンポーネント。
 // 添付ファイル一覧を表示する。各ファイルの per-item hook orchestration も担当する。
 // report-detail.md §AttachmentList に対応する。
-// プレビューは window.open('about:blank', '_blank') パターン（AttachmentItemRow が担当）。
-// ダウンロードは動的 <a download> 要素クリックパターン（タブを開かない）。
+// プレビュー・ダウンロードは AttachmentItemRow が担当する:
+//   - プレビュー: window.open('about:blank', '_blank') → location.href 差し替え
+//   - ダウンロード: 動的 <a download> 要素クリック（タブを開かない）
 // hook rule 違反を避けるため、per-item で AttachmentItemRow コンポーネントに分割する。
 
 import Button from '@mui/material/Button';

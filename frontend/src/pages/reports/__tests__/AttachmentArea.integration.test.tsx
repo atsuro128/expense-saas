@@ -292,14 +292,25 @@ describe('AttachmentArea 統合テスト', () => {
 
   // ATT-FE-049: ↓ アイコンクリックで /download API を呼び、動的 <a download> 要素でダウンロードを起動する（UX 修正後）。
   // window.open は呼ばれない（タブを開かないダウンロードパターン）。
+  // attachments.md L515: document.body.appendChild → link.click() → document.body.removeChild の順でスパイが呼ばれる。
   it('ATT-FE-049: ↓ アイコンクリックで /download API が呼ばれ、<a download> 要素でダウンロードが起動される', async () => {
     const { Wrapper } = createWrapper();
 
     // window.open のスパイを張り、呼ばれないことを確認する（ダウンロードはタブを開かない）。
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
 
-    // document.createElement / appendChild / removeChild をスパイして <a> 要素の生成を検出する。
-    const createElementSpy = vi.spyOn(document, 'createElement');
+    // <a> 要素の click メソッドをスパイするため、createElement をモック実装で差し替える。
+    // 生成される <a> 要素の click を vi.fn() に置き換えることで直接スパイが可能になる。
+    const clickSpy = vi.fn();
+    const createElementMock = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tagName: string) => {
+        const el = Document.prototype.createElement.call(document, tagName);
+        if (tagName === 'a') {
+          (el as HTMLAnchorElement).click = clickSpy;
+        }
+        return el;
+      });
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const removeChildSpy = vi.spyOn(document.body, 'removeChild');
 
@@ -353,7 +364,7 @@ describe('AttachmentArea 統合テスト', () => {
 
     // document.createElement('a') が呼ばれること。
     await waitFor(() => {
-      const anchorCreateCall = createElementSpy.mock.calls.find(([tag]) => tag === 'a');
+      const anchorCreateCall = createElementMock.mock.calls.find(([tag]) => tag === 'a');
       expect(anchorCreateCall).toBeDefined();
     });
 
@@ -365,10 +376,30 @@ describe('AttachmentArea 統合テスト', () => {
     expect(appendedAnchor?.href).toBe('https://s3.example.com/signed-download?token=abc123');
     expect(appendedAnchor?.download).toBe('receipt.jpg');
 
+    // link.click() が 1 回呼ばれること（attachments.md ATT-FE-049 の期待結果）。
+    await waitFor(() => {
+      expect(clickSpy).toHaveBeenCalledTimes(1);
+    });
+
     // removeChild が呼ばれること（クリック後に DOM から削除される）。
     await waitFor(() => {
       expect(removeChildSpy).toHaveBeenCalled();
     });
+
+    // appendChild → click → removeChild の呼び出し順を検証する。
+    const appendAnchorInvocationOrder = appendChildSpy.mock.invocationCallOrder[
+      appendChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    const clickInvocationOrder = clickSpy.mock.invocationCallOrder[0];
+    const removeAnchorInvocationOrder = removeChildSpy.mock.invocationCallOrder[
+      removeChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    expect(appendAnchorInvocationOrder).toBeLessThan(clickInvocationOrder!);
+    expect(clickInvocationOrder!).toBeLessThan(removeAnchorInvocationOrder!);
   });
 
   // ATT-FE-049b: ファイル名クリックで /preview API を呼び、window.open → location.href 差し替え（新規）。

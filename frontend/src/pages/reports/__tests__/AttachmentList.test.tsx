@@ -219,14 +219,25 @@ describe('AttachmentList', () => {
 
   // ATT-FE-010b: ↓ アイコンクリックで動的 <a download> 要素が生成・クリック・削除される。
   // window.open は呼ばれない（タブを開かないダウンロードパターン）。
+  // attachments.md L443: document.body.appendChild → link.click() → document.body.removeChild の順でスパイが呼ばれる。
   it('ATT-FE-010b: ↓ アイコンクリックで <a download> 要素が生成・クリック・削除される', async () => {
     const Wrapper = createWrapper();
 
     // window.open のスパイを張り、呼ばれないことを確認する（ダウンロードはタブを開かない）。
     const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
 
-    // document.createElement をスパイしてアンカー要素の生成を検出する。
-    const createElementSpy = vi.spyOn(document, 'createElement');
+    // <a> 要素の click メソッドをスパイするため、createElement をモック実装で差し替える。
+    // 生成される <a> 要素の click を vi.fn() に置き換えることで直接スパイが可能になる。
+    const clickSpy = vi.fn();
+    const createElementMock = vi
+      .spyOn(document, 'createElement')
+      .mockImplementation((tagName: string) => {
+        const el = Document.prototype.createElement.call(document, tagName);
+        if (tagName === 'a') {
+          (el as HTMLAnchorElement).click = clickSpy;
+        }
+        return el;
+      });
     const appendChildSpy = vi.spyOn(document.body, 'appendChild');
     const removeChildSpy = vi.spyOn(document.body, 'removeChild');
 
@@ -253,7 +264,7 @@ describe('AttachmentList', () => {
     });
 
     // document.createElement('a') が呼ばれること。
-    const anchorCreateCall = createElementSpy.mock.calls.find(([tag]) => tag === 'a');
+    const anchorCreateCall = createElementMock.mock.calls.find(([tag]) => tag === 'a');
     expect(anchorCreateCall).toBeDefined();
 
     // appendChild された <a> 要素の href・download 属性が設定されていること。
@@ -264,8 +275,26 @@ describe('AttachmentList', () => {
     expect(appendedAnchor?.href).toBe('https://s3.example.com/signed-download?token=abc');
     expect(appendedAnchor?.download).toBe('receipt.jpg');
 
+    // link.click() が 1 回呼ばれること（attachments.md ATT-FE-010b の期待結果）。
+    expect(clickSpy).toHaveBeenCalledTimes(1);
+
     // removeChild も呼ばれること（クリック後に DOM から削除される）。
     expect(removeChildSpy).toHaveBeenCalled();
+
+    // appendChild → click → removeChild の呼び出し順を検証する。
+    const appendAnchorInvocationOrder = appendChildSpy.mock.invocationCallOrder[
+      appendChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    const clickInvocationOrder = clickSpy.mock.invocationCallOrder[0];
+    const removeAnchorInvocationOrder = removeChildSpy.mock.invocationCallOrder[
+      removeChildSpy.mock.calls.findIndex(
+        ([el]) => el instanceof HTMLAnchorElement,
+      )
+    ];
+    expect(appendAnchorInvocationOrder).toBeLessThan(clickInvocationOrder!);
+    expect(clickInvocationOrder!).toBeLessThan(removeAnchorInvocationOrder!);
 
     // window.open は呼ばれないこと（タブを開かないダウンロードパターン）。
     expect(openSpy).not.toHaveBeenCalled();
