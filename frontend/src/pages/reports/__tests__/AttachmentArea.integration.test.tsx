@@ -127,6 +127,12 @@ describe('AttachmentArea 統合テスト', () => {
     // AttachmentArea が描画されること。
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
+    // ATT-FE-114: 永続化タイミング案内文が常時表示されること（report-detail.md §7 冒頭の仕様）。
+    expect(screen.getByTestId('attachment-persistence-notice')).toBeInTheDocument();
+    expect(screen.getByTestId('attachment-persistence-notice')).toHaveTextContent(
+      '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。',
+    );
+
     const fileInput = screen.getByTestId('attachment-file-input');
     const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
     await userEvent.upload(fileInput, jpegFile);

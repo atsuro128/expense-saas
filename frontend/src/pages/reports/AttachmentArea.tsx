@@ -5,6 +5,7 @@
 // report-detail.md §AttachmentArea に対応する。
 
 import { useState } from 'react';
+import Typography from '@mui/material/Typography';
 import AttachmentList from './AttachmentList';
 import AttachmentUploader from './AttachmentUploader';
 import AppToast from '../../components/ui/AppToast';
@@ -12,6 +13,10 @@ import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useAttachments } from '../../hooks/useAttachments';
 import { useDeleteAttachment } from '../../hooks/useDeleteAttachment';
 import type { Attachment } from '../../api/types';
+
+// 添付の即時保存方式をユーザーに案内するテキスト（report-detail.md §7 冒頭の仕様に準拠）。
+const ATTACHMENT_PERSISTENCE_NOTICE =
+  '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。';
 
 export interface AttachmentAreaProps {
   /** レポート ID */
@@ -103,6 +108,17 @@ function AttachmentAreaContent({
         onDelete={handleDeleteRequest}
         onError={(message) => showToast('error', message)}
       />
+      {/* 永続化タイミング案内文（report-detail.md §7 冒頭の仕様に準拠）。
+          添付の追加・削除はフォームの保存ボタンと独立した即時保存方式であることを常時表示する。 */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        display="block"
+        sx={{ mt: 1 }}
+        data-testid="attachment-persistence-notice"
+      >
+        {ATTACHMENT_PERSISTENCE_NOTICE}
+      </Typography>
       {canModify && (
         <AttachmentUploader
           reportId={reportId}
