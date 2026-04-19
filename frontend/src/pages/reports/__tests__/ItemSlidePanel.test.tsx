@@ -5,7 +5,7 @@
 // 機能実装フェーズ（issue #108 対応）で green になる想定。
 
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -628,8 +628,11 @@ describe('ItemSlidePanel 破棄確認ダイアログ（ATT-FE-064〜071, issue #
       { wrapper },
     );
 
-    // カテゴリフィールドを変更して dirty にする（categories が空のため実際の選択は行わず、直接 dirty 状態を作る）。
-    // ここでは日付フィールドで代替する。
+    // 設計書指定は「カテゴリを dirty にする」だが、ItemSlidePanel の categories prop が
+    // デフォルト空配列のため MUI Select の選択操作を実行できない。
+    // そのため日付フィールドへの入力で代替する。
+    // dirty 判定の観点は等価（フォームフィールド変更 → React Hook Form の isDirty が true）。
+    // categories フィクスチャが整備された時点でカテゴリ選択に切り替えること。
     const dateInput = screen.getByLabelText(/日付/);
     await user.clear(dateInput);
     await user.type(dateInput, '2026-12-31');
@@ -710,6 +713,8 @@ describe('ItemSlidePanel 破棄確認ダイアログ（ATT-FE-064〜071, issue #
     );
 
     const backdrop = document.querySelector('.MuiBackdrop-root');
+    // backdrop が存在することを前提とする。見つからない場合はテスト環境の問題を示す。
+    expect(backdrop).toBeTruthy();
     if (backdrop) {
       await user.click(backdrop);
     }
@@ -785,10 +790,11 @@ describe('ItemSlidePanel 破棄確認ダイアログ（ATT-FE-064〜071, issue #
     await user.click(screen.getByRole('button', { name: '閉じる' }));
 
     // Dialog の「キャンセル」ボタンをクリック。
-    // Dialog 内のキャンセルは複数ある可能性があるため queryAllByRole で確認する。
-    const cancelButtons = screen.getAllByRole('button', { name: 'キャンセル' });
-    // Dialog 内のキャンセルボタン（最後のもの）をクリック。
-    await user.click(cancelButtons[cancelButtons.length - 1]);
+    // within(dialog) で Dialog コンテナを特定してからキャンセルボタンを取得する。
+    // DOM 順依存（末尾取得）を避け、明示的に Dialog 内のボタンを対象にする。
+    const dialog = screen.getByRole('dialog');
+    const cancelButton = within(dialog).getByRole('button', { name: 'キャンセル' });
+    await user.click(cancelButton);
 
     // Dialog のみが閉じる（パネルは開いたまま）。
     expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
@@ -799,36 +805,84 @@ describe('ItemSlidePanel 破棄確認ダイアログ（ATT-FE-064〜071, issue #
   });
 
   // ATT-FE-070: 添付操作のみは dirty に含めない（添付は即時保存方式）。
-  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため現状は通過する場合あり）。
-  // 添付の追加・削除は Form の dirty に影響しないことを検証する（issue #114 §7 冒頭と整合）。
+  // 設計意図: AttachmentArea の操作（即時保存）は React Hook Form の isDirty に影響しない。
+  // フォームフィールドが初期値のまま添付操作を行っても dirty=false のため、
+  // × ボタン押下時に破棄確認 Dialog は表示されず onClose が即時呼ばれることを検証する。
+  // 既存 ATT-FE-067（非 dirty で閉じる）との差異: 本テストでは添付ファイルのアップロード操作を
+  // fetch モック + file input 経由で実際に発火した後で × 押下を行う点が異なる。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログ未実装の現状では PASS）。
+  // 将来 dirty 判定が実装されても、添付操作のみでは dirty にならないため PASS を維持するはず。
   it('ATT-FE-070: attachment_changes_do_not_mark_form_dirty', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
-
-    // 添付操作のみでフォームフィールドを変更しない場合、dirty にならない。
-    // AttachmentArea の操作（即時保存）は Form の dirty フラグに影響しないため、
-    // × ボタン押下時に Dialog は表示されず onClose が即時呼ばれる。
     const wrapper = createWrapper();
 
-    render(
-      <ItemSlidePanel
-        open={true}
-        mode="edit"
-        item={mockItem}
-        {...defaultProps}
-        onClose={onClose}
-      />,
-      { wrapper },
-    );
+    // 添付ファイル一覧 API の空レスポンス（初期状態）。
+    const emptyAttachmentListResponse: Response = {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({ data: [] }),
+    } as unknown as Response;
 
-    // フォームフィールドは初期値のまま（添付操作は UI 操作なしでシミュレート不可のため省略）。
-    // 非 dirty の状態で × ボタンをクリック → Dialog なし、即閉じ。
-    await user.click(screen.getByRole('button', { name: '閉じる' }));
+    // アップロード API のレスポンス（即時解決でアップロード完了）。
+    const uploadSuccessResponse: Response = {
+      ok: true,
+      status: 201,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        data: {
+          id: 'att-new-001',
+          item_id: 'item-001',
+          file_name: 'receipt.jpg',
+          content_type: 'image/jpeg',
+          size: 1024,
+          url: 'https://example.com/att-new-001',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response;
 
-    // Dialog は表示されない。
-    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
-    // onClose が呼ばれる（即閉じ）。
-    expect(onClose).toHaveBeenCalledTimes(1);
+    // globalThis.fetch をモックして AttachmentArea の API 呼び出しを制御する。
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = vi
+      .fn()
+      .mockResolvedValueOnce(emptyAttachmentListResponse)
+      .mockResolvedValueOnce(uploadSuccessResponse);
+
+    try {
+      render(
+        <ItemSlidePanel
+          open={true}
+          mode="edit"
+          item={mockItem}
+          {...defaultProps}
+          onClose={onClose}
+        />,
+        { wrapper },
+      );
+
+      // AttachmentUploader が表示されるまで待機する。
+      await waitFor(() => {
+        expect(screen.getByTestId('attachment-uploader')).toBeInTheDocument();
+      });
+
+      // ファイル input にファイルを渡してアップロード操作を発火する（ATT-FE-060 の書き方を流用）。
+      const mockFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
+      const fileInput = screen.getByTestId('attachment-file-input') as HTMLInputElement;
+      await user.upload(fileInput, mockFile);
+
+      // アップロード操作後、フォームフィールドは初期値のまま（変更なし = 非 dirty）。
+      // × ボタンをクリック → 破棄確認 Dialog は表示されず、onClose が即時呼ばれる。
+      await user.click(screen.getByRole('button', { name: '閉じる' }));
+
+      // Dialog は表示されない（添付操作は Form の isDirty に影響しない）。
+      expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+      // onClose が呼ばれる（即閉じ）。
+      expect(onClose).toHaveBeenCalledTimes(1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   // ATT-FE-071: dirty 時の beforeunload で event.preventDefault() 発火、非 dirty で不発。
