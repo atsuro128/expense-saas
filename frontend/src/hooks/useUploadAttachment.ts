@@ -83,6 +83,12 @@ export function useUploadAttachment(options?: UseUploadAttachmentOptions) {
         queryKey: ['reports', reportId, 'items', itemId, 'attachments'],
       });
     },
+    onSettled: () => {
+      // mutation 完了（成功・失敗いずれも）後に ref をクリアする。
+      // これにより unmount 時の cleanup が「進行中 mutation が存在する」と誤判定して
+      // onAborted を呼ぶ偽陽性を防ぐ（blocker 3 対応）。
+      abortControllerRef.current = null;
+    },
   });
 
   /**
