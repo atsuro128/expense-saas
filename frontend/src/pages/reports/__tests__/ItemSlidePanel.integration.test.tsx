@@ -2,7 +2,10 @@
 // AttachmentArea + ItemSlidePanel の連携を検証する。
 // MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-060, 062, 063 に対応する（issue #108: アップロード/削除中断トースト・明細切替）。
+// ATT-FE-079, 080, 082 に対応する（issue #115: 保存時の順次アップロード・部分失敗・中断）。
 // 機能実装フェーズ（issue #108 対応）で green になる想定（AbortController / 中断トーストが未実装のため FAIL）。
+// ATT-FE-079, 080, 082 は issue #115 の機能実装前のため FAIL 前提。
+// FAIL 原因: ItemSlidePanel の追加モード保存時に順次アップロードを行う機能が未実装。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -337,6 +340,408 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
 
     // cleanup（AbortError で reject 済みだが念のため）。
     uploadResolveRef063.resolve({
+      ok: false,
+      status: 0,
+      headers: { get: () => null },
+      json: async () => ({}),
+    } as unknown as Response);
+  });
+});
+
+// =============================================================================
+// ATT-FE-079, 080, 082: 追加モード保存時の順次アップロード統合テスト（issue #115）
+// 機能実装前のため FAIL 前提。
+// FAIL 原因: ItemSlidePanel の追加モードで保存ボタン押下時に
+//           (1) POST items → itemId 取得 → (2) 各添付を順次 POST する機能が未実装。
+// =============================================================================
+
+describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT-FE-079, 080, 082, issue #115）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // ATT-FE-079: 追加モードで保存ボタン押下時に明細作成 → 保留添付を順次アップロードし、
+  //             全成功でパネルクローズ + 一覧再読み込み。
+  // FAIL 原因（機能未実装）: 追加モードで保存時に POST items + 順次 POST attachments が実行されない。
+  // 機能実装後: 保存ボタン押下 → POST items (201) → itemId 取得 → 各添付を順次 POST (201) →
+  //            全成功でパネルクローズ・明細一覧 invalidate。
+  it('ATT-FE-079: saves_item_then_sequentially_uploads_pending_attachments_on_save', async () => {
+    const user = userEvent.setup();
+    const { queryClient, Wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const onSaveSuccess = vi.fn();
+
+    // 呼び出し順序を記録するための配列。
+    const fetchCallOrder: string[] = [];
+
+    // 添付一覧取得（追加モードでは itemId=null のため呼ばれない見込みだが安全に準備）。
+    // POST items (201): 明細作成 → itemId="item-new"。
+    // POST attachments/jpeg: 1 件目の添付アップロード (201)。
+    // POST attachments/pdf: 2 件目の添付アップロード (201)。
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
+        // 明細作成 API。
+        fetchCallOrder.push('POST:items');
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-new',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-19',
+              amount: 1500,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: 'テスト明細',
+              attachments: [],
+              created_at: '2026-04-19T00:00:00Z',
+              updated_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items/item-new/attachments')) {
+        // 添付アップロード API（順次実行）。
+        fetchCallOrder.push('POST:attachments');
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: `att-${fetchCallOrder.filter((c) => c === 'POST:attachments').length}`,
+              item_id: 'item-new',
+              file_name: 'file.jpg',
+              file_size: 1024,
+              mime_type: 'image/jpeg',
+              created_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      // その他（GET 一覧取得など）は空配列で返す。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={() => undefined}
+        onSaveSuccess={onSaveSuccess}
+        onSaveAndContinue={() => undefined}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること（FAIL 前提: itemId=null で非表示）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 2 件をローカル保留する（JPEG + PDF）。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    const pdfFile = createMockFile('invoice.pdf', 2048, 'application/pdf');
+    await user.upload(fileInput, jpegFile);
+    await user.upload(fileInput, pdfFile);
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-19');
+    await user.type(screen.getByLabelText(/金額/), '1500');
+    // カテゴリは既に選択肢がある前提。
+    await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
+
+    // 保存ボタンをクリックする。
+    const saveButton = screen.getByRole('button', { name: /保存する/ });
+    await user.click(saveButton);
+
+    // 呼び出し順序の検証:
+    // (1) 明細作成 POST が先行すること。
+    // (2) 添付アップロード POST が 2 件分順次実行されること（並列ではない）。
+    await waitFor(() => {
+      expect(fetchCallOrder[0]).toBe('POST:items');
+      expect(fetchCallOrder.filter((c) => c === 'POST:attachments')).toHaveLength(2);
+    });
+
+    // 全成功後にパネルクローズコールバックが呼ばれること。
+    await waitFor(() => {
+      expect(onSaveSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    // 明細一覧が再読み込みされること（['reports', 'detail', 'rpt-1'] の invalidate）。
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: expect.arrayContaining(['reports', 'detail', 'rpt-1']),
+      }),
+    );
+
+    // 成功トーストが表示されること。
+    await waitFor(() => {
+      expect(screen.getByText(/明細を追加しました/)).toBeInTheDocument();
+    });
+  });
+
+  // ATT-FE-080: 部分失敗時に明細は残し警告トースト → パネルクローズ → 一覧再読み込みの順序検証。
+  // FAIL 原因（機能未実装）: 追加モードの順次アップロードが未実装。
+  // 機能実装後: 明細作成成功 + 添付 1 件成功 + 1 件失敗の場合、
+  //            明細 DELETE は呼ばれず、警告トーストが表示され、パネルクローズされる。
+  it('ATT-FE-080: keeps_item_created_and_shows_warning_toast_on_partial_attachment_failure', async () => {
+    const user = userEvent.setup();
+    const { queryClient, Wrapper } = createWrapper();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const onSaveSuccess = vi.fn();
+
+    // 明細 DELETE が呼ばれないことを確認するためのスパイ（DELETE 呼出は意図しない動作）。
+    const deleteCalledUrls: string[] = [];
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+
+      if (method === 'DELETE') {
+        // 明細 DELETE は呼ばれてはいけない（ロールバックしない方針）。
+        deleteCalledUrls.push(url as string);
+        return { ok: true, status: 204, headers: { get: () => null }, json: async () => ({}) } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
+        // 明細作成 (201)。
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-new',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-19',
+              amount: 1500,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: 'テスト明細',
+              attachments: [],
+              created_at: '2026-04-19T00:00:00Z',
+              updated_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items/item-new/attachments')) {
+        // 1 件目の添付 POST は成功。2 件目は失敗（mockImplementation で呼び出し回数を追跡）。
+        const attachPostCalls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
+          .filter(([u, o]) => typeof u === 'string' && (u as string).includes('/attachments') && (o?.method ?? 'GET') === 'POST')
+          .length;
+        if (attachPostCalls <= 1) {
+          // 1 件目（呼び出し回数が 1 以下のとき）は成功。
+          return {
+            ok: true,
+            status: 201,
+            headers: { get: () => null },
+            json: async () => ({ data: { id: 'att-1', item_id: 'item-new', file_name: 'receipt.jpg', file_size: 1024, mime_type: 'image/jpeg', created_at: '2026-04-19T00:00:00Z' } }),
+          } as unknown as Response;
+        }
+        // 2 件目は失敗 (500)。
+        return {
+          ok: false,
+          status: 500,
+          headers: { get: () => null },
+          json: async () => ({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'サーバーエラー' } }),
+        } as unknown as Response;
+      }
+      // GET 等はデフォルト空レスポンス。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={() => undefined}
+        onSaveSuccess={onSaveSuccess}
+        onSaveAndContinue={() => undefined}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること（FAIL 前提）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 2 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    const pdfFile = createMockFile('invoice.pdf', 2048, 'application/pdf');
+    await user.upload(fileInput, jpegFile);
+    await user.upload(fileInput, pdfFile);
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-19');
+    await user.type(screen.getByLabelText(/金額/), '1500');
+    await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
+
+    // 保存ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: /保存する/ }));
+
+    // 明細 DELETE が呼ばれていないこと（ロールバックしない方針）。
+    await waitFor(() => {
+      // 処理完了を待つため警告トーストの表示を確認する。
+      expect(screen.getByText(/添付ファイルがアップロードに失敗しました/)).toBeInTheDocument();
+    });
+    expect(deleteCalledUrls.some((u) => u.includes('/api/reports/rpt-1/items/item-new') && !u.includes('/attachments'))).toBe(false);
+
+    // 警告トーストが表示された後にパネルクローズコールバックが呼ばれること。
+    // 呼び出し順: 警告トースト表示 → onSaveSuccess（パネルクローズ相当）。
+    await waitFor(() => {
+      expect(onSaveSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    // 一覧再読み込みが行われること（部分失敗時も invalidate する）。
+    expect(invalidateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        queryKey: expect.arrayContaining(['reports', 'detail', 'rpt-1']),
+      }),
+    );
+  });
+
+  // ATT-FE-082: 順次アップロード中のパネル閉じで AbortController 中断 + 「アップロードを中止しました」トースト。
+  // 3 パターン検証: (a) × ボタン / (b) キャンセルボタン / (c) 外クリック。
+  // FAIL 原因（機能未実装）: 追加モードの順次アップロード中断機能が未実装。
+  // 機能実装後: 順次アップロード中にパネルを閉じると AbortController で中断され警告トーストが表示される。
+  it('ATT-FE-082: aborts_sequential_upload_and_shows_warning_toast_on_panel_close_during_upload', async () => {
+    const user = userEvent.setup();
+    const { Wrapper } = createWrapper();
+    const onClose = vi.fn();
+
+    // 明細作成 (201) は即時完了。
+    // 1 件目の添付 POST はレスポンス遅延（AbortController でキャンセル可能）。
+    const attachUploadResolveRef = { resolve: (_v: Response) => {} };
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
+        // 明細作成は即時完了。
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-new',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-19',
+              amount: 1500,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: 'テスト明細',
+              attachments: [],
+              created_at: '2026-04-19T00:00:00Z',
+              updated_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/attachments')) {
+        // 添付 POST は AbortController に対応した遅延フェッチ。
+        return makeAbortablePendingFetch(attachUploadResolveRef)(url, opts);
+      }
+      // GET 等はデフォルト空レスポンス。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={onClose}
+        onSaveSuccess={() => undefined}
+        onSaveAndContinue={() => undefined}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること（FAIL 前提）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 1 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-19');
+    await user.type(screen.getByLabelText(/金額/), '1500');
+    await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
+
+    // 保存ボタンをクリックする（明細作成 POST 後、添付 POST が開始される）。
+    await user.click(screen.getByRole('button', { name: /保存する/ }));
+
+    // 順次アップロード中（明細作成完了 + 添付 POST 進行中）を確認する。
+    // 「アップロード中...」の表示で確認する（FAIL 前提: 進捗表示未実装）。
+    await waitFor(() => {
+      expect(screen.getByText(/アップロード中/)).toBeInTheDocument();
+    });
+
+    // (a) × ボタンでパネルを閉じる（順次アップロード中断をトリガー）。
+    const closeButton = screen.getByRole('button', { name: '閉じる' });
+    await user.click(closeButton);
+
+    // AbortController で進行中の添付 POST が中断される。
+    // 「アップロードを中止しました」相当の警告トーストが表示されること（FAIL 前提）。
+    await waitFor(() => {
+      expect(screen.getByText(/アップロードを中止しました/)).toBeInTheDocument();
+    });
+
+    // 作成済み明細はロールバックされないこと（DELETE API は呼ばれない）。
+    const deleteCalledOnItems = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+      ([url, opts]) =>
+        typeof url === 'string' &&
+        (url as string).includes('/api/reports/rpt-1/items/item-new') &&
+        !((url as string).includes('/attachments')) &&
+        (opts?.method ?? 'GET') === 'DELETE',
+    );
+    expect(deleteCalledOnItems).toBe(false);
+
+    // cleanup。
+    attachUploadResolveRef.resolve({
       ok: false,
       status: 0,
       headers: { get: () => null },

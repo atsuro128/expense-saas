@@ -1,8 +1,9 @@
 // ItemSlidePanel コンポーネントのユニットテスト。
 // ITM-FE-018〜025 に対応する。
 // ATT-FE-057, 058, 064〜071 に対応する（issue #108: 並行操作整合性・破棄確認ダイアログ）。
+// ATT-FE-081, 083 に対応する（issue #115: 順次アップロード中 UI・追加モード dirty 判定）。
 // 機能未実装のテストは FAIL するが、これは意図した動作（Red 前提）。
-// 機能実装フェーズ（issue #108 対応）で green になる想定。
+// 機能実装フェーズ（issue #108, #115 対応）で green になる想定。
 
 import React from 'react';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
@@ -912,5 +913,175 @@ describe('ItemSlidePanel 破棄確認ダイアログ（ATT-FE-064〜071, issue #
     const preventDefaultSpy2 = vi.spyOn(dirtyEvent, 'preventDefault');
     fireEvent(window, dirtyEvent);
     expect(preventDefaultSpy2).toHaveBeenCalled();
+  });
+});
+
+// =============================================================================
+// ATT-FE-081: 順次アップロード中 UI（issue #115）
+// 機能実装前のため FAIL 前提。
+// FAIL 原因: ItemSlidePanel に順次アップロード中の UI 状態（sequentialUploadProgress prop 等）が未実装。
+// =============================================================================
+
+describe('ItemSlidePanel 順次アップロード中 UI（ATT-FE-081, issue #115）', () => {
+  // ATT-FE-081: 順次アップロード中は保存ボタン disabled + スピナー + 「N/M 件完了」+ フォーム readonly。
+  // FAIL 原因（機能未実装）: ItemSlidePanel に isSequentialUploading prop と進捗表示が未実装。
+  // 機能実装後: 順次アップロード中に保存ボタンが disabled になり、進捗テキストが表示され、
+  //            フォームフィールドが readonly になる。
+  it('ATT-FE-081: disables_save_button_and_sets_readonly_form_during_sequential_upload', () => {
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+        // @ts-expect-error isSequentialUploading / sequentialUploadProgress は issue #115 実装後に追加される
+        isSequentialUploading={true}
+        sequentialUploadProgress={{ completed: 1, total: 3 }}
+      />,
+      { wrapper },
+    );
+
+    // 「保存する」ボタンが disabled であること（順次アップロード中は二重送信防止）。
+    const saveButton = screen.getByRole('button', { name: /保存する/ });
+    expect(saveButton).toBeDisabled();
+
+    // 進捗テキストが表示されること（「アップロード中... (1/3 件完了)」形式）。
+    expect(screen.getByText(/アップロード中.*1.*3.*件完了/)).toBeInTheDocument();
+
+    // フォームフィールドが readonly になること（明細作成後の整合性崩れ防止）。
+    const dateInput = screen.getByLabelText(/日付/);
+    expect(dateInput).toHaveAttribute('readOnly');
+
+    const amountInput = screen.getByLabelText(/金額/);
+    expect(amountInput).toHaveAttribute('readOnly');
+  });
+});
+
+// =============================================================================
+// ATT-FE-083: 追加モードの破棄確認ダイアログ（保留中添付による dirty 判定）（issue #115）
+// 機能実装前のため FAIL 前提。
+// FAIL 原因: ItemSlidePanel の追加モードでは保留中添付が dirty 判定に含まれていない。
+// =============================================================================
+
+describe('ItemSlidePanel 追加モード dirty 判定（ATT-FE-083, issue #115）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    // AttachmentArea の API 呼び出し安全モック（追加モードでは呼ばれない想定）。
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
+    } as unknown as Response);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // ATT-FE-083: 追加モード + 保留中添付 1 件以上で dirty 成立（フィールド未変更でも Dialog 表示）。
+  // 編集モード ATT-FE-070「添付操作のみは dirty 対象外」とは分岐する。
+  // FAIL 原因（機能未実装）: 追加モードの保留中添付が dirty 判定に含まれていない。
+  // 機能実装後: 追加モードで保留中添付が存在すると dirty=true となり、
+  //            × ボタン押下時に「変更を破棄しますか？」が表示される。
+  it('ATT-FE-083: treats_pending_attachments_as_dirty_in_add_mode', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること（FAIL 前提: 現在は itemId=null で非表示）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // フォームフィールドは変更せず、添付ファイル 1 件のみをローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
+    await user.upload(fileInput, jpegFile);
+
+    // 「保存後にアップロード予定」が表示されること（保留中添付の確認）。
+    expect(screen.getByText('保存後にアップロード予定')).toBeInTheDocument();
+
+    // フォームフィールドは変更していないが、保留中添付があるため dirty=true のはず。
+    // × ボタンをクリックする。
+    const closeButton = screen.getByRole('button', { name: '閉じる' });
+    await user.click(closeButton);
+
+    // onClose は呼ばれていないこと（破棄確認ダイアログが表示されるため）。
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 破棄確認ダイアログが表示されること（FAIL 前提）。
+    expect(screen.getByText('変更を破棄しますか？')).toBeInTheDocument();
+
+    // 「破棄」ボタンを押すとローカル state の保留ファイルが破棄され、パネルが閉じる。
+    const discardButton = screen.getByRole('button', { name: '破棄' });
+    await user.click(discardButton);
+
+    // Dialog が閉じ、onClose が呼ばれる。
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // ATT-FE-083 (b): 追加モード + 保留中添付 1 件で「キャンセル」押下 → Dialog のみ閉じて保留ファイル保持。
+  // FAIL 原因（機能未実装）: 追加モードの保留中添付が dirty 判定に含まれていないため Dialog が表示されない。
+  it('ATT-FE-083b: keeps_pending_attachments_on_dialog_cancel_in_add_mode', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること（FAIL 前提）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 1 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = new File([new ArrayBuffer(1024)], 'photo.jpg', { type: 'image/jpeg' });
+    await user.upload(fileInput, jpegFile);
+
+    // × ボタンをクリックして破棄確認ダイアログを表示する。
+    await user.click(screen.getByRole('button', { name: '閉じる' }));
+
+    // Dialog 内の「キャンセル」ボタンをクリックする。
+    const dialog = screen.getByRole('dialog');
+    const cancelButton = within(dialog).getByRole('button', { name: 'キャンセル' });
+    await user.click(cancelButton);
+
+    // Dialog のみが閉じる（パネルは開いたまま）。
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 保留中添付はそのまま保持されること。
+    expect(screen.getByText('保存後にアップロード予定')).toBeInTheDocument();
   });
 });
