@@ -134,7 +134,6 @@ export default function AttachmentUploader({
         cancelRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cancel, cancelRef]);
 
   // 保留ファイル一覧が変化したら親コンポーネントに通知する（ItemSlidePanel の順次アップロードで使用）。

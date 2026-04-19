@@ -116,7 +116,6 @@ function AttachmentAreaContent({
         deleteCancelRef.current = null;
       }
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deleteAttachment.cancel, deleteCancelRef]);
 
   // AttachmentUploader に渡すアップロードキャンセル ref（内部用フォールバック）。

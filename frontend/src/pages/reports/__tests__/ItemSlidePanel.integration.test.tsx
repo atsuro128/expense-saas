@@ -143,7 +143,7 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     // 1回目: 添付一覧取得（空配列）
     // 2回目: アップロード API（レスポンス遅延: パネル閉じ前に解決しない）
     // makeAbortablePendingFetch ヘルパーで AbortSignal 対応のモックを生成する。
-    const uploadResolveRef = { resolve: (_v: Response) => {} };
+    const uploadResolveRef: { resolve: (v: Response) => void } = { resolve: () => {} };
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(makeEmptyAttachmentListResponse())
@@ -228,7 +228,7 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
 
     // 削除 API（レスポンス遅延）。
     // makeAbortablePendingFetch ヘルパーで AbortSignal 対応のモックを生成する。
-    const deleteResolveRef = { resolve: (_v: Response) => {} };
+    const deleteResolveRef: { resolve: (v: Response) => void } = { resolve: () => {} };
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(attachmentListResponse)
@@ -286,7 +286,7 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     // 2回目: アップロード API（レスポンス遅延）
     // 3回目: item-002 の添付一覧取得（空配列）
     // makeAbortablePendingFetch ヘルパーで AbortSignal 対応のモックを生成する。
-    const uploadResolveRef063 = { resolve: (_v: Response) => {} };
+    const uploadResolveRef063: { resolve: (v: Response) => void } = { resolve: () => {} };
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(makeEmptyAttachmentListResponse())
@@ -385,7 +385,7 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     const fetchCallOrder: string[] = [];
 
     // 1件目の添付アップロードを意図的に遅延させて順次性を検証する（偽 PASS 対策）。
-    const attachment1ResolveRef = { resolve: (_v: Response) => {} };
+    const attachment1ResolveRef: { resolve: (v: Response) => void } = { resolve: () => {} };
 
     // POST items (201): 明細作成 → itemId="item-new"。
     // POST attachments/jpeg: 1 件目の添付アップロード（遅延）。
@@ -580,7 +580,7 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     // その後 resolve で失敗を注入することで MutationObserver が
     // useEffect より先に発火し、'toast' が orderLog の先頭になる（ATT-FE-080 順序保証）。
     const attach2ResolveRef: { resolve: (v: Response) => void } = {
-      resolve: (_v) => {},
+      resolve: () => {},
     };
 
     globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
@@ -782,7 +782,7 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
 
       // 明細作成 (201) は即時完了。
       // 添付 POST はレスポンス遅延（AbortController でキャンセル可能）。
-      const attachUploadResolveRef = { resolve: (_v: Response) => {} };
+      const attachUploadResolveRef: { resolve: (v: Response) => void } = { resolve: () => {} };
 
       globalThis.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
         const method = (opts?.method ?? 'GET').toUpperCase();
