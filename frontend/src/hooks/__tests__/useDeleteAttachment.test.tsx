@@ -1,7 +1,8 @@
 // useDeleteAttachment Hook のユニットテスト。
 // report-detail.md §添付ファイル操作のデータフロー に対応する。
 // MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
-// ATT-FE-041〜044 に対応する。
+// ATT-FE-041〜044, ATT-FE-061 に対応する。
+// ATT-FE-061 は機能実装フェーズ（issue #108 対応）で green になる想定（AbortController 未実装のため FAIL）。
 
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { type ReactNode } from 'react';
@@ -186,5 +187,64 @@ describe('useDeleteAttachment', () => {
     expect(thrownError).toBeDefined();
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect((result.current.error as { code?: string })?.code).toBe('REPORT_NOT_EDITABLE');
+  });
+
+  // ATT-FE-061: unmount 時に AbortController.abort() が呼ばれ、進行中の DELETE リクエストが中断される。
+  // 機能実装フェーズ（issue #108 対応）で green になる想定（AbortController が未実装のため FAIL）。
+  it('ATT-FE-061: aborts_delete_mutation_on_panel_close', async () => {
+    // AbortController のグローバルスパイを設定する。
+    const abortSpy = vi.fn();
+    const originalAbortController = globalThis.AbortController;
+
+    // AbortController をラップしてスパイする（useUploadAttachment テストと同一パターン）。
+    class SpyAbortController extends originalAbortController {
+      constructor() {
+        super();
+        const originalAbort = this.abort.bind(this);
+        this.abort = (...args: Parameters<typeof originalAbort>) => {
+          abortSpy(...args);
+          return originalAbort(...args);
+        };
+      }
+    }
+    globalThis.AbortController = SpyAbortController as typeof AbortController;
+
+    // fetch をレスポンスを遅延させるモックで設定する。
+    let resolveFetch!: (value: Response) => void;
+    globalThis.fetch = vi.fn().mockReturnValueOnce(
+      new Promise<Response>((resolve) => {
+        resolveFetch = resolve;
+      }),
+    );
+
+    const { result, unmount } = renderHook(() => useDeleteAttachment(), {
+      wrapper: createWrapper(),
+    });
+
+    // mutation を開始（await しない: レスポンス待ち状態のままにする）。
+    act(() => {
+      result.current.mutate({
+        reportId: 'rpt-1',
+        itemId: 'item-1',
+        attId: 'att-1',
+      });
+    });
+
+    // コンポーネント unmount（パネル閉じ相当）。
+    unmount();
+
+    // AbortController.abort() が呼ばれていること。
+    expect(abortSpy).toHaveBeenCalled();
+
+    // cleanup: 遅延中の fetch を解決して Promise が宙吊りにならないようにする。
+    resolveFetch({
+      ok: false,
+      status: 0,
+      headers: { get: () => null },
+      json: async () => ({}),
+    } as unknown as Response);
+
+    // AbortController をリストアする。
+    globalThis.AbortController = originalAbortController;
   });
 });

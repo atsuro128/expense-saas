@@ -1,9 +1,11 @@
 // ItemSlidePanel コンポーネントのユニットテスト。
 // ITM-FE-018〜025 に対応する。
-// ItemSlidePanel は未実装（スタブ）のため、テストは失敗する（赤い仕様テスト）。
+// ATT-FE-057, 058, 064〜071 に対応する（issue #108: 並行操作整合性・破棄確認ダイアログ）。
+// 機能未実装のテストは FAIL するが、これは意図した動作（Red 前提）。
+// 機能実装フェーズ（issue #108 対応）で green になる想定。
 
 import React from 'react';
-import { render, screen } from '@testing-library/react';
+import { render, screen, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -394,5 +396,472 @@ describe('ItemSlidePanel', () => {
     expect(amountInput).not.toBeDisabled();
     expect(dateInput).toHaveAttribute('readOnly');
     expect(amountInput).toHaveAttribute('readOnly');
+  });
+});
+
+// =============================================================================
+// ATT-FE-057〜058: 並行操作整合性テスト（issue #108 課題 1）
+// 機能実装フェーズ（issue #108 対応）で green になる想定。
+// ItemSlidePanel への isUploading / isDeleting props 追加が必要。
+// =============================================================================
+
+describe('ItemSlidePanel 並行操作整合性（ATT-FE-057〜058, issue #108）', () => {
+  // ATT-FE-057: isPending || isUploading || isDeleting の OR 合成で保存ボタンが disabled になる。
+  // 機能実装フェーズで green になる想定（isUploading / isDeleting prop が未実装のため FAIL）。
+  it('ATT-FE-057: disables_save_button_when_upload_or_delete_in_progress', async () => {
+    const wrapper = createWrapper();
+
+    // (a) isUploading=true のとき保存ボタンが disabled。
+    const { rerender } = render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        isPending={false}
+        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義（実装後に型追加される）
+        isUploading={true}
+        isDeleting={false}
+      />,
+      { wrapper },
+    );
+
+    // 「保存する」ボタンが disabled であること（isPending || isUploading || isDeleting）。
+    const saveButton = screen.getByRole('button', { name: /保存する/ });
+    expect(saveButton).toBeDisabled();
+
+    // (b) isPending=true のとき保存ボタンが disabled（既存動作の確認）。
+    rerender(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        isPending={true}
+        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
+        isUploading={false}
+        isDeleting={false}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /保存する/ })).toBeDisabled();
+
+    // (c) isDeleting=true のとき保存ボタンが disabled。
+    rerender(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        isPending={false}
+        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
+        isUploading={false}
+        isDeleting={true}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /保存する/ })).toBeDisabled();
+
+    // (d) 全て false のとき保存ボタンが enabled。
+    rerender(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        isPending={false}
+        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
+        isUploading={false}
+        isDeleting={false}
+      />,
+    );
+    expect(screen.getByRole('button', { name: /保存する/ })).not.toBeDisabled();
+  });
+
+  // ATT-FE-058: アップロード中でも × / キャンセルボタン / フォームフィールド編集は有効。
+  // 機能実装フェーズで green になる想定（isUploading prop が未実装のため一部 FAIL）。
+  it('ATT-FE-058: allows_close_cancel_and_field_edit_during_upload', async () => {
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+        isPending={false}
+        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
+        isUploading={true}
+        isDeleting={false}
+      />,
+      { wrapper },
+    );
+
+    // × ボタン（閉じるボタン）はクリック可能（disabled でない）。
+    const closeButton = screen.getByRole('button', { name: '閉じる' });
+    expect(closeButton).not.toBeDisabled();
+
+    // キャンセルボタンはクリック可能。
+    const cancelButton = screen.getByRole('button', { name: /キャンセル/ });
+    expect(cancelButton).not.toBeDisabled();
+
+    // 日付フィールドは編集可能（disabled でない・readOnly でない）。
+    const dateInput = screen.getByLabelText(/日付/);
+    expect(dateInput).not.toBeDisabled();
+    expect(dateInput).not.toHaveAttribute('readOnly');
+
+    // 金額フィールドは編集可能。
+    const amountInput = screen.getByLabelText(/金額/);
+    expect(amountInput).not.toBeDisabled();
+
+    // 保存ボタンのみ disabled（ATT-FE-057 の対偶確認）。
+    const saveButton = screen.getByRole('button', { name: /保存する/ });
+    expect(saveButton).toBeDisabled();
+  });
+});
+
+// =============================================================================
+// ATT-FE-064〜071: 破棄確認ダイアログテスト（issue #108 課題 2）
+// 機能実装フェーズ（issue #108 対応）で green になる想定。
+// ItemSlidePanel / ItemForm への dirty 判定・MUI Dialog 実装が必要。
+// =============================================================================
+
+describe('ItemSlidePanel 破棄確認ダイアログ（ATT-FE-064〜071, issue #108）', () => {
+  // ATT-FE-064: dirty 状態で × ボタン押下 → MUI Dialog 表示（文言完全一致検証含む）。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため FAIL）。
+  it('ATT-FE-064: shows_discard_dialog_on_close_button_when_dirty', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // 金額フィールドを変更して dirty にする。
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.clear(amountInput);
+    await user.type(amountInput, '9999');
+
+    // × ボタンをクリックしてもパネルが即閉じず、破棄確認ダイアログが表示される。
+    const closeButton = screen.getByRole('button', { name: '閉じる' });
+    await user.click(closeButton);
+
+    // onClose は呼ばれていない（パネルは閉じていない）。
+    expect(onClose).not.toHaveBeenCalled();
+
+    // Dialog のタイトル文言一致（設計書 §6「破棄確認ダイアログの仕様」と完全一致）。
+    // 末尾は全角疑問符「？」。
+    expect(screen.getByText('変更を破棄しますか？')).toBeInTheDocument();
+
+    // Dialog の本文文言一致。
+    expect(
+      screen.getByText('編集内容は保存されていません。破棄するとこれまでの変更が失われます。'),
+    ).toBeInTheDocument();
+
+    // 「破棄」ボタンが存在し、危険スタイル（MUI color="error"）である。
+    const discardButton = screen.getByRole('button', { name: '破棄' });
+    expect(discardButton).toBeInTheDocument();
+    // MUI color="error" は MuiButton-colorError クラスで識別する。
+    expect(discardButton).toHaveClass('MuiButton-colorError');
+
+    // 「キャンセル」ボタンが存在する。
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toBeInTheDocument();
+  });
+
+  // ATT-FE-065: dirty 状態でフッターの「キャンセル」ボタン押下 → MUI Dialog 表示。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため FAIL）。
+  it('ATT-FE-065: shows_discard_dialog_on_cancel_button_when_dirty', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // 摘要フィールドを変更して dirty にする。
+    const descriptionInput = screen.getByLabelText(/摘要/);
+    await user.clear(descriptionInput);
+    await user.type(descriptionInput, '変更後の摘要テキスト');
+
+    // フッターの「キャンセル」ボタンをクリック。
+    const cancelButton = screen.getByRole('button', { name: /キャンセル/ });
+    await user.click(cancelButton);
+
+    // onClose は呼ばれていない（パネルは閉じていない）。
+    expect(onClose).not.toHaveBeenCalled();
+
+    // MUI Dialog が表示される（タイトル文言で確認）。
+    expect(screen.getByText('変更を破棄しますか？')).toBeInTheDocument();
+  });
+
+  // ATT-FE-066: dirty 状態で Drawer のオーバーレイクリック（onClose 発火）→ MUI Dialog 表示。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため FAIL）。
+  it('ATT-FE-066: shows_discard_dialog_on_overlay_click_when_dirty', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // カテゴリフィールドを変更して dirty にする（categories が空のため実際の選択は行わず、直接 dirty 状態を作る）。
+    // ここでは日付フィールドで代替する。
+    const dateInput = screen.getByLabelText(/日付/);
+    await user.clear(dateInput);
+    await user.type(dateInput, '2026-12-31');
+
+    // Drawer の Backdrop（オーバーレイ）をクリックして onClose を発火させる。
+    const backdrop = document.querySelector('.MuiBackdrop-root');
+    if (backdrop) {
+      await user.click(backdrop);
+    } else {
+      // backdrop が見つからない場合は onClose を直接呼び出してシミュレートする。
+      fireEvent.click(document.body);
+    }
+
+    // MUI Dialog が表示され、パネルは閉じていない。
+    expect(screen.getByText('変更を破棄しますか？')).toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // ATT-FE-067: 非 dirty の 3 パターン閉じ → Dialog 非表示・即閉じ。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため現状は通過する場合あり）。
+  it('ATT-FE-067: closes_immediately_when_not_dirty', async () => {
+    const user = userEvent.setup();
+    const wrapper = createWrapper();
+
+    // パターン A: × ボタンで即閉じ（非 dirty）。
+    const onCloseA = vi.fn();
+    const { unmount: unmountA } = render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onCloseA}
+      />,
+      { wrapper },
+    );
+
+    // フィールドを変更せず（非 dirty）× ボタンをクリック。
+    await user.click(screen.getByRole('button', { name: '閉じる' }));
+
+    // Dialog は表示されず、onClose が呼ばれる。
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onCloseA).toHaveBeenCalledTimes(1);
+
+    unmountA();
+
+    // パターン B: キャンセルボタンで即閉じ（非 dirty）。
+    const onCloseB = vi.fn();
+    const { unmount: unmountB } = render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onCloseB}
+      />,
+      { wrapper },
+    );
+
+    await user.click(screen.getByRole('button', { name: /キャンセル/ }));
+
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onCloseB).toHaveBeenCalledTimes(1);
+
+    unmountB();
+
+    // パターン C: Backdrop クリックで即閉じ（非 dirty）。
+    const onCloseC = vi.fn();
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onCloseC}
+      />,
+      { wrapper },
+    );
+
+    const backdrop = document.querySelector('.MuiBackdrop-root');
+    if (backdrop) {
+      await user.click(backdrop);
+    }
+
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onCloseC).toHaveBeenCalledTimes(1);
+  });
+
+  // ATT-FE-068: Dialog「破棄」→ パネル閉じ・内容破棄・保存 API 未呼出。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため FAIL）。
+  it('ATT-FE-068: discards_changes_on_dialog_discard_button', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const onItemSubmit = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+        onItemSubmit={onItemSubmit}
+      />,
+      { wrapper },
+    );
+
+    // 金額を変更して dirty にする。
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.clear(amountInput);
+    await user.type(amountInput, '5000');
+
+    // × ボタンで Dialog を表示する。
+    await user.click(screen.getByRole('button', { name: '閉じる' }));
+
+    // Dialog の「破棄」ボタンをクリック。
+    const discardButton = screen.getByRole('button', { name: '破棄' });
+    await user.click(discardButton);
+
+    // Dialog が閉じ、パネルも閉じる（onClose 呼び出し）。
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onClose).toHaveBeenCalledTimes(1);
+
+    // 保存 API は呼び出されていない。
+    expect(onItemSubmit).not.toHaveBeenCalled();
+  });
+
+  // ATT-FE-069: Dialog「キャンセル」→ パネル保持・編集内容保持。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため FAIL）。
+  it('ATT-FE-069: keeps_panel_open_on_dialog_cancel_button', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // 金額を変更して dirty にする。
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.clear(amountInput);
+    await user.type(amountInput, '7777');
+
+    // × ボタンで Dialog を表示する。
+    await user.click(screen.getByRole('button', { name: '閉じる' }));
+
+    // Dialog の「キャンセル」ボタンをクリック。
+    // Dialog 内のキャンセルは複数ある可能性があるため queryAllByRole で確認する。
+    const cancelButtons = screen.getAllByRole('button', { name: 'キャンセル' });
+    // Dialog 内のキャンセルボタン（最後のもの）をクリック。
+    await user.click(cancelButtons[cancelButtons.length - 1]);
+
+    // Dialog のみが閉じる（パネルは開いたまま）。
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    expect(onClose).not.toHaveBeenCalled();
+
+    // 編集内容が保持されている（金額フィールドに入力した値が残っている）。
+    expect(screen.getByLabelText(/金額/)).toHaveValue(7777);
+  });
+
+  // ATT-FE-070: 添付操作のみは dirty に含めない（添付は即時保存方式）。
+  // 機能実装フェーズで green になる想定（破棄確認ダイアログが未実装のため現状は通過する場合あり）。
+  // 添付の追加・削除は Form の dirty に影響しないことを検証する（issue #114 §7 冒頭と整合）。
+  it('ATT-FE-070: attachment_changes_do_not_mark_form_dirty', async () => {
+    const user = userEvent.setup();
+    const onClose = vi.fn();
+
+    // 添付操作のみでフォームフィールドを変更しない場合、dirty にならない。
+    // AttachmentArea の操作（即時保存）は Form の dirty フラグに影響しないため、
+    // × ボタン押下時に Dialog は表示されず onClose が即時呼ばれる。
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+        onClose={onClose}
+      />,
+      { wrapper },
+    );
+
+    // フォームフィールドは初期値のまま（添付操作は UI 操作なしでシミュレート不可のため省略）。
+    // 非 dirty の状態で × ボタンをクリック → Dialog なし、即閉じ。
+    await user.click(screen.getByRole('button', { name: '閉じる' }));
+
+    // Dialog は表示されない。
+    expect(screen.queryByText('変更を破棄しますか？')).not.toBeInTheDocument();
+    // onClose が呼ばれる（即閉じ）。
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  // ATT-FE-071: dirty 時の beforeunload で event.preventDefault() 発火、非 dirty で不発。
+  // 機能実装フェーズで green になる想定（beforeunload ハンドラが未実装のため FAIL）。
+  it('ATT-FE-071: prevents_default_on_beforeunload_when_dirty', async () => {
+    const user = userEvent.setup();
+    const wrapper = createWrapper();
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="edit"
+        item={mockItem}
+        {...defaultProps}
+      />,
+      { wrapper },
+    );
+
+    // 非 dirty の状態で beforeunload を発火 → preventDefault は呼ばれない。
+    const nonDirtyEvent = new Event('beforeunload', { cancelable: true });
+    const preventDefaultSpy1 = vi.spyOn(nonDirtyEvent, 'preventDefault');
+    fireEvent(window, nonDirtyEvent);
+    expect(preventDefaultSpy1).not.toHaveBeenCalled();
+
+    // 金額を変更して dirty にする。
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.clear(amountInput);
+    await user.type(amountInput, '3333');
+
+    // dirty 状態で beforeunload を発火 → preventDefault が呼ばれる。
+    const dirtyEvent = new Event('beforeunload', { cancelable: true });
+    const preventDefaultSpy2 = vi.spyOn(dirtyEvent, 'preventDefault');
+    fireEvent(window, dirtyEvent);
+    expect(preventDefaultSpy2).toHaveBeenCalled();
   });
 });
