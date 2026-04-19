@@ -544,8 +544,21 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
   it('ATT-FE-080: keeps_item_created_and_shows_warning_toast_on_partial_attachment_failure', async () => {
     const user = userEvent.setup();
     const { queryClient, Wrapper } = createWrapper();
-    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
-    const onSaveSuccess = vi.fn();
+
+    // 順序検証用のログ配列。toast → onSaveSuccess → invalidate の順序を記録する。
+    const orderLog: string[] = [];
+
+    // invalidateQueries をラップして呼び出し順序を記録する。
+    const originalInvalidate = queryClient.invalidateQueries.bind(queryClient);
+    const invalidateSpy = vi.fn((...args: Parameters<typeof queryClient.invalidateQueries>) => {
+      orderLog.push('invalidate');
+      return originalInvalidate(...args);
+    });
+    queryClient.invalidateQueries = invalidateSpy;
+
+    const onSaveSuccess = vi.fn(() => {
+      orderLog.push('onSaveSuccess');
+    });
 
     // 明細 DELETE が呼ばれないことを確認するためのスパイ（DELETE 呼出は意図しない動作）。
     const deleteCalledUrls: string[] = [];
@@ -647,9 +660,13 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     await user.click(screen.getByRole('button', { name: /保存する/ }));
 
     // 明細 DELETE が呼ばれていないこと（ロールバックしない方針）。
+    // 警告トーストが表示されたら orderLog に 'toast' を記録し、表示確認も行う。
     await waitFor(() => {
-      // 処理完了を待つため警告トーストの表示を確認する（FIX 5: トースト文言の確認含む）。
-      expect(screen.getByText(/添付ファイルがアップロードに失敗しました/)).toBeInTheDocument();
+      const toast = screen.queryByText(/添付ファイルがアップロードに失敗しました/);
+      if (toast && !orderLog.includes('toast')) {
+        orderLog.push('toast');
+      }
+      expect(toast).toBeInTheDocument();
     });
     // トースト文言の完全一致確認（正規表現で N 件部分を許容）（FIX 5 対応）。
     expect(
@@ -658,9 +675,7 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
 
     expect(deleteCalledUrls.some((u) => u.includes('/api/reports/rpt-1/items/item-new') && !u.includes('/attachments'))).toBe(false);
 
-    // 順序検証（FIX 5）: 警告トーストが表示された後にパネルクローズコールバックが呼ばれること。
-    // 呼び出し順: 警告トースト表示 → onSaveSuccess（パネルクローズ相当）→ invalidate。
-    // onSaveSuccess の waitFor の時点で警告トーストが既に表示されている = 順序が保証される。
+    // onSaveSuccess と invalidate が呼ばれるまで待つ。
     await waitFor(() => {
       expect(onSaveSuccess).toHaveBeenCalledTimes(1);
     });
@@ -671,6 +686,10 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
         queryKey: expect.arrayContaining(['reports', 'detail', 'rpt-1']),
       }),
     );
+
+    // 順序検証（FIX 3）: toast → onSaveSuccess → invalidate の 3 ステップ順序を厳密に assert する。
+    // orderLog は ['toast', 'onSaveSuccess', 'invalidate'] でなければならない。
+    expect(orderLog).toEqual(['toast', 'onSaveSuccess', 'invalidate']);
   });
 
   // ATT-FE-082: 順次アップロード中のパネル閉じで AbortController 中断 + 「アップロードを中止しました」トースト。
