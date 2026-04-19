@@ -24,6 +24,7 @@ import AttachmentArea from './AttachmentArea';
 import AppToast from '../../components/ui/AppToast';
 import { api } from '../../api/client';
 import { useQueryClient } from '@tanstack/react-query';
+import { useCreateItem } from '../../hooks/useItems';
 
 export type PanelMode = 'add' | 'edit' | 'view';
 
@@ -84,16 +85,6 @@ interface AttachmentApiResponse {
   };
 }
 
-/** 明細作成 API のレスポンス型（簡略）。 */
-interface CreateItemApiResponse {
-  data: {
-    id: string;
-    report_id: string;
-    expense_date: string;
-    amount: number;
-    description: string;
-  };
-}
 
 /**
  * ItemSlidePanel は明細追加・編集・閲覧のスライドパネルコンポーネント。
@@ -141,6 +132,12 @@ function ItemSlidePanelBody({
   // main.tsx の QueryClientProvider 配下で使用することを前提とする。
   const queryClient = useQueryClient();
 
+  // 追加モードの明細作成 mutation（blocker 2 対応: api.post() 直呼びをやめて useCreateItem を使う）。
+  // isPending が保存ボタン disabled 判定に反映され、二重送信を防ぐ。
+  // エラー時は itemApiError state を通じてパネル上部に表示する。
+  const createItemMutation = useCreateItem();
+  const [itemApiError, setItemApiError] = useState<string | null>(null);
+
   // パネルモードに応じたタイトルを返す。
   const title = mode === 'add' ? '明細追加' : mode === 'edit' ? '明細編集' : '明細詳細';
 
@@ -162,9 +159,11 @@ function ItemSlidePanelBody({
   const resolvedSequentialUploadProgress = sequentialUploadProgressProp ?? sequentialUploadProgress;
 
   // 保存ボタン disabled 判定:
-  // isPending || isUploading（外部OR内部） || isDeleting（外部OR内部） || isSequentialUploading
+  // isPending || createItemMutation.isPending || isUploading（外部OR内部） || isDeleting（外部OR内部） || isSequentialUploading
+  // createItemMutation.isPending: add モードの明細作成 POST 中は disabled（blocker 2 対応）。
   const isSaveDisabled =
     isPending ||
+    createItemMutation.isPending ||
     isUploadingProp ||
     internalIsUploading ||
     isDeletingProp ||
@@ -271,13 +270,25 @@ function ItemSlidePanelBody({
 
   /**
    * 追加モードの保存処理（順次アップロード）。
-   * 1. POST items で明細作成 → itemId 取得
-   * 2. 各保留ファイルを順次 POST attachments
-   * 3. 全成功: パネルクローズ + 一覧 invalidate + 成功トースト
-   * 4. 部分失敗: 警告トースト + パネルクローズ + 一覧 invalidate
+   * blocker 1 対応: afterSubmit 引数でコールバックを切り替え、「保存する」と「保存して続けて追加」の
+   *   両経路からこの関数を共通で呼び出す。
+   * blocker 2 対応: 明細作成に useCreateItem を使い、isPending が保存ボタン disabled に効く形にする。
+   *   エラー時は itemApiError state を通じてパネル上部に表示する。
+   *
+   * 処理フロー:
+   * 1. POST items（useCreateItem.mutateAsync）で明細作成 → itemId 取得
+   * 2. 各保留ファイルを順次 POST attachments（AbortController で中断可能）
+   * 3. 全成功: 成功トースト → afterSubmit() 呼び出し（パネルクローズ or 続けて追加準備）
+   * 4. 部分失敗: 警告トースト → afterSubmit() 呼び出し
    * 5. 中断: 「アップロードを中止しました」トースト
+   *
+   * @param formData フォームの入力値
+   * @param afterSubmit 保存完了後の後続処理（パネルクローズ / フォームリセット 等）
    */
-  const handleAddModeSubmit = useCallback(async (formData: ItemFormValues) => {
+  const handleAddModeSubmit = useCallback(async (formData: ItemFormValues, afterSubmit: () => void) => {
+    // 明細作成前にエラーをリセットする。
+    setItemApiError(null);
+
     // 新しい AbortController を生成する（前のものが残っていれば中断）。
     // try の外で生成し、finally で必ず ref をリセットすることでリソース解放を一貫させる（FIX 5）。
     if (sequentialAbortControllerRef.current) {
@@ -289,25 +300,37 @@ function ItemSlidePanelBody({
     const { signal } = abortController;
 
     try {
-      // Step 1: 明細作成。
-      const createItemResponse = await api.post<CreateItemApiResponse>(
-        `/api/reports/${reportId}/items`,
-        {
+      // Step 1: 明細作成（useCreateItem を使う: blocker 2 対応）。
+      // mutateAsync は reject 時に throw するため catch ブロックで itemApiError を設定できる。
+      // useCreateItem の isPending が isSaveDisabled に反映され、二重送信を防ぐ。
+      // ※ useCreateItem は内部で api.post() を signal なしで呼ぶため、
+      //   明細作成リクエスト自体は AbortController で中断できない。
+      //   中断可能なのは添付アップロード（Step 2）のみ。
+      let newItemId: string;
+      try {
+        const createdItem = await createItemMutation.mutateAsync({
+          reportId,
           expense_date: formData.expenseDate,
           amount: formData.amount,
           category_id: formData.categoryId,
           description: formData.description,
-        },
-        signal,
-      );
+        });
+        newItemId = createdItem.id;
+      } catch (createErr) {
+        // 明細作成失敗: itemApiError にセットしてパネル上部に表示する（設計書「パネル上部エラー表示」準拠）。
+        const message =
+          createErr instanceof Error
+            ? createErr.message
+            : '明細の保存に失敗しました。もう一度お試しください。';
+        setItemApiError(message);
+        return;
+      }
 
-      const newItemId = createItemResponse.data.id;
-
-      // 保留ファイルが 0 件の場合は即パネルクローズ。
+      // 保留ファイルが 0 件の場合は即 afterSubmit 呼び出し。
       if (pendingFiles.length === 0) {
         setApiToast({ open: true, severity: 'success', message: '明細を追加しました' });
         void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
-        onSaveSuccess();
+        afterSubmit();
         return;
       }
 
@@ -356,12 +379,12 @@ function ItemSlidePanelBody({
       setIsSequentialUploading(false);
 
       if (failedCount > 0) {
-        // 部分失敗: 警告トースト → パネルクローズ → 一覧 invalidate の順序（ATT-FE-080）。
-        // 設計書 §6 「3b 部分失敗」: 警告トーストを先に表示してから onSaveSuccess と invalidate を呼ぶ。
+        // 部分失敗: 警告トースト → afterSubmit → 一覧 invalidate の順序（ATT-FE-080）。
+        // 設計書 §6 「3b 部分失敗」: 警告トーストを先に表示してから afterSubmit と invalidate を呼ぶ。
         // pendingPostToastActionRef に後続処理を登録し、useEffect（レンダリング後）で実行することで
-        // トーストが DOM に表示された後に onSaveSuccess → invalidate の順序を保証する（ATT-FE-080）。
+        // トーストが DOM に表示された後に afterSubmit → invalidate の順序を保証する（ATT-FE-080）。
         pendingPostToastActionRef.current = () => {
-          onSaveSuccess();
+          afterSubmit();
           void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
         };
         setApiToast({
@@ -370,36 +393,23 @@ function ItemSlidePanelBody({
           message: `${failedCount} 件の添付ファイルがアップロードに失敗しました。再試行してください`,
         });
       } else {
-        // 全成功: 成功トースト + パネルクローズ + 一覧 invalidate。
+        // 全成功: 成功トースト + afterSubmit + 一覧 invalidate。
         setApiToast({ open: true, severity: 'success', message: '明細を追加しました' });
         void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
-        onSaveSuccess();
+        afterSubmit();
       }
-    } catch (err) {
-      // AbortError: 中断処理。
-      if (err instanceof Error && err.name === 'AbortError') {
-        setAbortToast({ open: true, message: 'アップロードを中止しました' });
-        setIsSequentialUploading(false);
-        return;
-      }
-      // その他のエラー（明細作成失敗など）。
-      setIsSequentialUploading(false);
-      setApiToast({
-        open: true,
-        severity: 'error',
-        message: '明細の保存に失敗しました。もう一度お試しください。',
-      });
     } finally {
-      // AbortError・成功・その他エラーのいずれの経路でも ref をリセットしてリソースを解放する（FIX 5）。
+      // 成功・中断・その他エラーのいずれの経路でも ref をリセットしてリソースを解放する（FIX 5）。
       sequentialAbortControllerRef.current = null;
     }
-  }, [reportId, pendingFiles, queryClient, onSaveSuccess]);
+  }, [reportId, pendingFiles, queryClient, createItemMutation]);
 
   // フォーム送信ハンドラ。
   const handleSubmit = (data: ItemFormValues) => {
     if (mode === 'add') {
       // 追加モード: 順次アップロード付きの保存処理を実行する。
-      void handleAddModeSubmit(data);
+      // afterSubmit: パネルクローズ（onSaveSuccess）
+      void handleAddModeSubmit(data, onSaveSuccess);
     } else if (onItemSubmit) {
       onItemSubmit(data);
     } else {
@@ -407,15 +417,22 @@ function ItemSlidePanelBody({
     }
   };
 
-  // 「保存して続けて追加」ハンドラ。
+  // 「保存して続けて追加」ハンドラ（blocker 1 対応）。
+  // add モードでは handleAddModeSubmit を通すことで pendingFiles の順次アップロードが確実に実行される。
+  // afterSubmit: フォームリセット + 続けて追加準備（onSaveAndContinueProp）
+  // edit モードでは従来どおり onItemSaveAndContinue / onSaveAndContinueProp に委譲する。
   const handleSaveAndContinue =
     mode === 'add'
       ? (data: ItemFormValues) => {
-          if (onItemSaveAndContinue) {
-            onItemSaveAndContinue(data);
-          } else {
-            onSaveAndContinueProp();
-          }
+          void handleAddModeSubmit(data, () => {
+            // 「保存して続けて追加」の後続処理: フォームリセット + 次の明細入力準備。
+            // onItemSaveAndContinue が指定されている場合はそちらを呼ぶ（テスト用 override）。
+            if (onItemSaveAndContinue) {
+              onItemSaveAndContinue(data);
+            } else {
+              onSaveAndContinueProp();
+            }
+          });
         }
       : undefined;
 
@@ -523,10 +540,10 @@ function ItemSlidePanelBody({
           onSaveAndContinue={handleSaveAndContinue}
           onCancel={handleCloseAttempt}
           categories={categories}
-          apiError={apiError}
+          apiError={itemApiError ?? apiError}
           isPending={isPending}
           isSaveDisabled={isSaveDisabled}
-          isSaveButtonLoading={resolvedIsSequentialUploading || isPending}
+          isSaveButtonLoading={resolvedIsSequentialUploading || isPending || createItemMutation.isPending}
           saveButtonLabel={sequentialProgressLabel || undefined}
           defaultValues={defaultValues}
           onDirtyChange={setIsFormDirty}

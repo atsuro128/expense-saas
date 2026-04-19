@@ -731,9 +731,17 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
       }),
     );
 
-    // 順序検証（FIX 3）: toast → onSaveSuccess → invalidate の 3 ステップ順序を厳密に assert する。
-    // orderLog は ['toast', 'onSaveSuccess', 'invalidate'] でなければならない。
-    expect(orderLog).toEqual(['toast', 'onSaveSuccess', 'invalidate']);
+    // 順序検証（FIX 3 + blocker 2 対応）:
+    // blocker 2 対応で useCreateItem を使用するため、明細作成成功時に useCreateItem.onSuccess が
+    // invalidateQueries を呼ぶ。そのため orderLog の最初に 'invalidate' が追加される。
+    // 期待順序: ['invalidate'（item 作成成功時）, 'toast', 'onSaveSuccess', 'invalidate'（添付完了時）]
+    // 「toast → onSaveSuccess」の相対順序は引き続き保証されていることを確認する。
+    const toastIndex = orderLog.indexOf('toast');
+    const saveSuccessIndex = orderLog.indexOf('onSaveSuccess');
+    const lastInvalidateIndex = orderLog.lastIndexOf('invalidate');
+    expect(toastIndex).toBeGreaterThanOrEqual(0);
+    expect(saveSuccessIndex).toBeGreaterThan(toastIndex);
+    expect(lastInvalidateIndex).toBeGreaterThan(saveSuccessIndex);
   });
 
   // ATT-FE-082: 順次アップロード中のパネル閉じで AbortController 中断 + 「アップロードを中止しました」トースト。
