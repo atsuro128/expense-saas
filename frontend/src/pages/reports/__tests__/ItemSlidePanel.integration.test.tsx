@@ -372,6 +372,9 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
   // FAIL 原因（機能未実装）: 追加モードで保存時に POST items + 順次 POST attachments が実行されない。
   // 機能実装後: 保存ボタン押下 → POST items (201) → itemId 取得 → 各添付を順次 POST (201) →
   //            全成功でパネルクローズ・明細一覧 invalidate。
+  // 順次性検証（偽 PASS 対策）: 1件目の添付 POST レスポンスを意図的に遅延させ、
+  // 遅延中に 2件目の POST が未発火であることを assert することで
+  // 並列実装での偽 PASS を防ぐ（FIX 4 対応）。
   it('ATT-FE-079: saves_item_then_sequentially_uploads_pending_attachments_on_save', async () => {
     const user = userEvent.setup();
     const { queryClient, Wrapper } = createWrapper();
@@ -381,16 +384,18 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     // 呼び出し順序を記録するための配列。
     const fetchCallOrder: string[] = [];
 
-    // 添付一覧取得（追加モードでは itemId=null のため呼ばれない見込みだが安全に準備）。
+    // 1件目の添付アップロードを意図的に遅延させて順次性を検証する（偽 PASS 対策）。
+    const attachment1ResolveRef = { resolve: (_v: Response) => {} };
+
     // POST items (201): 明細作成 → itemId="item-new"。
-    // POST attachments/jpeg: 1 件目の添付アップロード (201)。
+    // POST attachments/jpeg: 1 件目の添付アップロード（遅延）。
     // POST attachments/pdf: 2 件目の添付アップロード (201)。
-    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+    globalThis.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
       const method = (opts?.method ?? 'GET').toUpperCase();
       if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
-        // 明細作成 API。
+        // 明細作成 API: 即時 201。
         fetchCallOrder.push('POST:items');
-        return {
+        return Promise.resolve({
           ok: true,
           status: 201,
           headers: { get: () => null },
@@ -407,18 +412,25 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
               updated_at: '2026-04-19T00:00:00Z',
             },
           }),
-        } as unknown as Response;
+        } as unknown as Response);
       }
       if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items/item-new/attachments')) {
-        // 添付アップロード API（順次実行）。
+        const postCount = fetchCallOrder.filter((c) => c === 'POST:attachments').length;
         fetchCallOrder.push('POST:attachments');
-        return {
+        if (postCount === 0) {
+          // 1件目の添付 POST: 遅延させて順次性を検証する（偽 PASS 対策）。
+          return new Promise<Response>((resolve) => {
+            attachment1ResolveRef.resolve = resolve;
+          });
+        }
+        // 2件目以降は即時 201。
+        return Promise.resolve({
           ok: true,
           status: 201,
           headers: { get: () => null },
           json: async () => ({
             data: {
-              id: `att-${fetchCallOrder.filter((c) => c === 'POST:attachments').length}`,
+              id: `att-${postCount + 1}`,
               item_id: 'item-new',
               file_name: 'file.jpg',
               file_size: 1024,
@@ -426,15 +438,15 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
               created_at: '2026-04-19T00:00:00Z',
             },
           }),
-        } as unknown as Response;
+        } as unknown as Response);
       }
       // その他（GET 一覧取得など）は空配列で返す。
-      return {
+      return Promise.resolve({
         ok: true,
         status: 200,
         headers: { get: () => null },
         json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
-      } as unknown as Response;
+      } as unknown as Response);
     });
 
     render(
@@ -475,11 +487,35 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     const saveButton = screen.getByRole('button', { name: /保存する/ });
     await user.click(saveButton);
 
-    // 呼び出し順序の検証:
+    // 呼び出し順序の検証（偽 PASS 対策含む）:
     // (1) 明細作成 POST が先行すること。
-    // (2) 添付アップロード POST が 2 件分順次実行されること（並列ではない）。
+    // (2) 1件目の添付 POST が発火した時点で、2件目はまだ発火していないこと（順次性の強化検証）。
     await waitFor(() => {
       expect(fetchCallOrder[0]).toBe('POST:items');
+      expect(fetchCallOrder.filter((c) => c === 'POST:attachments')).toHaveLength(1);
+    });
+    // 1件目レスポンス受信前は 2件目が発火していないこと（並列実装での偽 PASS を防ぐ）。
+    expect(fetchCallOrder.filter((c) => c === 'POST:attachments')).toHaveLength(1);
+
+    // 1件目の遅延レスポンスを解決する。
+    attachment1ResolveRef.resolve({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-1',
+          item_id: 'item-new',
+          file_name: 'receipt.jpg',
+          file_size: 1024,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-19T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
+
+    // 1件目完了後に 2件目が発火し、全成功後パネルクローズすること。
+    await waitFor(() => {
       expect(fetchCallOrder.filter((c) => c === 'POST:attachments')).toHaveLength(2);
     });
 
@@ -612,13 +648,19 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
 
     // 明細 DELETE が呼ばれていないこと（ロールバックしない方針）。
     await waitFor(() => {
-      // 処理完了を待つため警告トーストの表示を確認する。
+      // 処理完了を待つため警告トーストの表示を確認する（FIX 5: トースト文言の確認含む）。
       expect(screen.getByText(/添付ファイルがアップロードに失敗しました/)).toBeInTheDocument();
     });
+    // トースト文言の完全一致確認（正規表現で N 件部分を許容）（FIX 5 対応）。
+    expect(
+      screen.getByText(/\d+\s*件の添付ファイルがアップロードに失敗しました。再試行してください/),
+    ).toBeInTheDocument();
+
     expect(deleteCalledUrls.some((u) => u.includes('/api/reports/rpt-1/items/item-new') && !u.includes('/attachments'))).toBe(false);
 
-    // 警告トーストが表示された後にパネルクローズコールバックが呼ばれること。
-    // 呼び出し順: 警告トースト表示 → onSaveSuccess（パネルクローズ相当）。
+    // 順序検証（FIX 5）: 警告トーストが表示された後にパネルクローズコールバックが呼ばれること。
+    // 呼び出し順: 警告トースト表示 → onSaveSuccess（パネルクローズ相当）→ invalidate。
+    // onSaveSuccess の waitFor の時点で警告トーストが既に表示されている = 順序が保証される。
     await waitFor(() => {
       expect(onSaveSuccess).toHaveBeenCalledTimes(1);
     });
@@ -632,120 +674,159 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
   });
 
   // ATT-FE-082: 順次アップロード中のパネル閉じで AbortController 中断 + 「アップロードを中止しました」トースト。
-  // 3 パターン検証: (a) × ボタン / (b) キャンセルボタン / (c) 外クリック。
+  // 3 パターン検証（FIX 6）: (a) × ボタン / (b) キャンセルボタン / (c) 明細外クリック（Drawer onClose）。
+  // 各パターンで AbortController 中断・警告トースト・明細 DELETE 未呼出を検証する。
   // FAIL 原因（機能未実装）: 追加モードの順次アップロード中断機能が未実装。
   // 機能実装後: 順次アップロード中にパネルを閉じると AbortController で中断され警告トーストが表示される。
   it('ATT-FE-082: aborts_sequential_upload_and_shows_warning_toast_on_panel_close_during_upload', async () => {
-    const user = userEvent.setup();
-    const { Wrapper } = createWrapper();
-    const onClose = vi.fn();
+    // (a)(b)(c) の 3 パターンをループで検証する（FIX 6）。
+    const closePatterns: Array<{
+      label: string;
+      triggerClose: (u: ReturnType<typeof userEvent.setup>) => Promise<void>;
+    }> = [
+      {
+        label: '(a) × ボタン',
+        triggerClose: async (u) => {
+          // ヘッダー右の × ボタン（aria-label="閉じる"）を押す。
+          const closeBtn = screen.getByRole('button', { name: '閉じる' });
+          await u.click(closeBtn);
+        },
+      },
+      {
+        label: '(b) キャンセルボタン',
+        triggerClose: async (u) => {
+          // ItemForm 内の「キャンセル」ボタン（onCancel → handleCloseAttempt）を押す。
+          const cancelBtn = screen.getByRole('button', { name: 'キャンセル' });
+          await u.click(cancelBtn);
+        },
+      },
+      {
+        label: '(c) 明細外クリック（Drawer onClose）',
+        triggerClose: async (u) => {
+          // MUI Drawer の backdrop をクリックして Drawer の onClose を発火する。
+          const backdrop = document.querySelector('.MuiBackdrop-root');
+          if (backdrop) {
+            await u.click(backdrop);
+          }
+        },
+      },
+    ];
 
-    // 明細作成 (201) は即時完了。
-    // 1 件目の添付 POST はレスポンス遅延（AbortController でキャンセル可能）。
-    const attachUploadResolveRef = { resolve: (_v: Response) => {} };
+    for (const pattern of closePatterns) {
+      const user = userEvent.setup();
+      const { Wrapper } = createWrapper();
+      const onClose = vi.fn();
 
-    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
-      const method = (opts?.method ?? 'GET').toUpperCase();
-      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
-        // 明細作成は即時完了。
-        return {
+      // 明細作成 (201) は即時完了。
+      // 添付 POST はレスポンス遅延（AbortController でキャンセル可能）。
+      const attachUploadResolveRef = { resolve: (_v: Response) => {} };
+
+      globalThis.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+        const method = (opts?.method ?? 'GET').toUpperCase();
+        if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
+          // 明細作成は即時完了。
+          return Promise.resolve({
+            ok: true,
+            status: 201,
+            headers: { get: () => null },
+            json: async () => ({
+              data: {
+                id: 'item-new',
+                report_id: 'rpt-1',
+                expense_date: '2026-04-19',
+                amount: 1500,
+                category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+                description: 'テスト明細',
+                attachments: [],
+                created_at: '2026-04-19T00:00:00Z',
+                updated_at: '2026-04-19T00:00:00Z',
+              },
+            }),
+          } as unknown as Response);
+        }
+        if (method === 'POST' && (url as string).includes('/attachments')) {
+          // 添付 POST は AbortController に対応した遅延フェッチ。
+          return makeAbortablePendingFetch(attachUploadResolveRef)(url, opts);
+        }
+        // GET 等はデフォルト空レスポンス。
+        return Promise.resolve({
           ok: true,
-          status: 201,
+          status: 200,
           headers: { get: () => null },
-          json: async () => ({
-            data: {
-              id: 'item-new',
-              report_id: 'rpt-1',
-              expense_date: '2026-04-19',
-              amount: 1500,
-              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
-              description: 'テスト明細',
-              attachments: [],
-              created_at: '2026-04-19T00:00:00Z',
-              updated_at: '2026-04-19T00:00:00Z',
-            },
-          }),
-        } as unknown as Response;
-      }
-      if (method === 'POST' && (url as string).includes('/attachments')) {
-        // 添付 POST は AbortController に対応した遅延フェッチ。
-        return makeAbortablePendingFetch(attachUploadResolveRef)(url, opts);
-      }
-      // GET 等はデフォルト空レスポンス。
-      return {
-        ok: true,
-        status: 200,
+          json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+        } as unknown as Response);
+      });
+
+      const { unmount } = render(
+        <ItemSlidePanel
+          open={true}
+          mode="add"
+          item={null}
+          reportId="rpt-1"
+          reportStatus="draft"
+          isOwner={true}
+          onClose={onClose}
+          onSaveSuccess={() => undefined}
+          onSaveAndContinue={() => undefined}
+          categories={[{ value: 'cat-001', label: '交通費' }]}
+        />,
+        { wrapper: Wrapper },
+      );
+
+      // 追加モードで AttachmentArea が描画されること（FAIL 前提）。
+      await waitFor(() => {
+        expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+      });
+
+      // 添付ファイル 1 件をローカル保留する。
+      const fileInput = screen.getByTestId('attachment-file-input');
+      const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+      await user.upload(fileInput, jpegFile);
+
+      // フォームを入力する。
+      await user.type(screen.getByLabelText(/日付/), '2026-04-19');
+      await user.type(screen.getByLabelText(/金額/), '1500');
+      await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
+
+      // 保存ボタンをクリックする（明細作成 POST 後、添付 POST が開始される）。
+      await user.click(screen.getByRole('button', { name: /保存する/ }));
+
+      // 順次アップロード中（明細作成完了 + 添付 POST 進行中）を確認する。
+      // 「アップロード中...」の表示で確認する（FAIL 前提: 進捗表示未実装）。
+      await waitFor(() => {
+        expect(screen.getByText(/アップロード中/)).toBeInTheDocument();
+      });
+
+      // パターン別のクローズ操作を実行する（順次アップロード中断をトリガー）。
+      await pattern.triggerClose(user);
+
+      // AbortController で進行中の添付 POST が中断される。
+      // 「アップロードを中止しました」相当の警告トーストが表示されること（FAIL 前提）。
+      await waitFor(() => {
+        expect(screen.getByText(/アップロードを中止しました/)).toBeInTheDocument();
+      });
+
+      // 作成済み明細はロールバックされないこと（DELETE API は呼ばれない）。
+      const deleteCalledOnItems = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
+        ([url, opts]) =>
+          typeof url === 'string' &&
+          (url as string).includes('/api/reports/rpt-1/items/item-new') &&
+          !((url as string).includes('/attachments')) &&
+          (opts?.method ?? 'GET') === 'DELETE',
+      );
+      expect(deleteCalledOnItems).toBe(false);
+
+      // cleanup。
+      attachUploadResolveRef.resolve({
+        ok: false,
+        status: 0,
         headers: { get: () => null },
-        json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
-      } as unknown as Response;
-    });
+        json: async () => ({}),
+      } as unknown as Response);
 
-    render(
-      <ItemSlidePanel
-        open={true}
-        mode="add"
-        item={null}
-        reportId="rpt-1"
-        reportStatus="draft"
-        isOwner={true}
-        onClose={onClose}
-        onSaveSuccess={() => undefined}
-        onSaveAndContinue={() => undefined}
-        categories={[{ value: 'cat-001', label: '交通費' }]}
-      />,
-      { wrapper: Wrapper },
-    );
-
-    // 追加モードで AttachmentArea が描画されること（FAIL 前提）。
-    await waitFor(() => {
-      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
-    });
-
-    // 添付ファイル 1 件をローカル保留する。
-    const fileInput = screen.getByTestId('attachment-file-input');
-    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
-    await user.upload(fileInput, jpegFile);
-
-    // フォームを入力する。
-    await user.type(screen.getByLabelText(/日付/), '2026-04-19');
-    await user.type(screen.getByLabelText(/金額/), '1500');
-    await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
-
-    // 保存ボタンをクリックする（明細作成 POST 後、添付 POST が開始される）。
-    await user.click(screen.getByRole('button', { name: /保存する/ }));
-
-    // 順次アップロード中（明細作成完了 + 添付 POST 進行中）を確認する。
-    // 「アップロード中...」の表示で確認する（FAIL 前提: 進捗表示未実装）。
-    await waitFor(() => {
-      expect(screen.getByText(/アップロード中/)).toBeInTheDocument();
-    });
-
-    // (a) × ボタンでパネルを閉じる（順次アップロード中断をトリガー）。
-    const closeButton = screen.getByRole('button', { name: '閉じる' });
-    await user.click(closeButton);
-
-    // AbortController で進行中の添付 POST が中断される。
-    // 「アップロードを中止しました」相当の警告トーストが表示されること（FAIL 前提）。
-    await waitFor(() => {
-      expect(screen.getByText(/アップロードを中止しました/)).toBeInTheDocument();
-    });
-
-    // 作成済み明細はロールバックされないこと（DELETE API は呼ばれない）。
-    const deleteCalledOnItems = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.some(
-      ([url, opts]) =>
-        typeof url === 'string' &&
-        (url as string).includes('/api/reports/rpt-1/items/item-new') &&
-        !((url as string).includes('/attachments')) &&
-        (opts?.method ?? 'GET') === 'DELETE',
-    );
-    expect(deleteCalledOnItems).toBe(false);
-
-    // cleanup。
-    attachUploadResolveRef.resolve({
-      ok: false,
-      status: 0,
-      headers: { get: () => null },
-      json: async () => ({}),
-    } as unknown as Response);
+      unmount();
+      vi.restoreAllMocks();
+      globalThis.fetch = originalFetch;
+    }
   });
 });

@@ -9,6 +9,7 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type ComponentType } from 'react';
 import AttachmentUploader from '../AttachmentUploader';
 
 // テスト用ファイルオブジェクト生成ヘルパー。
@@ -568,6 +569,56 @@ describe('AttachmentUploader', () => {
     // ボタン（attachment-upload-button）が 1 つだけ存在すること。
     const buttons = screen.getAllByTestId('attachment-upload-button');
     expect(buttons).toHaveLength(1);
+  });
+
+  // ATT-FE-078: mode='edit' で即時アップロード挙動が不変であることを保証する（issue #115）。
+  // 編集モードとの分岐が AttachmentUploader に波及しないことを確認する。
+  // mode='edit' で JPEG を選択すると useUploadAttachment.mutate が即時呼ばれ、ローカル state に保留されない。
+  // mode prop は機能実装後に AttachmentUploader に追加予定のため @ts-expect-error を付与する。
+  // 機能実装で mode prop 型が追加されたら @ts-expect-error を外すこと。
+  it('ATT-FE-078: keeps_edit_mode_behavior_unchanged_immediate_upload', async () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'receipt.jpg',
+          file_size: 1024,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
+
+    // mode prop は機能実装後に AttachmentUploader に追加予定。現時点では型定義が存在しない。
+    // ComponentType<any> にキャストして mode prop を渡す（機能実装で mode 型が追加されたらキャストを外すこと）。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AttachmentUploaderWithMode = AttachmentUploader as ComponentType<any>;
+    renderWithQueryClient(
+      <AttachmentUploaderWithMode
+        reportId="rpt-1"
+        itemId="item-1"
+        mode="edit"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // 編集モードでもファイル選択時点で即時アップロードが行われること（ローカル state に保留されない）。
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+    // onUploadSuccess が呼ばれること（即時アップロード完了）。
+    await waitFor(() => {
+      expect(onUploadSuccess).toHaveBeenCalledTimes(1);
+    });
   });
 
   // ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる（視覚フィードバック確認）。

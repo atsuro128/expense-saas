@@ -10,7 +10,7 @@
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type ReactNode } from 'react';
+import { type ReactNode, type ComponentType } from 'react';
 import { vi, beforeEach, afterEach } from 'vitest';
 import AttachmentArea from '../AttachmentArea';
 
@@ -296,6 +296,55 @@ describe('AttachmentArea', () => {
     // 削除 API は呼ばれていないこと（fetch 呼び出し数が増えていない）
     const fetchCallCountAfterCancel = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
     expect(fetchCallCountAfterCancel).toBe(fetchCallCountBeforeDelete);
+  });
+
+  // ATT-FE-076: モード別の案内文が正しく表示される（issue #115）。
+  // (a) mode='add' のとき追加モード案内文、(b) mode='edit' のとき編集モード案内文を検証する。
+  // mode prop は機能実装後に追加予定のため、現時点では機能未実装として FAIL する。
+  it('ATT-FE-076: shows_mode_specific_guidance_text', () => {
+    // (a) 追加モード: 保存時一括アップロード案内文が表示される。
+    // mode prop は機能実装後に AttachmentArea に追加予定。現時点では型定義が存在しない。
+    // 型を回避するために unknown 経由でキャストして渡す。
+    // 機能実装で mode prop 型が追加されたらキャストを外すこと。
+    const WrapperAdd = createWrapper();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AttachmentAreaWithMode = AttachmentArea as ComponentType<any>;
+    const { unmount: unmountAdd } = render(
+      <WrapperAdd>
+        <AttachmentAreaWithMode
+          reportId="rpt-1"
+          itemId={null}
+          canModify={true}
+          mode="add"
+        />
+      </WrapperAdd>,
+    );
+    // 追加モードの案内文が表示されること（機能実装後に PASS）。
+    expect(
+      screen.getByText(
+        '※ 添付ファイルは『保存する』ボタン押下後にまとめてアップロードされます。',
+      ),
+    ).toBeInTheDocument();
+    unmountAdd();
+
+    // (b) 編集モード: 即時保存案内文が表示される。
+    const WrapperEdit = createWrapper();
+    render(
+      <WrapperEdit>
+        <AttachmentAreaWithMode
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+          mode="edit"
+        />
+      </WrapperEdit>,
+    );
+    // 編集モードの案内文が表示されること（機能実装後に PASS）。
+    expect(
+      screen.getByText(
+        '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。',
+      ),
+    ).toBeInTheDocument();
   });
 
   // ATT-FE-056: 確認ダイアログの「削除する」押下で削除 API が呼ばれる（issue-103 修正）。
