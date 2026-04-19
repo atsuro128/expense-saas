@@ -1,8 +1,9 @@
 // AttachmentUploader コンポーネント。
 // ファイルアップロード UI を提供する（ファイル選択・バリデーション・アップロード）。
 // report-detail.md §AttachmentUploader に対応する。
+// ATT-FE-059/060: AbortController によるアップロード中断対応（issue #108）。
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import { styled } from '@mui/material/styles';
@@ -18,6 +19,12 @@ export interface AttachmentUploaderProps {
   onUploadSuccess: () => void;
   /** アップロードエラー時のコールバック（省略時は console.error のみ） */
   onUploadError?: (message: string) => void;
+  /** アップロードが中断されたときのコールバック（AbortError 発生時） */
+  onUploadAborted?: () => void;
+  /** アップロード中状態の変化を親に通知するコールバック */
+  onUploadingChange?: (isUploading: boolean) => void;
+  /** アップロードキャンセル関数を外部に公開するための ref（パネルクローズ時に ItemSlidePanel から呼ぶ） */
+  cancelRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 // 許可された MIME タイプ（files.md §3）。
@@ -61,20 +68,38 @@ function validateFile(file: File): string | null {
  * ファイル形式（JPEG, PNG, PDF）とサイズ（5MB）のクライアントサイドバリデーションを行う。
  * バリデーション通過後に useUploadAttachment Hook を通じて API を呼び出してファイルをアップロードする。
  * ドラッグ&ドロップにも対応し、dragover 時に視覚的フィードバックを提供する。
+ * パネルクローズ時に AbortController でアップロードを中断し、onUploadAborted を通知する（issue #108）。
  */
 export default function AttachmentUploader({
   reportId,
   itemId,
   onUploadSuccess,
   onUploadError,
+  onUploadAborted,
+  onUploadingChange,
+  cancelRef,
 }: AttachmentUploaderProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
   // ドラッグ中の視覚フィードバック用フラグ。
   const [isDragOver, setIsDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // useUploadAttachment Hook からミューテーション関数とアップロード中フラグを取得する。
-  const { mutate, isPending } = useUploadAttachment();
+  // useUploadAttachment Hook からミューテーション関数・アップロード中フラグ・キャンセル関数を取得する。
+  // onUploadAborted を渡すことで、unmount 時（明細切替）の中断を Hook レベルで直接通知する（issue #108 §7-2）。
+  const { mutate, isPending, cancel } = useUploadAttachment({ onAborted: onUploadAborted });
+
+  // cancelRef にキャンセル関数を登録して、外部（ItemSlidePanel）からパネルクローズ時に呼べるようにする。
+  useEffect(() => {
+    if (cancelRef) {
+      cancelRef.current = cancel;
+    }
+    return () => {
+      if (cancelRef) {
+        cancelRef.current = null;
+      }
+    };
+  });
+
 
   // ファイルを選択してアップロードを開始する。
   const handleFile = (file: File) => {
@@ -84,13 +109,24 @@ export default function AttachmentUploader({
       return;
     }
     setValidationError(null);
+    // アップロード開始を親に通知する。
+    onUploadingChange?.(true);
     // バリデーション通過後に Hook 経由でアップロード API を呼び出す。
     mutate(
       { reportId, itemId, file },
       {
-        onSuccess: () => onUploadSuccess(),
+        onSuccess: () => {
+          onUploadingChange?.(false);
+          onUploadSuccess();
+        },
         onError: (err) => {
-          // エラーをログに記録し、コールバックで親コンポーネントに通知する。
+          onUploadingChange?.(false);
+          // AbortError（アップロード中断）を識別して専用コールバックを呼ぶ。
+          if (err instanceof Error && err.name === 'AbortError') {
+            onUploadAborted?.();
+            return;
+          }
+          // AbortError 以外のエラーをログに記録し、コールバックで親コンポーネントに通知する。
           console.error('ファイルのアップロードに失敗しました:', err);
           const message = 'ファイルのアップロードに失敗しました。もう一度お試しください。';
           if (onUploadError) {
