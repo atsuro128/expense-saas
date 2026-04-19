@@ -3,8 +3,10 @@
 // AttachmentList と AttachmentUploader を統合する orchestration コンポーネント。
 // プレビュー・ダウンロードの window.open 呼び出しは AttachmentList 内の AttachmentItemRow が担当する。
 // report-detail.md §AttachmentArea に対応する。
+// ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import type { MutableRefObject } from 'react';
 import Typography from '@mui/material/Typography';
 import AttachmentList from './AttachmentList';
 import AttachmentUploader from './AttachmentUploader';
@@ -25,20 +27,53 @@ export interface AttachmentAreaProps {
   itemId: string | null;
   /** アップロード・削除操作が可能か（所有者 AND status === 'draft'） */
   canModify: boolean;
+  /** アップロード中状態が変化したときのコールバック（保存ボタン制御に使用） */
+  onUploadingChange?: (isUploading: boolean) => void;
+  /** 削除中状態が変化したときのコールバック（保存ボタン制御に使用） */
+  onDeletingChange?: (isDeleting: boolean) => void;
+  /** アップロードキャンセル関数を外部に公開するための ref（ItemSlidePanel のクローズ操作から呼ぶ） */
+  uploadCancelRef?: MutableRefObject<(() => void) | null>;
+  /** 削除キャンセル関数を外部に公開するための ref（ItemSlidePanel のクローズ操作から呼ぶ） */
+  deleteCancelRef?: MutableRefObject<(() => void) | null>;
+  /**
+   * アップロードが中断されたときのコールバック。
+   * ItemSlidePanel レベルでトーストを表示するために使用する。
+   * このコールバックは AttachmentAreaContent がアンマウント後に呼ばれる場合でも
+   * ItemSlidePanel（呼び出し元）は常にマウント済みのため確実に動作する（issue #108 §7-2）。
+   */
+  onUploadAborted?: () => void;
+  /**
+   * 削除が中断されたときのコールバック。
+   * ItemSlidePanel レベルでトーストを表示するために使用する（issue #108 §7-2）。
+   */
+  onDeleteAborted?: () => void;
 }
 
 /**
  * AttachmentAreaContent は itemId が確定した後の実際のコンテンツを描画する内部コンポーネント。
  * フックのルール（条件分岐前に全フックを呼ぶ）を遵守するため分離している。
+ * key={itemId} により、itemId が変わるたびに再マウントされて進行中の mutation が中断される（issue #108）。
  */
 function AttachmentAreaContent({
   reportId,
   itemId,
   canModify,
+  onUploadingChange,
+  onDeletingChange,
+  uploadCancelRef,
+  deleteCancelRef,
+  onUploadAborted,
+  onDeleteAborted,
 }: {
   reportId: string;
   itemId: string;
   canModify: boolean;
+  onUploadingChange?: (isUploading: boolean) => void;
+  onDeletingChange?: (isDeleting: boolean) => void;
+  uploadCancelRef?: MutableRefObject<(() => void) | null>;
+  deleteCancelRef?: MutableRefObject<(() => void) | null>;
+  onUploadAborted?: () => void;
+  onDeleteAborted?: () => void;
 }) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // 確認ダイアログ用の状態: 削除対象の添付ファイル ID を保持する（null のとき非表示）。
@@ -53,6 +88,23 @@ function AttachmentAreaContent({
   const { data: attachmentsData } = useAttachments({ reportId, itemId });
   const deleteAttachment = useDeleteAttachment();
 
+  // 削除キャンセル関数を外部に公開する（deleteCancelRef 経由で ItemSlidePanel が呼ぶ）。
+  useEffect(() => {
+    if (deleteCancelRef) {
+      deleteCancelRef.current = deleteAttachment.cancel;
+    }
+    return () => {
+      if (deleteCancelRef) {
+        deleteCancelRef.current = null;
+      }
+    };
+  });
+
+  // AttachmentUploader に渡すアップロードキャンセル ref（内部用フォールバック）。
+  // uploadCancelRef が外部から渡されていればそちらを使い、なければ内部 ref を使う。
+  const internalUploadCancelRef = useRef<(() => void) | null>(null);
+  const attachmentUploaderCancelRef = uploadCancelRef ?? internalUploadCancelRef;
+
   const attachments: Attachment[] = attachmentsData?.data ?? [];
 
   // トーストを表示するヘルパー。
@@ -63,6 +115,19 @@ function AttachmentAreaContent({
   // アップロード成功コールバック。キャッシュの無効化は useUploadAttachment Hook が担当する。
   const handleUploadSuccess = () => {
     showToast('success', 'ファイルをアップロードしました');
+  };
+
+  // アップロード中断コールバック。AbortError 発生時に親コンポーネントへ通知する。
+  // onUploadAborted が提供されている場合は親（ItemSlidePanel）でトーストを表示する。
+  // 提供されていない場合はローカルトーストを表示する（コンポーネント独立使用時のフォールバック）。
+  // note: AttachmentAreaContent がアンマウント後に呼ばれる場合（明細切替）でも
+  //       onUploadAborted は ItemSlidePanel のクロージャを参照するため確実に動作する（issue #108 §7-2）。
+  const handleUploadAborted = () => {
+    if (onUploadAborted) {
+      onUploadAborted();
+    } else {
+      showToast('error', 'アップロードを中止しました');
+    }
   };
 
   // 削除ボタン押下: 確認ダイアログを表示する（report-detail.md §4.6 準拠）。
@@ -76,15 +141,28 @@ function AttachmentAreaContent({
     const targetId = confirmTargetId;
     setConfirmTargetId(null);
     setDeletingId(targetId);
+    // 削除中状態を親に通知する（保存ボタン disabled 制御）。
+    onDeletingChange?.(true);
     deleteAttachment.mutate(
       { reportId, itemId, attId: targetId },
       {
         onSuccess: () => {
           setDeletingId(null);
+          onDeletingChange?.(false);
           showToast('success', '添付ファイルを削除しました');
         },
-        onError: () => {
+        onError: (err) => {
           setDeletingId(null);
+          onDeletingChange?.(false);
+          // AbortError（削除中断）を識別して専用コールバック or ローカルトーストで通知する。
+          if (err instanceof Error && err.name === 'AbortError') {
+            if (onDeleteAborted) {
+              onDeleteAborted();
+            } else {
+              showToast('error', '削除を中止しました');
+            }
+            return;
+          }
           showToast('error', '削除に失敗しました');
         },
       },
@@ -125,6 +203,9 @@ function AttachmentAreaContent({
           itemId={itemId}
           onUploadSuccess={handleUploadSuccess}
           onUploadError={(message) => showToast('error', message)}
+          onUploadAborted={handleUploadAborted}
+          onUploadingChange={onUploadingChange}
+          cancelRef={attachmentUploaderCancelRef}
         />
       )}
       <AppToast
@@ -133,17 +214,20 @@ function AttachmentAreaContent({
         message={toast.message}
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
-      {/* 添付削除の確認ダイアログ（screens.md §4.6 準拠） */}
-      <ConfirmDialog
-        open={confirmTargetId !== null}
-        title="添付ファイルの削除"
-        message="この添付ファイルを削除しますか?"
-        confirmLabel="削除する"
-        confirmColor="error"
-        cancelLabel="キャンセル"
-        onConfirm={handleConfirmDelete}
-        onCancel={handleCancelDelete}
-      />
+      {/* 添付削除の確認ダイアログ（screens.md §4.6 準拠）。
+          条件レンダリングで DOM から完全に除去し aria-modal 残留によるアクセシビリティ問題を防ぐ。 */}
+      {confirmTargetId !== null && (
+        <ConfirmDialog
+          open={true}
+          title="添付ファイルの削除"
+          message="この添付ファイルを削除しますか?"
+          confirmLabel="削除する"
+          confirmColor="error"
+          cancelLabel="キャンセル"
+          onConfirm={handleConfirmDelete}
+          onCancel={handleCancelDelete}
+        />
+      )}
     </div>
   );
 }
@@ -151,11 +235,19 @@ function AttachmentAreaContent({
 /**
  * AttachmentArea は明細スライドパネル内の添付ファイル管理領域を提供する。
  * itemId が null の場合（追加モードで未保存）は非表示にする。
+ * key={itemId} で itemId が変わるたびに AttachmentAreaContent を再マウントして
+ * 進行中の mutation が中断される（issue #108 課題 1、§7-2）。
  */
 export default function AttachmentArea({
   reportId,
   itemId,
   canModify,
+  onUploadingChange,
+  onDeletingChange,
+  uploadCancelRef,
+  deleteCancelRef,
+  onUploadAborted,
+  onDeleteAborted,
 }: AttachmentAreaProps) {
   // itemId が null の場合は何も描画しない（追加モード・未保存）。
   if (itemId === null) {
@@ -164,9 +256,16 @@ export default function AttachmentArea({
 
   return (
     <AttachmentAreaContent
+      key={itemId}
       reportId={reportId}
       itemId={itemId}
       canModify={canModify}
+      onUploadingChange={onUploadingChange}
+      onDeletingChange={onDeletingChange}
+      uploadCancelRef={uploadCancelRef}
+      deleteCancelRef={deleteCancelRef}
+      onUploadAborted={onUploadAborted}
+      onDeleteAborted={onDeleteAborted}
     />
   );
 }
