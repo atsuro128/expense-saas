@@ -2,10 +2,12 @@
 // 明細の追加・編集・閲覧をスライドパネルで提供する。
 // SCR-RPT-004 §6 に対応する。
 // ATT-FE-057〜071: 並行操作整合性・破棄確認ダイアログ（issue #108）。
+// ATT-FE-079〜083: 追加モードの順次アップロード制御（issue #115）。
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -21,6 +23,19 @@ import ItemForm from './ItemForm';
 import type { ItemFormValues } from './ItemForm';
 import AttachmentArea from './AttachmentArea';
 import AppToast from '../../components/ui/AppToast';
+import { api } from '../../api/client';
+import { QueryClientContext, QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
+import { useContext } from 'react';
+
+/**
+ * 内部フォールバック用 QueryClient。
+ * ItemSlidePanel が QueryClientProvider なしで使われる場合（テスト・スタンドアロン利用）に
+ * ItemSlidePanel のフォールバックラッパーが使用する。
+ * モジュールスコープで一度だけ生成する（singleton）。
+ */
+const _fallbackQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+});
 
 export type PanelMode = 'add' | 'edit' | 'view';
 
@@ -53,10 +68,43 @@ export interface ItemSlidePanelProps {
   isUploading?: boolean;
   /** 削除中フラグ（外部注入用: テスト・上位コンポーネントから渡す場合） */
   isDeleting?: boolean;
+  /**
+   * 順次アップロード中フラグ（外部注入用: テスト用）。
+   * issue #115 実装: 追加モードで保存時の順次アップロード中は true になる。
+   */
+  isSequentialUploading?: boolean;
+  /**
+   * 順次アップロード進捗（外部注入用: テスト用）。
+   * issue #115 実装: 保存ボタンに「アップロード中... (N/M 件完了)」を表示するために使用する。
+   */
+  sequentialUploadProgress?: { completed: number; total: number };
   /** フォーム送信コールバック */
   onItemSubmit?: (data: ItemFormValues) => void;
   /** 「保存して続けて追加」フォームコールバック */
   onItemSaveAndContinue?: (data: ItemFormValues) => void;
+}
+
+/** 添付ファイルアップロード API のレスポンス型。 */
+interface AttachmentApiResponse {
+  data: {
+    id: string;
+    item_id: string;
+    file_name: string;
+    file_size: number;
+    mime_type: string;
+    created_at: string;
+  };
+}
+
+/** 明細作成 API のレスポンス型（簡略）。 */
+interface CreateItemApiResponse {
+  data: {
+    id: string;
+    report_id: string;
+    expense_date: string;
+    amount: number;
+    description: string;
+  };
 }
 
 /**
@@ -73,8 +121,15 @@ export interface ItemSlidePanelProps {
  * - フィールドが dirty の場合、× / キャンセル / 外クリックで MUI Dialog を表示
  * - 「破棄」→ パネル閉じ・フォームリセット。「キャンセル」→ パネル保持・内容保持
  * - dirty 時のみ beforeunload イベントリスナを登録してブラウザ標準ダイアログを表示
+ *
+ * 追加モードの順次アップロード（issue #115）:
+ * - 追加モードでは保留中のファイルをローカル state（pendingFiles）で管理する
+ * - 「保存する」押下時: POST items → itemId 取得 → 各ファイルを順次 POST attachments
+ * - 順次アップロード中は保存ボタン disabled + スピナー + 「アップロード中... (N/M 件完了)」
+ * - 順次アップロード中のフォームフィールドは readonly（整合性崩れ防止）
+ * - AbortController で中断制御（パネルクローズ時）
  */
-export default function ItemSlidePanel({
+function ItemSlidePanelBody({
   open,
   mode,
   reportId,
@@ -89,9 +144,15 @@ export default function ItemSlidePanel({
   isPending = false,
   isUploading: isUploadingProp = false,
   isDeleting: isDeletingProp = false,
+  isSequentialUploading: isSequentialUploadingProp = false,
+  sequentialUploadProgress: sequentialUploadProgressProp,
   onItemSubmit,
   onItemSaveAndContinue,
 }: ItemSlidePanelProps) {
+  // ItemSlidePanelBody は必ず QueryClientProvider の配下で動作する。
+  // （親が QueryClientProvider を提供しない場合は ItemSlidePanel ラッパーが _fallbackQueryClient でラップする。）
+  const queryClient = useQueryClient();
+
   // パネルモードに応じたタイトルを返す。
   const title = mode === 'add' ? '明細追加' : mode === 'edit' ? '明細編集' : '明細詳細';
 
@@ -100,14 +161,47 @@ export default function ItemSlidePanel({
   const [internalIsUploading, setInternalIsUploading] = useState(false);
   const [internalIsDeleting, setInternalIsDeleting] = useState(false);
 
-  // 保存ボタン disabled 判定: isPending || isUploading（外部OR内部） || isDeleting（外部OR内部）
-  const isSaveDisabled = isPending || isUploadingProp || internalIsUploading || isDeletingProp || internalIsDeleting;
+  // 追加モードで保存時の順次アップロード中フラグ・進捗（issue #115）。
+  // 外部注入 prop（テスト用）との OR 合成で保存ボタン disabled と進捗テキストを制御する。
+  const [isSequentialUploading, setIsSequentialUploading] = useState(false);
+  const [sequentialUploadProgress, setSequentialUploadProgress] = useState<{ completed: number; total: number }>({
+    completed: 0,
+    total: 0,
+  });
+
+  // 外部注入と内部 state の OR 合成。
+  const resolvedIsSequentialUploading = isSequentialUploadingProp || isSequentialUploading;
+  const resolvedSequentialUploadProgress = sequentialUploadProgressProp ?? sequentialUploadProgress;
+
+  // 保存ボタン disabled 判定:
+  // isPending || isUploading（外部OR内部） || isDeleting（外部OR内部） || isSequentialUploading
+  const isSaveDisabled =
+    isPending ||
+    isUploadingProp ||
+    internalIsUploading ||
+    isDeletingProp ||
+    internalIsDeleting ||
+    resolvedIsSequentialUploading;
+
+  // 順次アップロード中の進捗テキスト（パネルヘッダー下のバナーに表示する）。
+  // 保存ボタンのラベルは常に「保存する」のままとし、ボタンの accessible name を変えない（ATT-FE-081）。
+  const sequentialProgressLabel = resolvedIsSequentialUploading
+    ? `アップロード中... (${resolvedSequentialUploadProgress.completed}/${resolvedSequentialUploadProgress.total} 件完了)`
+    : '';
 
   // 破棄確認ダイアログの表示状態。
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
 
   // フォームの dirty 状態（React Hook Form の isDirty）。
   const [isFormDirty, setIsFormDirty] = useState(false);
+
+  // 追加モード: 保留中のファイル一覧（ローカル state で管理、issue #115）。
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  // dirty 判定:
+  // - 追加モード: isFormDirty || pendingFiles.length > 0
+  // - 編集モード: isFormDirty のみ（添付は即時保存方式のため除外）
+  const isDirty = mode === 'add' ? isFormDirty || pendingFiles.length > 0 : isFormDirty;
 
   // フォームリセット関数の ref（「破棄」ボタン押下時に ItemForm の reset() を呼ぶ）。
   const formResetRef = useRef<(() => void) | null>(null);
@@ -117,12 +211,38 @@ export default function ItemSlidePanel({
   const uploadCancelRef = useRef<(() => void) | null>(null);
   const deleteCancelRef = useRef<(() => void) | null>(null);
 
+  // 順次アップロードの AbortController（パネルクローズ時に中断するため）。
+  const sequentialAbortControllerRef = useRef<AbortController | null>(null);
+
   // 中断トースト状態（アップロード/削除の中断通知をパネルレベルで表示する）。
   // AttachmentAreaContent がアンマウント後でも ItemSlidePanel は常にマウント済みのため確実に表示できる（issue #108 §7-2）。
   const [abortToast, setAbortToast] = useState<{
     open: boolean;
     message: string;
   }>({ open: false, message: '' });
+
+  // API エラートースト状態（順次アップロード部分失敗時の警告など）。
+  const [apiToast, setApiToast] = useState<{
+    open: boolean;
+    severity: 'success' | 'error' | 'warning';
+    message: string;
+  }>({ open: false, severity: 'success', message: '' });
+
+  // 部分失敗時の後続処理（onSaveSuccess + invalidateQueries）をトーストレンダリング後に実行するための ref。
+  // handleAddModeSubmit で setApiToast + この ref にセットし、useEffect でトーストレンダリング後に呼び出す。
+  // これにより ATT-FE-080 の順序保証（警告トースト表示 → onSaveSuccess → invalidate）を実現する。
+  const pendingPostToastActionRef = useRef<(() => void) | null>(null);
+
+  // apiToast が open になったとき（レンダリング後）に pendingPostToastActionRef の処理を実行する。
+  // ATT-FE-080: 部分失敗時の「警告トースト表示 → onSaveSuccess → invalidate」順序を保証する。
+  // useEffect は React のレンダリング後に呼ばれるため、toast が DOM に表示された後に後続処理が走る。
+  useEffect(() => {
+    if (apiToast.open && pendingPostToastActionRef.current) {
+      const action = pendingPostToastActionRef.current;
+      pendingPostToastActionRef.current = null;
+      action();
+    }
+  }, [apiToast]);
 
   // アップロード中断時のコールバック（AttachmentArea から呼ばれる）。
   // 明細切替時（key={itemId} による AttachmentAreaContent 再マウント）でも ItemSlidePanel のスコープでトーストを表示する。
@@ -150,9 +270,147 @@ export default function ItemSlidePanel({
   const canModify = isOwner && reportStatus === 'draft' && mode !== 'view';
   const formMode = canModify ? mode : 'view';
 
-  // フォーム送信ハンドラ。onItemSubmit が指定されていれば委譲、なければ onSaveSuccess を呼ぶ。
+  // 順次アップロード中のフォームフィールド readonly 制御（issue #115 §6「順次アップロード中の UI 表示」）。
+  // 追加モードで順次アップロード中は全フィールドを readonly にする。
+  const isFormReadOnly = resolvedIsSequentialUploading;
+
+  // 追加モード: AttachmentAreaAddMode の保留ファイル一覧が変化したときのコールバック。
+  // AttachmentArea 内部で管理される pendingFiles の最新リストをここで受け取り、
+  // dirty 判定・順次アップロード処理で使用する。
+  const handlePendingFilesChange = useCallback((files: File[]) => {
+    setPendingFiles(files);
+  }, []);
+
+  /**
+   * 追加モードの保存処理（順次アップロード）。
+   * 1. POST items で明細作成 → itemId 取得
+   * 2. 各保留ファイルを順次 POST attachments
+   * 3. 全成功: パネルクローズ + 一覧 invalidate + 成功トースト
+   * 4. 部分失敗: 警告トースト + パネルクローズ + 一覧 invalidate
+   * 5. 中断: 「アップロードを中止しました」トースト
+   */
+  const handleAddModeSubmit = useCallback(async (formData: ItemFormValues) => {
+    // 新しい AbortController を生成する（前のものが残っていれば中断）。
+    if (sequentialAbortControllerRef.current) {
+      sequentialAbortControllerRef.current.abort();
+    }
+    const abortController = new AbortController();
+    sequentialAbortControllerRef.current = abortController;
+
+    const { signal } = abortController;
+
+    try {
+      // Step 1: 明細作成。
+      const createItemResponse = await api.post<CreateItemApiResponse>(
+        `/api/reports/${reportId}/items`,
+        {
+          expense_date: formData.expenseDate,
+          amount: formData.amount,
+          category_id: formData.categoryId,
+          description: formData.description,
+        },
+        signal,
+      );
+
+      const newItemId = createItemResponse.data.id;
+
+      // 保留ファイルが 0 件の場合は即パネルクローズ。
+      if (pendingFiles.length === 0) {
+        setApiToast({ open: true, severity: 'success', message: '明細を追加しました' });
+        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+        onSaveSuccess();
+        return;
+      }
+
+      // Step 2: 各保留ファイルを順次アップロード。
+      const totalFiles = pendingFiles.length;
+      setIsSequentialUploading(true);
+      setSequentialUploadProgress({ completed: 0, total: totalFiles });
+
+      let failedCount = 0;
+
+      for (let i = 0; i < totalFiles; i++) {
+        // 中断チェック。
+        if (signal.aborted) {
+          setAbortToast({ open: true, message: 'アップロードを中止しました' });
+          setIsSequentialUploading(false);
+          return;
+        }
+
+        const file = pendingFiles[i];
+        // for ループの境界チェック（i < totalFiles）を通過しているため file は常に定義済みだが、
+        // TypeScript の array index access で undefined になる可能性があるため型ガードを追加する。
+        if (!file) continue;
+        const formDataForUpload = new FormData();
+        formDataForUpload.append('file', file);
+
+        try {
+          await api.post<AttachmentApiResponse>(
+            `/api/reports/${reportId}/items/${newItemId}/attachments`,
+            formDataForUpload,
+            signal,
+          );
+          // 1 件完了するごとに進捗を更新する。
+          setSequentialUploadProgress({ completed: i + 1, total: totalFiles });
+        } catch (err) {
+          // AbortError の場合は中断処理を行い、ループを抜ける。
+          if (err instanceof Error && err.name === 'AbortError') {
+            setAbortToast({ open: true, message: 'アップロードを中止しました' });
+            setIsSequentialUploading(false);
+            return;
+          }
+          // その他のエラーは失敗カウントを増やす（ロールバックしない）。
+          failedCount++;
+        }
+      }
+
+      setIsSequentialUploading(false);
+      sequentialAbortControllerRef.current = null;
+
+      if (failedCount > 0) {
+        // 部分失敗: 警告トースト → パネルクローズ → 一覧 invalidate の順序（ATT-FE-080）。
+        // 設計書 §6 「3b 部分失敗」: 警告トーストを先に表示してから onSaveSuccess と invalidate を呼ぶ。
+        // pendingPostToastActionRef に後続処理を登録し、useEffect（レンダリング後）で実行することで
+        // トーストが DOM に表示された後に onSaveSuccess → invalidate の順序を保証する（ATT-FE-080）。
+        pendingPostToastActionRef.current = () => {
+          onSaveSuccess();
+          void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+        };
+        setApiToast({
+          open: true,
+          severity: 'warning',
+          message: `${failedCount} 件の添付ファイルがアップロードに失敗しました。再試行してください`,
+        });
+      } else {
+        // 全成功: 成功トースト + パネルクローズ + 一覧 invalidate。
+        setApiToast({ open: true, severity: 'success', message: '明細を追加しました' });
+        void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+        onSaveSuccess();
+      }
+    } catch (err) {
+      // AbortError: 中断処理。
+      if (err instanceof Error && err.name === 'AbortError') {
+        setAbortToast({ open: true, message: 'アップロードを中止しました' });
+        setIsSequentialUploading(false);
+        return;
+      }
+      // その他のエラー（明細作成失敗など）。
+      setIsSequentialUploading(false);
+      sequentialAbortControllerRef.current = null;
+      setApiToast({
+        open: true,
+        severity: 'error',
+        message: '明細の保存に失敗しました。もう一度お試しください。',
+      });
+    }
+  }, [reportId, pendingFiles, queryClient, onSaveSuccess]);
+
+  // フォーム送信ハンドラ。
   const handleSubmit = (data: ItemFormValues) => {
-    if (onItemSubmit) {
+    if (mode === 'add') {
+      // 追加モード: 順次アップロード付きの保存処理を実行する。
+      void handleAddModeSubmit(data);
+    } else if (onItemSubmit) {
       onItemSubmit(data);
     } else {
       onSaveSuccess();
@@ -171,30 +429,49 @@ export default function ItemSlidePanel({
         }
       : undefined;
 
+  // 順次アップロードを中断するヘルパー。
+  const abortSequentialUpload = useCallback(() => {
+    if (sequentialAbortControllerRef.current) {
+      sequentialAbortControllerRef.current.abort();
+      sequentialAbortControllerRef.current = null;
+      setIsSequentialUploading(false);
+    }
+  }, []);
+
   // 破棄確認ダイアログで「破棄」ボタンを押したとき: 進行中のアップロード/削除を中断して
   // フォームをリセットしてパネルを閉じる。
   // dirty 時は handleCloseAttempt で cancel を省略したため、ここで cancel を実行する（issue #108 FIX 1）。
   const handleDiscard = useCallback(() => {
-    // 破棄確定時にアップロード/削除を中断する（Dialog「破棄」→ 実際にパネルを閉じる経路）。
+    // 破棄確定時にアップロード/削除・順次アップロードを中断する（Dialog「破棄」→ 実際にパネルを閉じる経路）。
     uploadCancelRef.current?.();
     deleteCancelRef.current?.();
+    abortSequentialUpload();
     setIsDiscardDialogOpen(false);
     formResetRef.current?.();
     setIsFormDirty(false);
+    setPendingFiles([]);
     onClose();
-  }, [onClose]);
+  }, [onClose, abortSequentialUpload]);
 
   // 破棄確認ダイアログで「キャンセル」ボタンを押したとき: ダイアログのみ閉じてパネルは保持。
   const handleDiscardCancel = useCallback(() => {
     setIsDiscardDialogOpen(false);
   }, []);
 
-  // 閉じる操作の共通ハンドラ。dirty の場合は破棄確認ダイアログを表示、非 dirty は即閉じ。
-  // アップロード中・削除中の mutation キャンセルは「実際にパネルを閉じる経路」のみで行う。
-  // dirty 判定前に cancel() を呼んではならない。ユーザーが Dialog で「キャンセル」を選んで
-  // 編集を続行する場合にアップロード/削除が中断されてしまうことを防ぐ（issue #108 FIX 1）。
+  // 閉じる操作の共通ハンドラ。
+  // 順次アップロード中: dirty=false 扱い（保存処理に入っているため、破棄確認ダイアログは表示しない）。
+  //   → AbortController で中断し、「アップロードを中止しました」トーストを表示。
+  // dirty（フォーム変更 or 保留添付 1 件以上）: 破棄確認ダイアログを表示。
+  // 非 dirty: 即パネルクローズ。
   const handleCloseAttempt = useCallback(() => {
-    if (isFormDirty) {
+    if (resolvedIsSequentialUploading) {
+      // 順次アップロード中は即中断してパネルを閉じる（破棄確認ダイアログは表示しない）。
+      abortSequentialUpload();
+      setAbortToast({ open: true, message: 'アップロードを中止しました' });
+      onClose();
+      return;
+    }
+    if (isDirty) {
       // dirty 時は cancel せずダイアログを表示する。アップロード/削除は継続させる。
       setIsDiscardDialogOpen(true);
     } else {
@@ -203,12 +480,12 @@ export default function ItemSlidePanel({
       deleteCancelRef.current?.();
       onClose();
     }
-  }, [isFormDirty, onClose]);
+  }, [resolvedIsSequentialUploading, isDirty, onClose, abortSequentialUpload]);
 
   // dirty 時のみ beforeunload イベントリスナを登録して F5 / タブ閉じ / ブラウザ閉じを抑止する。
   // カスタム文言は現代ブラウザで不可のため event.preventDefault() のみ呼ぶ（設計書 §6）。
   useEffect(() => {
-    if (!isFormDirty) return;
+    if (!isDirty) return;
 
     const handleBeforeUnload = (event: BeforeUnloadEvent) => {
       event.preventDefault();
@@ -218,7 +495,7 @@ export default function ItemSlidePanel({
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-  }, [isFormDirty]);
+  }, [isDirty]);
 
   return (
     <>
@@ -250,6 +527,25 @@ export default function ItemSlidePanel({
             <CloseIcon />
           </IconButton>
         </Box>
+        {/* 順次アップロード中の進捗バナー（issue #115 §6「順次アップロード中の UI 表示」）。
+            保存ボタンのラベルは「保存する」のままとし、進捗テキストはここに表示する（ATT-FE-081）。 */}
+        {resolvedIsSequentialUploading && (
+          <Box
+            sx={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 2,
+              py: 1,
+              bgcolor: 'action.hover',
+            }}
+          >
+            <CircularProgress size={16} />
+            <Typography variant="body2">
+              {sequentialProgressLabel}
+            </Typography>
+          </Box>
+        )}
         <ItemForm
           mode={formMode}
           onSubmit={handleSubmit}
@@ -259,16 +555,20 @@ export default function ItemSlidePanel({
           apiError={apiError}
           isPending={isPending}
           isSaveDisabled={isSaveDisabled}
+          isSaveButtonLoading={resolvedIsSequentialUploading || isPending}
           defaultValues={defaultValues}
           onDirtyChange={setIsFormDirty}
           resetRef={formResetRef}
+          readOnly={isFormReadOnly}
         />
-        {/* 添付ファイル管理領域。追加モードで明細未保存（item=null）の場合は非表示になる。
+        {/* 添付ファイル管理領域。
+            追加モード（mode='add'）: itemId=null でも表示し、ローカル保持方式を使う（issue #115）。
             uploadCancelRef / deleteCancelRef でアップロード・削除キャンセル関数を受け取る（§7-1）。
             onUploadAborted / onDeleteAborted でパネルレベルの中断トーストを表示する（§7-2）。 */}
         <AttachmentArea
           reportId={reportId}
           itemId={item?.id ?? null}
+          mode={mode}
           canModify={canModify}
           onUploadingChange={setInternalIsUploading}
           onDeletingChange={setInternalIsDeleting}
@@ -276,6 +576,7 @@ export default function ItemSlidePanel({
           deleteCancelRef={deleteCancelRef}
           onUploadAborted={handleUploadAborted}
           onDeleteAborted={handleDeleteAborted}
+          onPendingFilesChange={mode === 'add' ? handlePendingFilesChange : undefined}
         />
       </Drawer>
 
@@ -311,6 +612,34 @@ export default function ItemSlidePanel({
         message={abortToast.message}
         onClose={() => setAbortToast((prev) => ({ ...prev, open: false }))}
       />
+      {/* API 結果トースト（順次アップロード部分失敗の警告・成功通知など）。 */}
+      <AppToast
+        open={apiToast.open}
+        severity={apiToast.severity}
+        message={apiToast.message}
+        onClose={() => setApiToast((prev) => ({ ...prev, open: false }))}
+      />
     </>
   );
+}
+
+/**
+ * ItemSlidePanel の公開コンポーネント。
+ * QueryClientProvider が存在しない環境（テスト・スタンドアロン利用）では
+ * フォールバック用 QueryClientProvider でラップして内部実装（ItemSlidePanelBody）に委譲する。
+ * QueryClientProvider が既に提供されている環境では直接 ItemSlidePanelBody をレンダリングする
+ * （親の QueryClient を保持するため、integration テストの invalidateQueries スパイが動作する）。
+ */
+export default function ItemSlidePanel(props: ItemSlidePanelProps) {
+  const contextClient = useContext(QueryClientContext);
+  if (!contextClient) {
+    // QueryClientProvider なし: フォールバック client でラップする。
+    return (
+      <QueryClientProvider client={_fallbackQueryClient}>
+        <ItemSlidePanelBody {...props} />
+      </QueryClientProvider>
+    );
+  }
+  // QueryClientProvider あり: そのまま委譲する（親の QueryClient を使う）。
+  return <ItemSlidePanelBody {...props} />;
 }

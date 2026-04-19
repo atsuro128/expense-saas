@@ -680,7 +680,6 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
 
     renderWithQueryClient(
-      // @ts-expect-error mode prop は issue #115 実装後に追加される
       <AttachmentUploader
         reportId="rpt-1"
         itemId={null}
@@ -715,7 +714,6 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
     // (a) GIF 拒否。
     {
       const { unmount } = renderWithQueryClient(
-        // @ts-expect-error mode prop は issue #115 実装後に追加される
         <AttachmentUploader
           reportId="rpt-1"
           itemId={null}
@@ -741,7 +739,6 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
     // (b) 5MB + 1B 拒否。
     {
       const { unmount } = renderWithQueryClient(
-        // @ts-expect-error mode prop は issue #115 実装後に追加される
         <AttachmentUploader
           reportId="rpt-1"
           itemId={null}
@@ -767,7 +764,6 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
     // (c) ちょうど 5MB は許可。
     {
       renderWithQueryClient(
-        // @ts-expect-error mode prop は issue #115 実装後に追加される
         <AttachmentUploader
           reportId="rpt-1"
           itemId={null}

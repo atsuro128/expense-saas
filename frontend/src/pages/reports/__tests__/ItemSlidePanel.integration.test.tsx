@@ -556,12 +556,28 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     });
     queryClient.invalidateQueries = invalidateSpy;
 
+    // onSaveSuccess 呼び出し時点でトーストが既に DOM に存在するかを確認するため、
+    // onSaveSuccess 内でトーストの有無を記録する。
+    // setApiToast → React レンダリング（トースト DOM 追加）→ useEffect → onSaveSuccess の順で
+    // 実行されるため、onSaveSuccess 時点では既にトーストが DOM に存在するはず（ATT-FE-080 設計）。
     const onSaveSuccess = vi.fn(() => {
+      const toastEl = document.body.querySelector('[data-testid="app-toast"]');
+      if (toastEl && !orderLog.includes('toast')) {
+        orderLog.push('toast');
+      }
       orderLog.push('onSaveSuccess');
     });
 
     // 明細 DELETE が呼ばれないことを確認するためのスパイ（DELETE 呼出は意図しない動作）。
     const deleteCalledUrls: string[] = [];
+
+    // 2 件目の添付 POST をペンディング状態にして手動解決する。
+    // user.click() 後にハンドラが 2 件目アップロード待ちで中断→戻り、
+    // その後 resolve で失敗を注入することで MutationObserver が
+    // useEffect より先に発火し、'toast' が orderLog の先頭になる（ATT-FE-080 順序保証）。
+    const attach2ResolveRef: { resolve: (v: Response) => void } = {
+      resolve: (_v) => {},
+    };
 
     globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
       const method = (opts?.method ?? 'GET').toUpperCase();
@@ -593,12 +609,12 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
         } as unknown as Response;
       }
       if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items/item-new/attachments')) {
-        // 1 件目の添付 POST は成功。2 件目は失敗（mockImplementation で呼び出し回数を追跡）。
+        // 1 件目の添付 POST は即時成功、2 件目はペンディングにして手動解決する。
         const attachPostCalls = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls
           .filter(([u, o]) => typeof u === 'string' && (u as string).includes('/attachments') && (o?.method ?? 'GET') === 'POST')
           .length;
         if (attachPostCalls <= 1) {
-          // 1 件目（呼び出し回数が 1 以下のとき）は成功。
+          // 1 件目（呼び出し回数が 1 以下のとき）は即時成功。
           return {
             ok: true,
             status: 201,
@@ -606,13 +622,19 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
             json: async () => ({ data: { id: 'att-1', item_id: 'item-new', file_name: 'receipt.jpg', file_size: 1024, mime_type: 'image/jpeg', created_at: '2026-04-19T00:00:00Z' } }),
           } as unknown as Response;
         }
-        // 2 件目は失敗 (500)。
-        return {
-          ok: false,
-          status: 500,
-          headers: { get: () => null },
-          json: async () => ({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'サーバーエラー' } }),
-        } as unknown as Response;
+        // 2 件目はペンディング: attach2ResolveRef.resolve で手動解決する（AbortSignal 対応）。
+        return new Promise<Response>((resolve, reject) => {
+          attach2ResolveRef.resolve = resolve;
+          if (opts?.signal) {
+            if (opts.signal.aborted) {
+              reject(createAbortError());
+              return;
+            }
+            opts.signal.addEventListener('abort', () => {
+              reject(createAbortError());
+            });
+          }
+        });
       }
       // GET 等はデフォルト空レスポンス。
       return {
@@ -657,10 +679,24 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
 
     // 保存ボタンをクリックする。
+    // user.click() はハンドラが 2 件目の添付 POST ペンディング中に中断して戻る。
     await user.click(screen.getByRole('button', { name: /保存する/ }));
+
+    // 2 件目の添付 POST を 500 失敗で解決する。
+    // resolve() でマイクロタスクにキューイングし、waitFor の MutationObserver セットアップ後に
+    // ハンドラが再開するようにすることで、MutationObserver がトースト出現を先に捕捉できる。
+    attach2ResolveRef.resolve({
+      ok: false,
+      status: 500,
+      headers: { get: () => null },
+      json: async () => ({ error: { code: 'INTERNAL_SERVER_ERROR', message: 'サーバーエラー' } }),
+    } as unknown as Response);
 
     // 明細 DELETE が呼ばれていないこと（ロールバックしない方針）。
     // 警告トーストが表示されたら orderLog に 'toast' を記録し、表示確認も行う。
+    // waitFor は MutationObserver でトースト出現を検知する。実装では setApiToast 後に
+    // useEffect 経由で onSaveSuccess を呼ぶため、MutationObserver が useEffect より先に発火し
+    // 'toast' が orderLog の先頭になる（ATT-FE-080 順序保証）。
     await waitFor(() => {
       const toast = screen.queryByText(/添付ファイルがアップロードに失敗しました/);
       if (toast && !orderLog.includes('toast')) {

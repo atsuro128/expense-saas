@@ -1037,7 +1037,6 @@ describe('ItemSlidePanel 順次アップロード中 UI（ATT-FE-081, issue #115
         mode="add"
         item={null}
         {...defaultProps}
-        // @ts-expect-error isSequentialUploading / sequentialUploadProgress は issue #115 実装後に追加される
         isSequentialUploading={true}
         sequentialUploadProgress={{ completed: 1, total: 3 }}
       />,

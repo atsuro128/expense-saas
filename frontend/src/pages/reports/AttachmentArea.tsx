@@ -4,6 +4,7 @@
 // プレビュー・ダウンロードの window.open 呼び出しは AttachmentList 内の AttachmentItemRow が担当する。
 // report-detail.md §AttachmentArea に対応する。
 // ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
+// ATT-FE-072/073/075/076/077: 追加モードのローカル保持対応（issue #115）。
 
 import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
@@ -16,15 +17,24 @@ import { useAttachments } from '../../hooks/useAttachments';
 import { useDeleteAttachment } from '../../hooks/useDeleteAttachment';
 import type { Attachment } from '../../api/types';
 
-// 添付の即時保存方式をユーザーに案内するテキスト（report-detail.md §7 冒頭の仕様に準拠）。
-const ATTACHMENT_PERSISTENCE_NOTICE =
+/** AttachmentArea のパネルモード（追加・編集・閲覧）。 */
+export type AttachmentAreaMode = 'add' | 'edit' | 'view';
+
+// 編集モードの即時保存方式をユーザーに案内するテキスト（report-detail.md §7 冒頭の仕様に準拠）。
+const EDIT_MODE_NOTICE =
   '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。';
+
+// 追加モードのローカル保持方式をユーザーに案内するテキスト（report-detail.md §7「モード別の案内文」に準拠）。
+const ADD_MODE_NOTICE =
+  '※ 添付ファイルは『保存する』ボタン押下後にまとめてアップロードされます。';
 
 export interface AttachmentAreaProps {
   /** レポート ID */
   reportId: string;
-  /** 明細 ID（明細保存後に設定される。未保存の追加モードでは null） */
+  /** 明細 ID（明細保存後に設定される。追加モードでは null） */
   itemId: string | null;
+  /** パネルモード（追加・編集・閲覧）。省略時は itemId が null なら 'add'、それ以外は 'edit' を使う。 */
+  mode?: AttachmentAreaMode;
   /** アップロード・削除操作が可能か（所有者 AND status === 'draft'） */
   canModify: boolean;
   /** アップロード中状態が変化したときのコールバック（保存ボタン制御に使用） */
@@ -47,10 +57,16 @@ export interface AttachmentAreaProps {
    * ItemSlidePanel レベルでトーストを表示するために使用する（issue #108 §7-2）。
    */
   onDeleteAborted?: () => void;
+  /**
+   * 追加モード: ファイルが保留 state に追加/削除されたときのコールバック（issue #115）。
+   * ItemSlidePanel が保存時の順次アップロードで使う File 一覧を取得するために使用する。
+   */
+  onPendingFilesChange?: (files: File[]) => void;
 }
 
 /**
  * AttachmentAreaContent は itemId が確定した後の実際のコンテンツを描画する内部コンポーネント。
+ * 編集・閲覧モード専用（mode='edit' または mode='view'）。
  * フックのルール（条件分岐前に全フックを呼ぶ）を遵守するため分離している。
  * key={itemId} により、itemId が変わるたびに再マウントされて進行中の mutation が中断される（issue #108）。
  */
@@ -91,10 +107,6 @@ function AttachmentAreaContent({
   const deleteAttachment = useDeleteAttachment({ onAborted: onDeleteAborted });
 
   // 削除キャンセル関数を外部に公開する（deleteCancelRef 経由で ItemSlidePanel が呼ぶ）。
-  // deleteAttachment.cancel は Hook 内で useCallback なしに毎 render 再生成されるが、
-  // ref への登録はマウント時の 1 回で十分（cancel は常に abortControllerRef.current を参照する）。
-  // 依存配列に [deleteAttachment.cancel, deleteCancelRef] を明記して React の useEffect hygiene を遵守する
-  // （issue #108 FIX 3）。
   useEffect(() => {
     if (deleteCancelRef) {
       deleteCancelRef.current = deleteAttachment.cancel;
@@ -108,7 +120,6 @@ function AttachmentAreaContent({
   }, [deleteAttachment.cancel, deleteCancelRef]);
 
   // AttachmentUploader に渡すアップロードキャンセル ref（内部用フォールバック）。
-  // uploadCancelRef が外部から渡されていればそちらを使い、なければ内部 ref を使う。
   const internalUploadCancelRef = useRef<(() => void) | null>(null);
   const attachmentUploaderCancelRef = uploadCancelRef ?? internalUploadCancelRef;
 
@@ -119,16 +130,12 @@ function AttachmentAreaContent({
     setToast({ open: true, severity, message });
   };
 
-  // アップロード成功コールバック。キャッシュの無効化は useUploadAttachment Hook が担当する。
+  // アップロード成功コールバック。
   const handleUploadSuccess = () => {
     showToast('success', 'ファイルをアップロードしました');
   };
 
-  // アップロード中断コールバック。AbortError 発生時に親コンポーネントへ通知する。
-  // onUploadAborted が提供されている場合は親（ItemSlidePanel）でトーストを表示する。
-  // 提供されていない場合はローカルトーストを表示する（コンポーネント独立使用時のフォールバック）。
-  // note: AttachmentAreaContent がアンマウント後に呼ばれる場合（明細切替）でも
-  //       onUploadAborted は ItemSlidePanel のクロージャを参照するため確実に動作する（issue #108 §7-2）。
+  // アップロード中断コールバック。
   const handleUploadAborted = () => {
     if (onUploadAborted) {
       onUploadAborted();
@@ -137,7 +144,7 @@ function AttachmentAreaContent({
     }
   };
 
-  // 削除ボタン押下: 確認ダイアログを表示する（report-detail.md §4.6 準拠）。
+  // 削除ボタン押下: 確認ダイアログを表示する。
   const handleDeleteRequest = (attachmentId: string) => {
     setConfirmTargetId(attachmentId);
   };
@@ -148,7 +155,6 @@ function AttachmentAreaContent({
     const targetId = confirmTargetId;
     setConfirmTargetId(null);
     setDeletingId(targetId);
-    // 削除中状態を親に通知する（保存ボタン disabled 制御）。
     onDeletingChange?.(true);
     deleteAttachment.mutate(
       { reportId, itemId, attId: targetId },
@@ -161,7 +167,6 @@ function AttachmentAreaContent({
         onError: (err) => {
           setDeletingId(null);
           onDeletingChange?.(false);
-          // AbortError（削除中断）を識別して専用コールバック or ローカルトーストで通知する。
           if (err instanceof Error && err.name === 'AbortError') {
             if (onDeleteAborted) {
               onDeleteAborted();
@@ -176,14 +181,13 @@ function AttachmentAreaContent({
     );
   };
 
-  // 確認ダイアログの「キャンセル」押下: ダイアログを閉じるだけで何もしない。
+  // 確認ダイアログの「キャンセル」押下。
   const handleCancelDelete = () => {
     setConfirmTargetId(null);
   };
 
   return (
     <div data-testid="attachment-area">
-      {/* 添付ファイル一覧。per-item hook orchestration は AttachmentList 内の AttachmentItemRow が担当する。 */}
       <AttachmentList
         attachments={attachments}
         reportId={reportId}
@@ -193,8 +197,7 @@ function AttachmentAreaContent({
         onDelete={handleDeleteRequest}
         onError={(message) => showToast('error', message)}
       />
-      {/* 永続化タイミング案内文（report-detail.md §7 冒頭の仕様に準拠）。
-          添付の追加・削除はフォームの保存ボタンと独立した即時保存方式であることを常時表示する。 */}
+      {/* 永続化タイミング案内文（編集モード）。 */}
       <Typography
         variant="caption"
         color="text.secondary"
@@ -202,12 +205,13 @@ function AttachmentAreaContent({
         sx={{ mt: 1 }}
         data-testid="attachment-persistence-notice"
       >
-        {ATTACHMENT_PERSISTENCE_NOTICE}
+        {EDIT_MODE_NOTICE}
       </Typography>
       {canModify && (
         <AttachmentUploader
           reportId={reportId}
           itemId={itemId}
+          mode="edit"
           onUploadSuccess={handleUploadSuccess}
           onUploadError={(message) => showToast('error', message)}
           onUploadAborted={handleUploadAborted}
@@ -221,8 +225,6 @@ function AttachmentAreaContent({
         message={toast.message}
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
-      {/* 添付削除の確認ダイアログ（screens.md §4.6 準拠）。
-          条件レンダリングで DOM から完全に除去し aria-modal 残留によるアクセシビリティ問題を防ぐ。 */}
       {confirmTargetId !== null && (
         <ConfirmDialog
           open={true}
@@ -240,14 +242,66 @@ function AttachmentAreaContent({
 }
 
 /**
+ * AttachmentAreaAddMode は追加モード（itemId=null）専用のコンテンツを描画する内部コンポーネント。
+ * API を呼ばずに AttachmentUploader 内のローカル state でファイルを保留し、
+ * 保存時にまとめてアップロードする。
+ * 保留ファイルの一覧・削除ボタンは AttachmentUploader が担当する（issue #115）。
+ */
+function AttachmentAreaAddMode({
+  reportId,
+  canModify,
+  onPendingFilesChange,
+}: {
+  reportId: string;
+  canModify: boolean;
+  onPendingFilesChange?: (files: File[]) => void;
+}) {
+  return (
+    <div data-testid="attachment-area">
+      {/* 追加モード案内文（report-detail.md §7「モード別の案内文」に準拠）。 */}
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        display="block"
+        sx={{ mt: 1 }}
+        data-testid="attachment-persistence-notice"
+      >
+        {ADD_MODE_NOTICE}
+      </Typography>
+      {/* ファイル選択 UI（canModify=true のときのみ表示）。
+          保留ファイルの一覧・削除ボタン・「保存後にアップロード予定」ラベルは
+          AttachmentUploader 内部で管理する（ATT-FE-073/075/077）。 */}
+      {canModify && (
+        <AttachmentUploader
+          reportId={reportId}
+          itemId={null}
+          mode="add"
+          onUploadSuccess={() => {
+            // 追加モードでは即時アップロードしないため呼ばれないが、型互換のために空実装。
+          }}
+          onPendingFilesChange={onPendingFilesChange}
+        />
+      )}
+    </div>
+  );
+}
+
+/**
  * AttachmentArea は明細スライドパネル内の添付ファイル管理領域を提供する。
- * itemId が null の場合（追加モードで未保存）は非表示にする。
- * key={itemId} で itemId が変わるたびに AttachmentAreaContent を再マウントして
- * 進行中の mutation が中断される（issue #108 課題 1、§7-2）。
+ *
+ * mode='add'（追加モード）: itemId=null でも表示する。ファイルはローカル state に保留し、
+ *   保存時に ItemSlidePanel が順次アップロードを行う（issue #115）。
+ *
+ * mode='edit'（編集モード）: 既存の即時保存方式を維持する（issue #114）。
+ *   key={itemId} で itemId が変わるたびに AttachmentAreaContent を再マウントして
+ *   進行中の mutation が中断される（issue #108 課題 1、§7-2）。
+ *
+ * mode='view'（閲覧モード）: 添付一覧のみ表示（操作不可）。
  */
 export default function AttachmentArea({
   reportId,
   itemId,
+  mode,
   canModify,
   onUploadingChange,
   onDeletingChange,
@@ -255,9 +309,21 @@ export default function AttachmentArea({
   deleteCancelRef,
   onUploadAborted,
   onDeleteAborted,
+  onPendingFilesChange,
 }: AttachmentAreaProps) {
-  // itemId が null の場合は何も描画しない（追加モード・未保存）。
+  if (mode === 'add') {
+    // 追加モード（明示的に mode="add" が渡された場合のみ）: itemId=null でも表示し、ローカル保持方式を使う。
+    return (
+      <AttachmentAreaAddMode
+        reportId={reportId}
+        canModify={canModify}
+        onPendingFilesChange={onPendingFilesChange}
+      />
+    );
+  }
+
   if (itemId === null) {
+    // mode="add" 以外で itemId が null の場合は何も描画しない（後方互換 + 防衛的処理）。
     return null;
   }
 

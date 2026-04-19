@@ -7,10 +7,10 @@
 // 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
 // ATT-FE-072, 075, 076, 077 は issue #115 の機能実装前のため FAIL 前提。
 
-import { render, screen, waitFor, fireEvent } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type ReactNode, type ComponentType } from 'react';
+import { type ReactNode } from 'react';
 import { vi, beforeEach, afterEach } from 'vitest';
 import AttachmentArea from '../AttachmentArea';
 
@@ -300,18 +300,12 @@ describe('AttachmentArea', () => {
 
   // ATT-FE-076: モード別の案内文が正しく表示される（issue #115）。
   // (a) mode='add' のとき追加モード案内文、(b) mode='edit' のとき編集モード案内文を検証する。
-  // mode prop は機能実装後に追加予定のため、現時点では機能未実装として FAIL する。
   it('ATT-FE-076: shows_mode_specific_guidance_text', () => {
     // (a) 追加モード: 保存時一括アップロード案内文が表示される。
-    // mode prop は機能実装後に AttachmentArea に追加予定。現時点では型定義が存在しない。
-    // 型を回避するために unknown 経由でキャストして渡す。
-    // 機能実装で mode prop 型が追加されたらキャストを外すこと。
     const WrapperAdd = createWrapper();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AttachmentAreaWithMode = AttachmentArea as ComponentType<any>;
     const { unmount: unmountAdd } = render(
       <WrapperAdd>
-        <AttachmentAreaWithMode
+        <AttachmentArea
           reportId="rpt-1"
           itemId={null}
           canModify={true}
@@ -319,7 +313,7 @@ describe('AttachmentArea', () => {
         />
       </WrapperAdd>,
     );
-    // 追加モードの案内文が表示されること（機能実装後に PASS）。
+    // 追加モードの案内文が表示されること。
     expect(
       screen.getByText(
         '※ 添付ファイルは『保存する』ボタン押下後にまとめてアップロードされます。',
@@ -331,7 +325,7 @@ describe('AttachmentArea', () => {
     const WrapperEdit = createWrapper();
     render(
       <WrapperEdit>
-        <AttachmentAreaWithMode
+        <AttachmentArea
           reportId="rpt-1"
           itemId="item-1"
           canModify={true}
@@ -339,7 +333,7 @@ describe('AttachmentArea', () => {
         />
       </WrapperEdit>,
     );
-    // 編集モードの案内文が表示されること（機能実装後に PASS）。
+    // 編集モードの案内文が表示されること。
     expect(
       screen.getByText(
         '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。',
@@ -447,7 +441,6 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 076, 077, issue #115
     const Wrapper = createWrapper();
     render(
       <Wrapper>
-        {/* @ts-expect-error mode prop は issue #115 実装後に追加される */}
         <AttachmentArea
           reportId="rpt-1"
           itemId={null}
@@ -474,8 +467,7 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 076, 077, issue #115
     const Wrapper = createWrapper();
     render(
       <Wrapper>
-        {/* @ts-expect-error mode prop は issue #115 実装後に追加される */}
-        <AttachmentArea
+          <AttachmentArea
           reportId="rpt-1"
           itemId={null}
           mode="add"
@@ -529,8 +521,7 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 076, 077, issue #115
     const Wrapper = createWrapper();
     render(
       <Wrapper>
-        {/* @ts-expect-error mode prop は issue #115 実装後に追加される */}
-        <AttachmentArea
+          <AttachmentArea
           reportId="rpt-1"
           itemId={null}
           mode="add"

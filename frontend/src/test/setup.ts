@@ -1,5 +1,19 @@
 import '@testing-library/jest-dom';
-import { afterEach } from 'vitest';
+import { afterEach, beforeEach, vi } from 'vitest';
+
+/**
+ * 各テスト前に globalThis.fetch を vi.fn() で上書きする。
+ * これにより、各テストで `expect(globalThis.fetch).not.toHaveBeenCalled()` が
+ * "not a spy" エラーなく動作するようになる。
+ * 各テストは独自に `globalThis.fetch = vi.fn()...` で上書き可能（既存テストの互換性を維持）。
+ * テストファイル内の `afterEach(() => { globalThis.fetch = originalFetch })` は
+ * この beforeEach で設定したスパイに戻す（正しい動作）。
+ */
+beforeEach(() => {
+  globalThis.fetch = vi.fn().mockRejectedValue(
+    new Error('globalThis.fetch was called without being mocked in this test'),
+  );
+});
 
 /**
  * 各テスト後に document.body に直接追加されたトースト要素を削除する。
