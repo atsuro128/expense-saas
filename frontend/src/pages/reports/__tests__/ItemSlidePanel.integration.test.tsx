@@ -11,6 +11,41 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi, beforeEach, afterEach } from 'vitest';
 import ItemSlidePanel from '../ItemSlidePanel';
 
+/**
+ * AbortError を表す Error オブジェクトを生成するヘルパー。
+ * jsdom では DOMException が Error を継承しないため、`err instanceof Error && err.name === 'AbortError'`
+ * という条件を満たすために通常の Error を使用する。
+ */
+function createAbortError(): Error {
+  const err = new Error('The user aborted a request.');
+  err.name = 'AbortError';
+  return err;
+}
+
+/**
+ * AbortSignal に対応した fetch モック実装を生成するヘルパー。
+ * signal が渡された場合は abort イベントを監視して AbortError で reject する。
+ * signal が既に aborted の場合はすぐに reject する。
+ */
+function makeAbortablePendingFetch(resolveRef: { resolve: (v: Response) => void }) {
+  return (_url: string, options?: RequestInit) => {
+    return new Promise<Response>((resolve, reject) => {
+      resolveRef.resolve = resolve;
+      if (options?.signal) {
+        // 既に abort 済みのシグナルが渡された場合はすぐに AbortError で reject する。
+        if (options.signal.aborted) {
+          reject(createAbortError());
+          return;
+        }
+        // abort イベントを監視して AbortError で reject する。
+        options.signal.addEventListener('abort', () => {
+          reject(createAbortError());
+        });
+      }
+    });
+  };
+}
+
 // テスト用 QueryClient プロバイダーラッパー。
 function createWrapper() {
   const queryClient = new QueryClient({
@@ -104,15 +139,12 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
 
     // 1回目: 添付一覧取得（空配列）
     // 2回目: アップロード API（レスポンス遅延: パネル閉じ前に解決しない）
-    let resolveUpload!: (value: Response) => void;
+    // makeAbortablePendingFetch ヘルパーで AbortSignal 対応のモックを生成する。
+    const uploadResolveRef = { resolve: (_v: Response) => {} };
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(makeEmptyAttachmentListResponse())
-      .mockReturnValueOnce(
-        new Promise<Response>((resolve) => {
-          resolveUpload = resolve;
-        }),
-      );
+      .mockImplementationOnce(makeAbortablePendingFetch(uploadResolveRef));
 
     render(
       <ItemSlidePanel
@@ -132,12 +164,15 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     const mockJpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
     const fileInput = screen.getByTestId('attachment-file-input') as HTMLInputElement;
 
-    // ファイル選択イベントを発火する（FileList モック）。
-    Object.defineProperty(fileInput, 'files', {
-      value: [mockJpegFile],
-      configurable: true,
-    });
+    // user.upload が内部で FileList を構築するため Object.defineProperty は不要。
+    // Object.defineProperty(Array) との併用は jsdom 非互換（Array.item が存在しない）のため使用しない。
     await user.upload(fileInput, mockJpegFile);
+
+    // TanStack Query の mutation が非同期で開始するため、アップロードボタンが「アップロード中...」に
+    // なるまで待機してから × ボタンを押す（onMutate の AbortController 初期化を確認する）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
+    });
 
     // アップロード開始後、× ボタンでパネルを閉じる（resolveUpload はまだ呼んでいない）。
     const closeButton = screen.getByRole('button', { name: '閉じる' });
@@ -152,8 +187,8 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     });
 
     // onUploadSuccess コールバックは呼ばれない（中断のため）。
-    // cleanup: 遅延中の fetch を解決する。
-    resolveUpload({
+    // cleanup: 遅延中の fetch を解決する（AbortError で reject 済みだが念のため）。
+    uploadResolveRef.resolve({
       ok: false,
       status: 0,
       headers: { get: () => null },
@@ -189,15 +224,12 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     } as unknown as Response;
 
     // 削除 API（レスポンス遅延）。
-    let resolveDelete!: (value: Response) => void;
+    // makeAbortablePendingFetch ヘルパーで AbortSignal 対応のモックを生成する。
+    const deleteResolveRef = { resolve: (_v: Response) => {} };
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(attachmentListResponse)
-      .mockReturnValueOnce(
-        new Promise<Response>((resolve) => {
-          resolveDelete = resolve;
-        }),
-      );
+      .mockImplementationOnce(makeAbortablePendingFetch(deleteResolveRef));
 
     render(
       <ItemSlidePanel
@@ -232,8 +264,8 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
       ).toBeInTheDocument();
     });
 
-    // cleanup: 遅延中の fetch を解決する。
-    resolveDelete({
+    // cleanup: 遅延中の fetch を解決する（AbortError で reject 済みだが念のため）。
+    deleteResolveRef.resolve({
       ok: false,
       status: 0,
       headers: { get: () => null },
@@ -250,15 +282,12 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     // 1回目: item-001 の添付一覧取得（空配列）
     // 2回目: アップロード API（レスポンス遅延）
     // 3回目: item-002 の添付一覧取得（空配列）
-    let resolveUpload!: (value: Response) => void;
+    // makeAbortablePendingFetch ヘルパーで AbortSignal 対応のモックを生成する。
+    const uploadResolveRef063 = { resolve: (_v: Response) => {} };
     globalThis.fetch = vi
       .fn()
       .mockResolvedValueOnce(makeEmptyAttachmentListResponse())
-      .mockReturnValueOnce(
-        new Promise<Response>((resolve) => {
-          resolveUpload = resolve;
-        }),
-      )
+      .mockImplementationOnce(makeAbortablePendingFetch(uploadResolveRef063))
       .mockResolvedValueOnce(makeEmptyAttachmentListResponse());
 
     const { rerender } = render(
@@ -280,6 +309,12 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     const fileInput = screen.getByTestId('attachment-file-input') as HTMLInputElement;
     await user.upload(fileInput, mockJpegFile);
 
+    // TanStack Query の mutation が非同期で開始するため、アップロードボタンが「アップロード中...」に
+    // なるまで待機してから明細を切り替える（onMutate の AbortController 初期化を確認する）。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-upload-button')).toHaveTextContent('アップロード中...');
+    });
+
     // 別明細（item-002）に切り替える（ItemSlidePanel を再マウント相当）。
     rerender(
       <ItemSlidePanel
@@ -300,8 +335,8 @@ describe('ItemSlidePanel 統合テスト（ATT-FE-060, 062, 063, issue #108）',
     // item-002 の添付一覧コンテナが存在すること（新明細向けの独立した取得が行われる）。
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
-    // cleanup。
-    resolveUpload({
+    // cleanup（AbortError で reject 済みだが念のため）。
+    uploadResolveRef063.resolve({
       ok: false,
       status: 0,
       headers: { get: () => null },

@@ -419,7 +419,6 @@ describe('ItemSlidePanel 並行操作整合性（ATT-FE-057〜058, issue #108）
         item={mockItem}
         {...defaultProps}
         isPending={false}
-        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義（実装後に型追加される）
         isUploading={true}
         isDeleting={false}
       />,
@@ -438,7 +437,6 @@ describe('ItemSlidePanel 並行操作整合性（ATT-FE-057〜058, issue #108）
         item={mockItem}
         {...defaultProps}
         isPending={true}
-        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
         isUploading={false}
         isDeleting={false}
       />,
@@ -453,7 +451,6 @@ describe('ItemSlidePanel 並行操作整合性（ATT-FE-057〜058, issue #108）
         item={mockItem}
         {...defaultProps}
         isPending={false}
-        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
         isUploading={false}
         isDeleting={true}
       />,
@@ -468,7 +465,6 @@ describe('ItemSlidePanel 並行操作整合性（ATT-FE-057〜058, issue #108）
         item={mockItem}
         {...defaultProps}
         isPending={false}
-        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
         isUploading={false}
         isDeleting={false}
       />,
@@ -490,7 +486,6 @@ describe('ItemSlidePanel 並行操作整合性（ATT-FE-057〜058, issue #108）
         {...defaultProps}
         onClose={onClose}
         isPending={false}
-        // @ts-expect-error -- 機能実装前のため isUploading prop は未定義
         isUploading={true}
         isDeleting={false}
       />,
