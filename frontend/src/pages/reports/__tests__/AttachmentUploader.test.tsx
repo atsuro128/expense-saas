@@ -663,6 +663,10 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
+    // setup.ts のグローバル fetch モックを revert（FIX 3）したため、
+    // ATT-FE-073/074 で「fetch が呼ばれないこと」を検証するには
+    // このブロックで明示的に vi.fn() でスパイ化する（FIX 3 対応）。
+    globalThis.fetch = vi.fn();
   });
 
   afterEach(() => {

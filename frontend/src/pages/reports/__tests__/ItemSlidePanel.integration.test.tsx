@@ -480,7 +480,11 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     // フォームを入力する。
     await user.type(screen.getByLabelText(/日付/), '2026-04-19');
     await user.type(screen.getByLabelText(/金額/), '1500');
-    // カテゴリは既に選択肢がある前提。
+    // カテゴリを明示選択する（category 自動選択 useEffect 削除 FIX 2 対応）。
+    // MUI Select を combobox ロールで取得し、ドロップダウンを開いて「交通費」を選択する。
+    const categorySelect = screen.getByRole('combobox', { name: /カテゴリ/ });
+    await user.click(categorySelect);
+    await user.click(screen.getByRole('option', { name: '交通費' }));
     await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
 
     // 保存ボタンをクリックする。
@@ -676,6 +680,10 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     // フォームを入力する。
     await user.type(screen.getByLabelText(/日付/), '2026-04-19');
     await user.type(screen.getByLabelText(/金額/), '1500');
+    // カテゴリを明示選択する（category 自動選択 useEffect 削除 FIX 2 対応）。
+    const categorySelect080 = screen.getByRole('combobox', { name: /カテゴリ/ });
+    await user.click(categorySelect080);
+    await user.click(screen.getByRole('option', { name: '交通費' }));
     await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
 
     // 保存ボタンをクリックする。
@@ -841,15 +849,20 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
       // フォームを入力する。
       await user.type(screen.getByLabelText(/日付/), '2026-04-19');
       await user.type(screen.getByLabelText(/金額/), '1500');
+      // カテゴリを明示選択する（category 自動選択 useEffect 削除 FIX 2 対応）。
+      const categorySelect082 = screen.getByRole('combobox', { name: /カテゴリ/ });
+      await user.click(categorySelect082);
+      await user.click(screen.getByRole('option', { name: '交通費' }));
       await user.type(screen.getByLabelText(/摘要/), 'テスト明細');
 
       // 保存ボタンをクリックする（明細作成 POST 後、添付 POST が開始される）。
       await user.click(screen.getByRole('button', { name: /保存する/ }));
 
       // 順次アップロード中（明細作成完了 + 添付 POST 進行中）を確認する。
-      // 「アップロード中...」の表示で確認する（FAIL 前提: 進捗表示未実装）。
+      // FIX 1 対応: 進捗は保存ボタンのラベルに表示される（設計書 §6 L332）。
+      // ボタンのラベルが「アップロード中... (N/M 件完了)」に切り替わることで確認する。
       await waitFor(() => {
-        expect(screen.getByText(/アップロード中/)).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /アップロード中/ })).toBeInTheDocument();
       });
 
       // パターン別のクローズ操作を実行する（順次アップロード中断をトリガー）。

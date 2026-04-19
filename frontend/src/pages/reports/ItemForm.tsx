@@ -118,8 +118,6 @@ export default function ItemForm({
     control,
     handleSubmit,
     reset,
-    setValue,
-    getValues,
     formState: { errors, isDirty },
   } = useForm<ItemFormValues>({
     resolver: zodResolver(itemFormSchema),
@@ -131,17 +129,6 @@ export default function ItemForm({
       description: '',
     },
   });
-
-  // カテゴリ選択肢が 1 件のみの場合は自動選択する（UX 向上）。
-  // 追加モードかつカテゴリが未選択の場合のみ動作し、既に選択済みの場合は上書きしない。
-  useEffect(() => {
-    const firstCategory = categories[0];
-    if (categories.length === 1 && firstCategory && !getValues('categoryId')) {
-      setValue('categoryId', firstCategory.value, { shouldDirty: false });
-    }
-  // categories の変化のみを契機にする（setValue / getValues は安定した参照）。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [categories]);
 
   // resetRef に reset 関数を登録して、親コンポーネント（ItemSlidePanel）から破棄操作時に呼べるようにする。
   useEffect(() => {

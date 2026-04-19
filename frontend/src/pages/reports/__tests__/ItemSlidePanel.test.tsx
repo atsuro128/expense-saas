@@ -73,6 +73,7 @@ const defaultProps = {
 describe('ItemSlidePanel', () => {
   // ITM-FE-018: open=true のときスライドパネルが表示される。
   it('ITM-FE-018: open=true, mode=add のときスライドパネルが表示される', () => {
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -80,6 +81,7 @@ describe('ItemSlidePanel', () => {
         item={null}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // スライドパネルが表示される（ITM-FE-018）。スタブ実装のため現在は失敗する。
@@ -90,6 +92,7 @@ describe('ItemSlidePanel', () => {
   // MUI Drawer は open=false のとき Paper コンテンツを DOM にマウントしないため
   // queryByTestId が null を返し、not.toBeInTheDocument() で検証する。
   it('ITM-FE-019: open=false のときスライドパネルが表示されない', () => {
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={false}
@@ -97,6 +100,7 @@ describe('ItemSlidePanel', () => {
         item={null}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // スライドパネルが DOM に存在しないこと（Drawer の open=false で Paper 非マウント）。
@@ -105,6 +109,7 @@ describe('ItemSlidePanel', () => {
 
   // ITM-FE-020: mode='add', item=null のとき追加モードのタイトルが表示される。
   it('ITM-FE-020: mode=add のとき追加モードのタイトルが表示される', () => {
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -112,6 +117,7 @@ describe('ItemSlidePanel', () => {
         item={null}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // 追加モードのタイトル（「明細追加」等）が表示される（ITM-FE-020）。スタブ実装のため現在は失敗する。
@@ -189,6 +195,7 @@ describe('ItemSlidePanel', () => {
   // ITM-FE-025: 閉じるボタンをクリックすると onClose が呼ばれる。
   it('ITM-FE-025: 閉じるボタンをクリックすると onClose が呼ばれる', async () => {
     const onClose = vi.fn();
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -197,6 +204,7 @@ describe('ItemSlidePanel', () => {
         {...defaultProps}
         onClose={onClose}
       />,
+      { wrapper: createWrapper() },
     );
 
     // 閉じるボタンクリック（ITM-FE-025）。スタブ実装のため現在は失敗する。
@@ -244,6 +252,7 @@ describe('ItemSlidePanel', () => {
   it('ITM-FE-092-A: ESC キー押下で onClose が呼ばれる', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -252,6 +261,7 @@ describe('ItemSlidePanel', () => {
         {...defaultProps}
         onClose={onClose}
       />,
+      { wrapper: createWrapper() },
     );
 
     // ESC キーで Drawer が閉じ、onClose が呼ばれる。
@@ -264,6 +274,7 @@ describe('ItemSlidePanel', () => {
   it('ITM-FE-092-B: Backdrop クリックで onClose が呼ばれる', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -272,6 +283,7 @@ describe('ItemSlidePanel', () => {
         {...defaultProps}
         onClose={onClose}
       />,
+      { wrapper: createWrapper() },
     );
 
     // MUI Drawer の Backdrop をクリックすると onClose が呼ばれる。
@@ -285,6 +297,7 @@ describe('ItemSlidePanel', () => {
 
   // 098-1: Drawer 横幅が xs では '100%'、sm では 480px に設定される（論点 1）。
   it('ITM-FE-098-1: open=true のとき Drawer Paper に width スタイル sx が設定されている', () => {
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -292,6 +305,7 @@ describe('ItemSlidePanel', () => {
         item={null}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // PaperProps.sx で width が指定されたパネルが存在する。
@@ -308,6 +322,7 @@ describe('ItemSlidePanel', () => {
     // テスト実行前にキャプチャ配列をリセットする。
     capturedDrawerPaperProps.length = 0;
 
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -315,6 +330,7 @@ describe('ItemSlidePanel', () => {
         item={null}
         {...defaultProps}
       />,
+      { wrapper: createWrapper() },
     );
 
     // PaperProps が Drawer に渡されていること。
@@ -331,6 +347,7 @@ describe('ItemSlidePanel', () => {
   it('ITM-FE-098-2: open=true のとき aria-label="閉じる" の IconButton が存在し、クリックで onClose が呼ばれる', async () => {
     const user = userEvent.setup();
     const onClose = vi.fn();
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
     render(
       <ItemSlidePanel
         open={true}
@@ -339,6 +356,7 @@ describe('ItemSlidePanel', () => {
         {...defaultProps}
         onClose={onClose}
       />,
+      { wrapper: createWrapper() },
     );
 
     // ヘッダー右上の閉じる IconButton を取得する。
@@ -352,6 +370,8 @@ describe('ItemSlidePanel', () => {
   // ReportDetailPage 側で formKey をインクリメントすることで key が変わり再マウントが行われる。
   // ItemSlidePanel 単体では open prop に基づき表示が変わることを検証する。
   it('ITM-FE-098-3: open=false から open=true に変更されると Drawer が表示される', () => {
+    // ItemSlidePanelBody は useQueryClient を使用するため QueryClientProvider が必要。
+    const wrapper = createWrapper();
     const { rerender } = render(
       <ItemSlidePanel
         open={false}
@@ -359,6 +379,7 @@ describe('ItemSlidePanel', () => {
         item={null}
         {...defaultProps}
       />,
+      { wrapper },
     );
 
     // open=false のとき Paper が DOM に存在しない。
@@ -1043,12 +1064,11 @@ describe('ItemSlidePanel 順次アップロード中 UI（ATT-FE-081, issue #115
       { wrapper },
     );
 
-    // 「保存する」ボタンが disabled であること（順次アップロード中は二重送信防止）。
-    const saveButton = screen.getByRole('button', { name: /保存する/ });
+    // 順次アップロード中は保存ボタンのラベルが「アップロード中... (N/M 件完了)」に切り替わる
+    // （設計書 §6「順次アップロード中の UI 表示」L332）。
+    // ボタンが disabled であること（二重送信防止）。
+    const saveButton = screen.getByRole('button', { name: /アップロード中.*1.*3.*件完了/ });
     expect(saveButton).toBeDisabled();
-
-    // 進捗テキストが表示されること（「アップロード中... (1/3 件完了)」形式）。
-    expect(screen.getByText(/アップロード中.*1.*3.*件完了/)).toBeInTheDocument();
 
     // フォームフィールドが readonly になること（明細作成後の整合性崩れ防止）。
     const dateInput = screen.getByLabelText(/日付/);

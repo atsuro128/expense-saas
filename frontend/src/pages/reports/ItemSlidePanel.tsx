@@ -7,7 +7,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
 import DialogTitle from '@mui/material/DialogTitle';
 import DialogContent from '@mui/material/DialogContent';
@@ -24,18 +23,7 @@ import type { ItemFormValues } from './ItemForm';
 import AttachmentArea from './AttachmentArea';
 import AppToast from '../../components/ui/AppToast';
 import { api } from '../../api/client';
-import { QueryClientContext, QueryClient, QueryClientProvider, useQueryClient } from '@tanstack/react-query';
-import { useContext } from 'react';
-
-/**
- * 内部フォールバック用 QueryClient。
- * ItemSlidePanel が QueryClientProvider なしで使われる場合（テスト・スタンドアロン利用）に
- * ItemSlidePanel のフォールバックラッパーが使用する。
- * モジュールスコープで一度だけ生成する（singleton）。
- */
-const _fallbackQueryClient = new QueryClient({
-  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-});
+import { useQueryClient } from '@tanstack/react-query';
 
 export type PanelMode = 'add' | 'edit' | 'view';
 
@@ -150,7 +138,7 @@ function ItemSlidePanelBody({
   onItemSaveAndContinue,
 }: ItemSlidePanelProps) {
   // ItemSlidePanelBody は必ず QueryClientProvider の配下で動作する。
-  // （親が QueryClientProvider を提供しない場合は ItemSlidePanel ラッパーが _fallbackQueryClient でラップする。）
+  // main.tsx の QueryClientProvider 配下で使用することを前提とする。
   const queryClient = useQueryClient();
 
   // パネルモードに応じたタイトルを返す。
@@ -183,8 +171,8 @@ function ItemSlidePanelBody({
     internalIsDeleting ||
     resolvedIsSequentialUploading;
 
-  // 順次アップロード中の進捗テキスト（パネルヘッダー下のバナーに表示する）。
-  // 保存ボタンのラベルは常に「保存する」のままとし、ボタンの accessible name を変えない（ATT-FE-081）。
+  // 順次アップロード中の進捗テキスト（保存ボタンのラベルに表示する）。
+  // 設計書 §6「順次アップロード中の UI 表示」L332: ボタンラベルを「アップロード中... (N/M 件完了)」に切り替える。
   const sequentialProgressLabel = resolvedIsSequentialUploading
     ? `アップロード中... (${resolvedSequentialUploadProgress.completed}/${resolvedSequentialUploadProgress.total} 件完了)`
     : '';
@@ -291,6 +279,7 @@ function ItemSlidePanelBody({
    */
   const handleAddModeSubmit = useCallback(async (formData: ItemFormValues) => {
     // 新しい AbortController を生成する（前のものが残っていれば中断）。
+    // try の外で生成し、finally で必ず ref をリセットすることでリソース解放を一貫させる（FIX 5）。
     if (sequentialAbortControllerRef.current) {
       sequentialAbortControllerRef.current.abort();
     }
@@ -365,7 +354,6 @@ function ItemSlidePanelBody({
       }
 
       setIsSequentialUploading(false);
-      sequentialAbortControllerRef.current = null;
 
       if (failedCount > 0) {
         // 部分失敗: 警告トースト → パネルクローズ → 一覧 invalidate の順序（ATT-FE-080）。
@@ -396,12 +384,14 @@ function ItemSlidePanelBody({
       }
       // その他のエラー（明細作成失敗など）。
       setIsSequentialUploading(false);
-      sequentialAbortControllerRef.current = null;
       setApiToast({
         open: true,
         severity: 'error',
         message: '明細の保存に失敗しました。もう一度お試しください。',
       });
+    } finally {
+      // AbortError・成功・その他エラーのいずれの経路でも ref をリセットしてリソースを解放する（FIX 5）。
+      sequentialAbortControllerRef.current = null;
     }
   }, [reportId, pendingFiles, queryClient, onSaveSuccess]);
 
@@ -527,25 +517,6 @@ function ItemSlidePanelBody({
             <CloseIcon />
           </IconButton>
         </Box>
-        {/* 順次アップロード中の進捗バナー（issue #115 §6「順次アップロード中の UI 表示」）。
-            保存ボタンのラベルは「保存する」のままとし、進捗テキストはここに表示する（ATT-FE-081）。 */}
-        {resolvedIsSequentialUploading && (
-          <Box
-            sx={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 1,
-              px: 2,
-              py: 1,
-              bgcolor: 'action.hover',
-            }}
-          >
-            <CircularProgress size={16} />
-            <Typography variant="body2">
-              {sequentialProgressLabel}
-            </Typography>
-          </Box>
-        )}
         <ItemForm
           mode={formMode}
           onSubmit={handleSubmit}
@@ -556,6 +527,7 @@ function ItemSlidePanelBody({
           isPending={isPending}
           isSaveDisabled={isSaveDisabled}
           isSaveButtonLoading={resolvedIsSequentialUploading || isPending}
+          saveButtonLabel={sequentialProgressLabel || undefined}
           defaultValues={defaultValues}
           onDirtyChange={setIsFormDirty}
           resetRef={formResetRef}
@@ -625,21 +597,9 @@ function ItemSlidePanelBody({
 
 /**
  * ItemSlidePanel の公開コンポーネント。
- * QueryClientProvider が存在しない環境（テスト・スタンドアロン利用）では
- * フォールバック用 QueryClientProvider でラップして内部実装（ItemSlidePanelBody）に委譲する。
- * QueryClientProvider が既に提供されている環境では直接 ItemSlidePanelBody をレンダリングする
- * （親の QueryClient を保持するため、integration テストの invalidateQueries スパイが動作する）。
+ * main.tsx の QueryClientProvider 配下で使用することを前提とする。
+ * テストでは createWrapper() / QueryClientProvider でラップしてから render すること。
  */
 export default function ItemSlidePanel(props: ItemSlidePanelProps) {
-  const contextClient = useContext(QueryClientContext);
-  if (!contextClient) {
-    // QueryClientProvider なし: フォールバック client でラップする。
-    return (
-      <QueryClientProvider client={_fallbackQueryClient}>
-        <ItemSlidePanelBody {...props} />
-      </QueryClientProvider>
-    );
-  }
-  // QueryClientProvider あり: そのまま委譲する（親の QueryClient を使う）。
   return <ItemSlidePanelBody {...props} />;
 }
