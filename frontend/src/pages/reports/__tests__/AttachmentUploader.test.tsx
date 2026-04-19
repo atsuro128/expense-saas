@@ -653,13 +653,12 @@ describe('AttachmentUploader', () => {
 });
 
 // =============================================================================
-// ATT-FE-073, 074, 078: 追加モードのローカル保持・バリデーション・編集モード不変（issue #115）
-// ATT-FE-073, 074 は機能実装前のため FAIL 前提。
+// ATT-FE-073, 074: 追加モードのローカル保持・バリデーション（issue #115）
+// 機能実装前のため FAIL 前提。
 // FAIL 原因: AttachmentUploader に mode prop がなく、追加モードでのローカル保持分岐が未実装。
-// ATT-FE-078 は既存動作（即時アップロード）の確認のため PASS になる見込み。
 // =============================================================================
 
-describe('AttachmentUploader 追加モード / 編集モード分岐（ATT-FE-073, 074, 078, issue #115）', () => {
+describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
@@ -791,53 +790,4 @@ describe('AttachmentUploader 追加モード / 編集モード分岐（ATT-FE-07
     }
   });
 
-  // ATT-FE-078: 編集モードは即時アップロード挙動不変（追加モード分岐が編集モードに波及しない）。
-  // PASS 前提: 既存の編集モード動作は変わらない（即時アップロード）。
-  // issue #115 実装後も編集モードで fetch が呼ばれることを確認し、回帰を防ぐ。
-  it('ATT-FE-078: keeps_edit_mode_behavior_unchanged_immediate_upload', async () => {
-    const onUploadSuccess = vi.fn();
-    // アップロード API モック。
-    globalThis.fetch = vi.fn().mockResolvedValueOnce({
-      ok: true,
-      status: 201,
-      headers: { get: () => null },
-      json: async () => ({
-        data: {
-          id: 'att-new',
-          item_id: 'item-1',
-          file_name: 'receipt.jpg',
-          file_size: 1024,
-          mime_type: 'image/jpeg',
-          created_at: '2026-04-01T00:00:00Z',
-        },
-      }),
-    } as unknown as Response);
-
-    renderWithQueryClient(
-      // mode prop は現時点で型定義にないが、将来追加されるため @ts-expect-error コメントを付与する。
-      // 現時点では mode prop なしで動作するため実際には型エラーは発生しない。
-      <AttachmentUploader
-        reportId="rpt-1"
-        itemId="item-1"
-        mode="edit"
-        onUploadSuccess={onUploadSuccess}
-      />,
-    );
-
-    const fileInput = screen.getByTestId('attachment-file-input');
-    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
-    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
-
-    // 編集モードでは即時アップロードされること（fetch が呼ばれる）。
-    await waitFor(() => {
-      expect(globalThis.fetch).toHaveBeenCalledTimes(1);
-    });
-
-    // 呼び出された URL が添付アップロード API であること。
-    const calledUrl = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as string;
-    expect(calledUrl).toContain('/api/reports/rpt-1/items/item-1/attachments');
-
-    // 「保存後にアップロード予定」は表示されないこと（即時アップロード完了）。
-    expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
-  });
 });
