@@ -171,8 +171,13 @@ export default function ItemSlidePanel({
         }
       : undefined;
 
-  // 破棄確認ダイアログで「破棄」ボタンを押したとき: フォームをリセットしてパネルを閉じる。
+  // 破棄確認ダイアログで「破棄」ボタンを押したとき: 進行中のアップロード/削除を中断して
+  // フォームをリセットしてパネルを閉じる。
+  // dirty 時は handleCloseAttempt で cancel を省略したため、ここで cancel を実行する（issue #108 FIX 1）。
   const handleDiscard = useCallback(() => {
+    // 破棄確定時にアップロード/削除を中断する（Dialog「破棄」→ 実際にパネルを閉じる経路）。
+    uploadCancelRef.current?.();
+    deleteCancelRef.current?.();
     setIsDiscardDialogOpen(false);
     formResetRef.current?.();
     setIsFormDirty(false);
@@ -185,14 +190,17 @@ export default function ItemSlidePanel({
   }, []);
 
   // 閉じる操作の共通ハンドラ。dirty の場合は破棄確認ダイアログを表示、非 dirty は即閉じ。
-  // アップロード中・削除中の mutation をキャンセルして中断トーストが表示されるようにする（§7-1）。
+  // アップロード中・削除中の mutation キャンセルは「実際にパネルを閉じる経路」のみで行う。
+  // dirty 判定前に cancel() を呼んではならない。ユーザーが Dialog で「キャンセル」を選んで
+  // 編集を続行する場合にアップロード/削除が中断されてしまうことを防ぐ（issue #108 FIX 1）。
   const handleCloseAttempt = useCallback(() => {
-    // 進行中のアップロード・削除を中断する（AbortError → onError → トースト表示の流れ）。
-    uploadCancelRef.current?.();
-    deleteCancelRef.current?.();
     if (isFormDirty) {
+      // dirty 時は cancel せずダイアログを表示する。アップロード/削除は継続させる。
       setIsDiscardDialogOpen(true);
     } else {
+      // 非 dirty: 進行中のアップロード・削除を中断してからパネルを閉じる。
+      uploadCancelRef.current?.();
+      deleteCancelRef.current?.();
       onClose();
     }
   }, [isFormDirty, onClose]);

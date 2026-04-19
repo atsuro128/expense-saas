@@ -89,6 +89,9 @@ export default function AttachmentUploader({
   const { mutate, isPending, cancel } = useUploadAttachment({ onAborted: onUploadAborted });
 
   // cancelRef にキャンセル関数を登録して、外部（ItemSlidePanel）からパネルクローズ時に呼べるようにする。
+  // cancel は Hook 内で毎 render 再生成されるが、ref への登録はマウント時の 1 回で十分
+  // （cancel は常に abortControllerRef.current を参照する）。
+  // 依存配列に [cancel, cancelRef] を明記して React の useEffect hygiene を遵守する（issue #108 FIX 3）。
   useEffect(() => {
     if (cancelRef) {
       cancelRef.current = cancel;
@@ -98,7 +101,8 @@ export default function AttachmentUploader({
         cancelRef.current = null;
       }
     };
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancel, cancelRef]);
 
 
   // ファイルを選択してアップロードを開始する。

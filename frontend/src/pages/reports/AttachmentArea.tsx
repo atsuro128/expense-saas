@@ -86,9 +86,15 @@ function AttachmentAreaContent({
 
   // 添付ファイル一覧を取得する。
   const { data: attachmentsData } = useAttachments({ reportId, itemId });
-  const deleteAttachment = useDeleteAttachment();
+  // onDeleteAborted を useDeleteAttachment に渡す（issue #108 FIX 2: useUploadAttachment と対称化）。
+  // unmount 時（明細切替）の abort で onAborted が直接呼ばれ、ItemSlidePanel 側で「削除を中止しました」トーストを表示する。
+  const deleteAttachment = useDeleteAttachment({ onAborted: onDeleteAborted });
 
   // 削除キャンセル関数を外部に公開する（deleteCancelRef 経由で ItemSlidePanel が呼ぶ）。
+  // deleteAttachment.cancel は Hook 内で useCallback なしに毎 render 再生成されるが、
+  // ref への登録はマウント時の 1 回で十分（cancel は常に abortControllerRef.current を参照する）。
+  // 依存配列に [deleteAttachment.cancel, deleteCancelRef] を明記して React の useEffect hygiene を遵守する
+  // （issue #108 FIX 3）。
   useEffect(() => {
     if (deleteCancelRef) {
       deleteCancelRef.current = deleteAttachment.cancel;
@@ -98,7 +104,8 @@ function AttachmentAreaContent({
         deleteCancelRef.current = null;
       }
     };
-  });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deleteAttachment.cancel, deleteCancelRef]);
 
   // AttachmentUploader に渡すアップロードキャンセル ref（内部用フォールバック）。
   // uploadCancelRef が外部から渡されていればそちらを使い、なければ内部 ref を使う。
