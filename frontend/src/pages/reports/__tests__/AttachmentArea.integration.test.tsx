@@ -2,6 +2,7 @@
 // AttachmentArea + Hook の連携を検証する。
 // MSW が未インストールのため globalThis.fetch をモックして API 呼び出しをシミュレートする。
 // ATT-FE-045〜050 に対応する（ATT-FE-049 は新仕様で更新、049b〜049d を追加）。
+// ATT-FE-114（永続化案内文の常時表示）は issue #108 追加対応で撤去済み。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -126,12 +127,6 @@ describe('AttachmentArea 統合テスト', () => {
 
     // AttachmentArea が描画されること。
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
-
-    // ATT-FE-114: 永続化タイミング案内文が常時表示されること（report-detail.md §7 冒頭の仕様）。
-    expect(screen.getByTestId('attachment-persistence-notice')).toBeInTheDocument();
-    expect(screen.getByTestId('attachment-persistence-notice')).toHaveTextContent(
-      '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。',
-    );
 
     const fileInput = screen.getByTestId('attachment-file-input');
     const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
