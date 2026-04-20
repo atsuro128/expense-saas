@@ -1,5 +1,6 @@
 import { getAccessToken, getRefreshToken, setTokens, clearTokens } from '../stores/auth';
 import type { ApiError, ValidationError, AuthTokens } from './types';
+import { SERVER_ERROR_MESSAGES, inferCodeFromStatus } from '../lib/error-messages';
 
 export class ApiClientError extends Error {
   constructor(
@@ -121,17 +122,30 @@ async function apiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
 }
 
 async function handleErrorResponse(res: Response): Promise<never> {
-  let code = 'UNKNOWN_ERROR';
-  let message = res.statusText;
+  let code = 'INTERNAL_ERROR';
+  let serverMessage: string | undefined;
   let details: ValidationError[] | undefined;
   try {
     const body = (await res.json()) as ApiError;
+    // JSON パース成功時: レスポンスボディからコードとメッセージを取得する。
     code = body.error.code;
-    message = body.error.message;
+    serverMessage = body.error.message;
     details = body.error.details;
   } catch {
-    // レスポンスボディが JSON でない場合はデフォルト値を使用
+    // JSON パース失敗時: HTTP ステータスコードからエラーコードを推定する。
+    // Vite dev proxy が非 JSON の 500 を返す場合等に該当する。
+    code = inferCodeFromStatus(res.status);
   }
+
+  // 文言決定ロジック:
+  // - VALIDATION_ERROR: フィールド情報を含むサーバー側 message を優先する。
+  // - それ以外: SERVER_ERROR_MESSAGES[code] を使用する。
+  //   未知コードの場合は INTERNAL_ERROR 文言にフォールバックする。
+  const message =
+    code === 'VALIDATION_ERROR'
+      ? (serverMessage ?? SERVER_ERROR_MESSAGES.VALIDATION_ERROR)
+      : ((SERVER_ERROR_MESSAGES as Record<string, string>)[code] ?? SERVER_ERROR_MESSAGES.INTERNAL_ERROR);
+
   throw new ApiClientError(message, res.status, code, details);
 }
 

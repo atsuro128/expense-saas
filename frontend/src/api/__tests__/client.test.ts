@@ -1,11 +1,13 @@
-// api/client.ts の 401 バイパス分岐テスト。
+// api/client.ts の 401 バイパス分岐テストおよび handleErrorResponse テスト。
 // - 認証エンドポイント（/api/auth/login、/api/auth/refresh）が 401 を返すとき、
 //   refreshAccessToken を呼ばず ApiClientError を即座に throw することを検証する。
 // - 通常エンドポイントが 401 を返すとき、refreshAccessToken を呼びリトライすることを検証する。
+// - handleErrorResponse が SERVER_ERROR_MESSAGES のマッピングを正しく適用することを検証する。
 
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
 import { api } from '../client';
 import * as authStore from '../../stores/auth';
+import { SERVER_ERROR_MESSAGES } from '../../lib/error-messages';
 
 // fetch のモック用ヘルパー: 指定したステータスコードとボディで応答する Response を返す。
 function makeFetchResponse(status: number, body: unknown = {}): Response {
@@ -134,6 +136,147 @@ describe('api/client 401 バイパス分岐', () => {
     await expect(api.get('/api/reports')).rejects.toMatchObject({
       name: 'ApiClientError',
       status: 401,
+    });
+  });
+});
+
+// handleErrorResponse の SERVER_ERROR_MESSAGES マッピングテスト。
+// 各 HTTP ステータス / エラーコードに対して日本語メッセージが設定されることを検証する。
+describe('api/client handleErrorResponse: SERVER_ERROR_MESSAGES マッピング', () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  // JSON レスポンスを返す fetch モック用ヘルパー。
+  function makeJsonErrorResponse(status: number, code: string, message: string): Response {
+    return new Response(
+      JSON.stringify({ error: { code, message } }),
+      {
+        status,
+        statusText: '',
+        headers: { 'Content-Type': 'application/json' },
+      },
+    );
+  }
+
+  // 非 JSON（テキスト）レスポンスを返す fetch モック用ヘルパー。
+  function makeTextErrorResponse(status: number): Response {
+    return new Response('Internal Server Error', {
+      status,
+      statusText: 'Internal Server Error',
+      headers: { 'Content-Type': 'text/plain' },
+    });
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      value: { href: '/' },
+      writable: true,
+      configurable: true,
+    });
+    fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    authStore.clearTokens();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    authStore.clearTokens();
+  });
+
+  // CLT-ERR-001: 500 + INTERNAL_ERROR → INTERNAL_ERROR 文言
+  it('CLT-ERR-001: 500 + INTERNAL_ERROR はサーバーとの通信失敗メッセージになる', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      makeJsonErrorResponse(500, 'INTERNAL_ERROR', 'Internal Server Error'),
+    );
+
+    await expect(api.get('/api/reports')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
+    });
+  });
+
+  // CLT-ERR-002: 429 + RATE_LIMIT_EXCEEDED → RATE_LIMIT_EXCEEDED 文言
+  it('CLT-ERR-002: 429 + RATE_LIMIT_EXCEEDED はレート制限メッセージになる', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      makeJsonErrorResponse(429, 'RATE_LIMIT_EXCEEDED', 'Too Many Requests'),
+    );
+
+    await expect(api.get('/api/reports')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 429,
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'しばらく待ってから再試行してください',
+    });
+  });
+
+  // CLT-ERR-003: 404 + RESOURCE_NOT_FOUND → RESOURCE_NOT_FOUND 文言
+  it('CLT-ERR-003: 404 + RESOURCE_NOT_FOUND はデータ未発見メッセージになる', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      makeJsonErrorResponse(404, 'RESOURCE_NOT_FOUND', 'Not Found'),
+    );
+
+    await expect(api.get('/api/reports/xxx')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 404,
+      code: 'RESOURCE_NOT_FOUND',
+      message: '指定されたデータが見つかりません。',
+    });
+  });
+
+  // CLT-ERR-004: 403 + FORBIDDEN → FORBIDDEN 文言
+  it('CLT-ERR-004: 403 + FORBIDDEN は権限エラーメッセージになる', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      makeJsonErrorResponse(403, 'FORBIDDEN', 'Forbidden'),
+    );
+
+    await expect(api.get('/api/admin')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 403,
+      code: 'FORBIDDEN',
+      message: 'この操作を行う権限がありません。',
+    });
+  });
+
+  // CLT-ERR-005: 409 + CONFLICT → SERVER_ERROR_MESSAGES.CONFLICT 文言
+  it('CLT-ERR-005: 409 + CONFLICT は競合エラーメッセージになる', async () => {
+    fetchSpy.mockResolvedValueOnce(
+      makeJsonErrorResponse(409, 'CONFLICT', 'Conflict'),
+    );
+
+    await expect(api.put('/api/reports/rpt-001', {})).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 409,
+      code: 'CONFLICT',
+      message: SERVER_ERROR_MESSAGES['CONFLICT'],
+    });
+  });
+
+  // CLT-ERR-006: 422 + VALIDATION_ERROR → サーバー側 message を優先する
+  it('CLT-ERR-006: 422 + VALIDATION_ERROR はサーバー側メッセージを優先する', async () => {
+    const serverValidationMessage = '入力内容に誤りがあります: タイトルは必須です';
+    fetchSpy.mockResolvedValueOnce(
+      makeJsonErrorResponse(422, 'VALIDATION_ERROR', serverValidationMessage),
+    );
+
+    await expect(api.post('/api/reports', {})).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 422,
+      code: 'VALIDATION_ERROR',
+      message: serverValidationMessage,
+    });
+  });
+
+  // CLT-ERR-007: JSON パース失敗（非 JSON の 500）→ INTERNAL_ERROR 文言
+  it('CLT-ERR-007: 非 JSON の 500 レスポンスは INTERNAL_ERROR 文言になる', async () => {
+    fetchSpy.mockResolvedValueOnce(makeTextErrorResponse(500));
+
+    await expect(api.get('/api/reports')).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 500,
+      code: 'INTERNAL_ERROR',
+      message: 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
     });
   });
 });
