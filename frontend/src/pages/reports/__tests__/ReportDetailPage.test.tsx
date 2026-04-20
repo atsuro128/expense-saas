@@ -109,13 +109,21 @@ function LocationDisplay() {
   return <div data-testid="location">{location.pathname + location.search}</div>;
 }
 
-function renderPage(reportId = 'test-report-id', queryClient?: QueryClient) {
+function renderPage(
+  reportId = 'test-report-id',
+  queryClient?: QueryClient,
+  initialState?: Record<string, unknown>,
+) {
   const client = queryClient ?? new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
+  // location.state を渡す場合は initialEntries に state 付きのエントリを使用する。
+  const initialEntry = initialState
+    ? { pathname: `/reports/${reportId}`, state: initialState }
+    : `/reports/${reportId}`;
   const result = render(
     <QueryClientProvider client={client}>
-      <MemoryRouter initialEntries={[`/reports/${reportId}`]}>
+      <MemoryRouter initialEntries={[initialEntry]}>
         <Routes>
           <Route path="/reports/:id" element={<ReportDetailPage />} />
           <Route path="/reports" element={<div data-testid="reports-list">reports-list</div>} />
@@ -1225,5 +1233,62 @@ describe('ReportDetailPage', () => {
 
     // useMarkAsPaid.mutate が呼ばれていないこと。
     expect(payMutate).not.toHaveBeenCalled();
+  });
+
+  // -------------------------------------------------------------------------
+  // issue-126: location.state.toast 受信テスト
+  // -------------------------------------------------------------------------
+
+  // issue-126-A: ReportCreatePage / ReportEditPage からの遷移時に location.state.toast を受け取りトーストを表示する。
+  it('issue-126-A: location.state.toast を受け取ると既存の setToast state にトーストが表示される', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    // location.state に toast を持たせてレンダリングする（ReportCreatePage の成功遷移を模倣）。
+    renderPage('test-report-id', undefined, {
+      toast: { severity: 'success', message: 'レポートを作成しました' },
+    });
+
+    // AppToast が severity=success・メッセージ付きで表示されること。
+    await waitFor(() => {
+      const toastEl = screen.getByTestId('app-toast');
+      expect(toastEl).toBeInTheDocument();
+      expect(toastEl).toHaveAttribute('data-severity', 'success');
+      expect(toastEl).toHaveTextContent('レポートを作成しました');
+    });
+  });
+
+  // issue-126-B: location.state に toast がない場合はトーストが表示されない。
+  it('issue-126-B: location.state に toast がない場合はトーストが表示されない', async () => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    // location.state なしでレンダリングする（通常のナビゲーション）。
+    renderPage('test-report-id');
+
+    // AppToast は非表示（open=false）のため data-testid='app-toast' は DOM に存在しない。
+    // AppToast コンポーネントの実装上、open=false のとき aria-hidden または DOM から除外される。
+    // ここでは「表示されていないこと」を確認する。
+    // open=false の AppToast は DOM に存在しないか hidden になるため queryByTestId で確認する。
+    const toastEl = screen.queryByTestId('app-toast');
+    if (toastEl) {
+      // DOM に存在する場合は open=false（aria-hidden 等）であること。
+      expect(toastEl).not.toHaveAttribute('role', 'alert');
+    }
+    // toast が open=false のときはユーザーに見えないことを確認する（テキストが表示されない）。
+    expect(screen.queryByText('レポートを作成しました')).not.toBeInTheDocument();
+    expect(screen.queryByText('レポートを更新しました')).not.toBeInTheDocument();
   });
 });

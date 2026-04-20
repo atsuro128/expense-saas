@@ -58,7 +58,11 @@ export default function ReportCreatePage() {
       },
       {
         onSuccess: (result) => {
-          navigate(`/reports/${result.id}`);
+          // 成功トーストを遷移先の ReportDetailPage に location.state 経由で渡す。
+          // navigate 直後にアンマウントされるため、ページ側でトーストを表示する設計（ReportListPage パターン準拠）。
+          navigate(`/reports/${result.id}`, {
+            state: { toast: { severity: 'success', message: 'レポートを作成しました' } },
+          });
         },
         onError: (err) => {
           setApiError(err.message);

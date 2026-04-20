@@ -2,9 +2,9 @@
 // RPT-FE-064〜069 の仕様に対応する。
 // レポートデータを取得し、ReportInfoCard・ReportActionBar・ItemListSection・ItemSlidePanel を統合する。
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { flushSync } from 'react-dom';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -62,6 +62,7 @@ interface ToastState {
 export default function ReportDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const queryClient = useQueryClient();
 
   // 現在のユーザー情報を取得する。
@@ -73,6 +74,19 @@ export default function ReportDetailPage() {
 
   // トースト表示状態。
   const [toast, setToast] = useState<ToastState>({ open: false, message: '', severity: 'error' });
+
+  // 遷移元（ReportCreatePage / ReportEditPage）から location.state 経由で受け取ったトーストを表示する。
+  // ReportListPage の location.state.toast パターンを踏襲する。
+  useEffect(() => {
+    const stateToast = (
+      location.state as { toast?: { severity: 'success' | 'error' | 'warning' | 'info'; message: string } } | null
+    )?.toast;
+    if (stateToast) {
+      setToast({ open: true, severity: stateToast.severity, message: stateToast.message });
+      // history state をクリアして再レンダリング時に再表示しない。
+      window.history.replaceState({}, '');
+    }
+  }, [location.state]);
 
   // ワークフロー操作のペンディング状態。
   const [workflowPendingAction, setWorkflowPendingAction] = useState<WorkflowPendingAction>(null);
