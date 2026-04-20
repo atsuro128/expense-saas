@@ -15,20 +15,21 @@ vi.mock('../../../components/ui/AppSelect', () => ({
   ),
 }));
 vi.mock('../../../components/ui/AppDatePicker', () => ({
-  default: (props: { label: string; value: string | null; onChange: (v: string | null) => void; errorMessage?: string }) => (
+  // value/onChange 型が string に統一されたことを反映する（null 不使用）。
+  default: (props: { label: string; value: string; onChange: (v: string) => void; errorMessage?: string }) => (
     <div>
-      <input type="date" aria-label={props.label} value={props.value ?? ''} onChange={(e) => props.onChange(e.target.value || null)} />
+      <input type="date" aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} />
     </div>
   ),
 }));
 
 import AllReportsFilterBar, { type AllReportsFilterValues } from '../AllReportsFilterBar';
 
-// デフォルトのフィルタ値。
+// デフォルトのフィルタ値。空文字は「未指定」を表す（null 不使用）。
 const defaultFilters: AllReportsFilterValues = {
   status: '',
-  from: null,
-  to: null,
+  from: '',
+  to: '',
   submitterId: '',
 };
 

@@ -12,10 +12,10 @@ import type { UserSummary } from '../../api/types';
 export interface AllReportsFilterValues {
   /** ステータスフィルタ値（空文字は「全て」） */
   status: string;
-  /** 期間（開始日）。YYYY-MM-DD 形式、または null（未指定） */
-  from: string | null;
-  /** 期間（終了日）。YYYY-MM-DD 形式、または null（未指定） */
-  to: string | null;
+  /** 期間（開始日）。YYYY-MM-DD 形式、または空文字（未指定） */
+  from: string;
+  /** 期間（終了日）。YYYY-MM-DD 形式、または空文字（未指定） */
+  to: string;
   /** 申請者フィルタ値（空文字は「全て」） */
   submitterId: string;
 }

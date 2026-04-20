@@ -22,8 +22,9 @@ vi.mock('../../../components/ui/AppSelect', () => ({
   ),
 }));
 vi.mock('../../../components/ui/AppDatePicker', () => ({
-  default: (props: { label: string; value: string | null; onChange: (v: string | null) => void }) => (
-    <input type="date" aria-label={props.label} value={props.value ?? ''} onChange={(e) => props.onChange(e.target.value || null)} />
+  // value/onChange 型が string に統一されたことを反映する（null 不使用）。
+  default: (props: { label: string; value: string; onChange: (v: string) => void }) => (
+    <input type="date" aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} />
   ),
 }));
 // AppDataGrid モック: GridRowParams 互換で { row: rowData } 形式で onRowClick を呼ぶ。

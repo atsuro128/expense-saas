@@ -10,10 +10,12 @@ export interface AppDatePickerProps {
   name: string;
   /** 表示ラベル */
   label: string;
-  /** 現在の日付値（YYYY-MM-DD 形式の文字列、または null） */
-  value: string | null;
-  /** 値変更時のコールバック */
-  onChange: (value: string | null) => void;
+  /** 現在の日付値（YYYY-MM-DD 形式の文字列。未入力時は空文字） */
+  value: string;
+  /** 値変更時のコールバック（空入力時は空文字を返す） */
+  onChange: (value: string) => void;
+  /** フォーカスアウト時のコールバック（RHF 連携用） */
+  onBlur?: () => void;
   /** エラーメッセージ */
   errorMessage?: string;
   /** 必須フィールドか */
@@ -26,19 +28,22 @@ export interface AppDatePickerProps {
  * AppDatePicker は日付入力フィールドを提供する。
  * MUI TextField + type="date" を使い、native の日付入力として機能させる。
  * name 属性を input に設定し、テストで document.querySelector('input[name="..."]') が機能する。
+ * 空入力時は null ではなく空文字を返すことで、Zod スキーマの string 型と整合させる。
  */
 export default function AppDatePicker({
   name,
   label,
   value,
   onChange,
+  onBlur,
   errorMessage,
   required = false,
   disabled = false,
 }: AppDatePickerProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const val = e.target.value;
-    onChange(val || null);
+    // 空文字をそのまま返す（null 変換しない）。
+    // Zod の z.string().min(1, ...) がカスタム日本語メッセージで発火する。
+    onChange(e.target.value);
   };
 
   return (
@@ -46,8 +51,9 @@ export default function AppDatePicker({
       name={name}
       label={label}
       type="date"
-      value={value ?? ''}
+      value={value}
       onChange={handleChange}
+      onBlur={onBlur}
       size="small"
       fullWidth
       disabled={disabled}
