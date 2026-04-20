@@ -199,23 +199,14 @@ export default function ApprovalListPage() {
     return null;
   }
 
-  // ローディング中はスケルトンを表示する。
-  if (isLoading) {
-    return (
-      <div data-testid="pending-approvals-page">
-        <PageSkeleton variant="table" />
-      </div>
-    );
-  }
-
   return (
     <div data-testid="pending-approvals-page">
-      {/* ページタイトル */}
+      {/* ページタイトル（ローディング中も常時表示） */}
       <div>
         <h1>承認待ち一覧</h1>
       </div>
 
-      {/* フィルタ */}
+      {/* フィルタ（ローディング中も常時表示。初期値は URL クエリから取得済み） */}
       <div>
         <TextField
           type="text"
@@ -229,28 +220,35 @@ export default function ApprovalListPage() {
         <FilterResetButton onReset={handleFilterReset} isFiltered={isFiltered} />
       </div>
 
-      {/* 件数表示（データがある場合のみ） */}
-      {reports.length > 0 && (
-        <p>{totalCount} 件の承認待ちレポート</p>
+      {/* テーブル領域: ローディング中はスケルトン表示、完了後はグリッドを表示（issue 116 対応） */}
+      {isLoading ? (
+        <PageSkeleton variant="table" />
+      ) : (
+        <>
+          {/* 件数表示（データがある場合のみ） */}
+          {reports.length > 0 && (
+            <p>{totalCount} 件の承認待ちレポート</p>
+          )}
+
+          {/* データグリッド（emptyMessage で空状態も表示） */}
+          <AppDataGrid
+            columns={COLUMNS}
+            rows={rows}
+            loading={false}
+            hideFooterPagination
+            emptyMessage={emptyMessage}
+            onRowClick={(params: GridRowParams) => void navigate(`/reports/${(params.row as { id: string }).id}`)}
+            sx={{ cursor: 'pointer' }}
+          />
+
+          {/* ページネーション（ローディング中は非表示） */}
+          <AppPagination
+            currentPage={page}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+          />
+        </>
       )}
-
-      {/* データグリッド（emptyMessage で空状態も表示） */}
-      <AppDataGrid
-        columns={COLUMNS}
-        rows={rows}
-        loading={false}
-        hideFooterPagination
-        emptyMessage={emptyMessage}
-        onRowClick={(params: GridRowParams) => void navigate(`/reports/${(params.row as { id: string }).id}`)}
-        sx={{ cursor: 'pointer' }}
-      />
-
-      {/* ページネーション */}
-      <AppPagination
-        currentPage={page}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-      />
 
       {/* エラートースト */}
       <AppToast

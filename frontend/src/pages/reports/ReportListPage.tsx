@@ -128,11 +128,6 @@ export default function ReportListPage() {
     setSearchParams(next);
   };
 
-  // ローディング中はスケルトン表示。
-  if (isLoading) {
-    return <PageSkeleton variant="table" />;
-  }
-
   const reports = data?.data ?? [];
   const pagination = data?.pagination;
 
@@ -156,7 +151,7 @@ export default function ReportListPage() {
         onClose={() => setNavToast((prev) => ({ ...prev, open: false }))}
       />
 
-      {/* レポート一覧ヘッダー */}
+      {/* レポート一覧ヘッダー（ローディング中も常時表示） */}
       <Box
         data-testid="report-list-header"
         sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}
@@ -171,7 +166,7 @@ export default function ReportListPage() {
         </Button>
       </Box>
 
-      {/* フィルター */}
+      {/* フィルター（ローディング中も常時表示。初期値は URL クエリから取得済み） */}
       <Box
         data-testid="report-list-filter"
         sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}
@@ -214,39 +209,43 @@ export default function ReportListPage() {
         />
       </Box>
 
-      {/* レポート一覧テーブル */}
-      <Box data-testid="report-list-table">
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell>タイトル</TableCell>
-              <TableCell>期間</TableCell>
-              <TableCell>ステータス</TableCell>
-              <TableCell>合計金額</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {reports.map((report) => (
-              <TableRow
-                key={report.id}
-                data-testid={`report-row-${report.id}`}
-                onClick={() => navigate(`/reports/${report.id}`)}
-                sx={{ cursor: 'pointer' }}
-              >
-                <TableCell>{report.title}</TableCell>
-                <TableCell>
-                  {report.period_start} 〜 {report.period_end}
-                </TableCell>
-                <TableCell>{report.status}</TableCell>
-                <TableCell>{report.total_amount.toLocaleString()} 円</TableCell>
+      {/* テーブル領域: ローディング中はスケルトン表示、完了後はテーブルを表示（issue 116 対応） */}
+      {isLoading ? (
+        <PageSkeleton variant="table" />
+      ) : (
+        <Box data-testid="report-list-table">
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>タイトル</TableCell>
+                <TableCell>期間</TableCell>
+                <TableCell>ステータス</TableCell>
+                <TableCell>合計金額</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </Box>
+            </TableHead>
+            <TableBody>
+              {reports.map((report) => (
+                <TableRow
+                  key={report.id}
+                  data-testid={`report-row-${report.id}`}
+                  onClick={() => navigate(`/reports/${report.id}`)}
+                  sx={{ cursor: 'pointer' }}
+                >
+                  <TableCell>{report.title}</TableCell>
+                  <TableCell>
+                    {report.period_start} 〜 {report.period_end}
+                  </TableCell>
+                  <TableCell>{report.status}</TableCell>
+                  <TableCell>{report.total_amount.toLocaleString()} 円</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Box>
+      )}
 
-      {/* ページネーション */}
-      {pagination && (
+      {/* ページネーション（ローディング中は非表示） */}
+      {!isLoading && pagination && (
         <AppPagination
           currentPage={pagination.current_page}
           totalPages={pagination.total_pages}
