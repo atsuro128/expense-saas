@@ -85,13 +85,17 @@ func (h *AttachmentHandler) UploadAttachment(w http.ResponseWriter, r *http.Requ
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -168,13 +172,17 @@ func (h *AttachmentHandler) ListAttachments(w http.ResponseWriter, r *http.Reque
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -204,19 +212,25 @@ func (h *AttachmentHandler) GetAttachmentDownload(w http.ResponseWriter, r *http
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	attID, err := uuid.Parse(chi.URLParam(r, "attId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid attachment id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "attachment_id", Message: "attachment_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -241,19 +255,25 @@ func (h *AttachmentHandler) GetAttachmentPreview(w http.ResponseWriter, r *http.
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	attID, err := uuid.Parse(chi.URLParam(r, "attId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid attachment id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "attachment_id", Message: "attachment_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -277,19 +297,25 @@ func (h *AttachmentHandler) DeleteAttachment(w http.ResponseWriter, r *http.Requ
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	attID, err := uuid.Parse(chi.URLParam(r, "attId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid attachment id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "attachment_id", Message: "attachment_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
