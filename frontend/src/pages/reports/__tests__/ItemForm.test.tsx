@@ -2,7 +2,7 @@
 // ITM-FE-026〜047 に対応する。
 // ItemForm は未実装（スタブ）のため、テストは失敗する（赤い仕様テスト）。
 
-import { render, screen, within } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import ItemForm from '../ItemForm';
@@ -515,10 +515,12 @@ describe('ItemForm', () => {
 
     // onSubmit が期間外の入力値を含む ItemFormValues で呼ばれることを検証する。
     expect(onSubmit).toHaveBeenCalledTimes(1);
-    // ConfirmDialog が閉じることを検証する。
-    expect(
-      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
-    ).not.toBeInTheDocument();
+    // ConfirmDialog が閉じることを検証する（MUI Dialog の exit アニメーション完了を待つ）。
+    await waitFor(() => {
+      expect(
+        screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+      ).not.toBeInTheDocument();
+    });
   });
 
   // ITM-FE-102: ConfirmDialog キャンセルボタン押下 → onSubmit 未呼び出し・フォーム入力値維持。
@@ -545,10 +547,12 @@ describe('ItemForm', () => {
 
     // onSubmit が呼ばれないことを検証する。
     expect(onSubmit).not.toHaveBeenCalled();
-    // ConfirmDialog が閉じることを検証する。
-    expect(
-      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
-    ).not.toBeInTheDocument();
+    // ConfirmDialog が閉じることを検証する（MUI Dialog の exit アニメーション完了を待つ）。
+    await waitFor(() => {
+      expect(
+        screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+      ).not.toBeInTheDocument();
+    });
     // フォームの入力値が維持されていることを検証する（expenseDate='2026-03-15'）。
     const dateInput = screen.getByLabelText(/日付/);
     expect(dateInput).toHaveValue('2026-03-15');
