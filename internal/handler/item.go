@@ -2,6 +2,8 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
 	"time"
 	"unicode/utf8"
@@ -68,13 +70,23 @@ func (h *ItemHandler) CreateItem(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req createItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
 
@@ -181,19 +193,31 @@ func (h *ItemHandler) UpdateItem(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req updateItemRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
 
@@ -317,13 +341,17 @@ func (h *ItemHandler) DeleteItem(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := uuid.Parse(chi.URLParam(r, "id"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	itemID, err := uuid.Parse(chi.URLParam(r, "itemId"))
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid item id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "item_id", Message: "item_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
