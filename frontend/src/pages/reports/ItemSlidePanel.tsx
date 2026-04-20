@@ -53,6 +53,16 @@ export interface ItemSlidePanelProps {
   apiError?: string | null;
   /** 送信中フラグ（フォーム保存 API 呼び出し中） */
   isPending?: boolean;
+  /**
+   * レポートの対象期間開始日（YYYY-MM-DD 形式）。
+   * ItemForm の期間外警告 ConfirmDialog（ITM-007）に渡す。
+   */
+  reportPeriodStart?: string;
+  /**
+   * レポートの対象期間終了日（YYYY-MM-DD 形式）。
+   * ItemForm の期間外警告 ConfirmDialog（ITM-007）に渡す。
+   */
+  reportPeriodEnd?: string;
   /** アップロード中フラグ（外部注入用: テスト・上位コンポーネントから渡す場合） */
   isUploading?: boolean;
   /** 削除中フラグ（外部注入用: テスト・上位コンポーネントから渡す場合） */
@@ -127,6 +137,8 @@ function ItemSlidePanelBody({
   sequentialUploadProgress: sequentialUploadProgressProp,
   onItemSubmit,
   onItemSaveAndContinue,
+  reportPeriodStart,
+  reportPeriodEnd,
 }: ItemSlidePanelProps) {
   // ItemSlidePanelBody は必ず QueryClientProvider の配下で動作する。
   // main.tsx の QueryClientProvider 配下で使用することを前提とする。
@@ -549,6 +561,8 @@ function ItemSlidePanelBody({
           onDirtyChange={setIsFormDirty}
           resetRef={formResetRef}
           readOnly={isFormReadOnly}
+          reportPeriodStart={reportPeriodStart}
+          reportPeriodEnd={reportPeriodEnd}
         />
         {/* 添付ファイル管理領域。
             追加モード（mode='add'）: itemId=null でも表示し、ローカル保持方式を使う（issue #115）。
