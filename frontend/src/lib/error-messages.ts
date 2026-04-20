@@ -11,7 +11,7 @@
  * - CONFLICT: report-detail.md §11（409）, report-edit.md §7
  * - RATE_LIMIT_EXCEEDED: 汎用メッセージ（画面固有の上書きは state-management.md §6.5.6 参照）
  */
-export const SERVER_ERROR_MESSAGES: Record<string, string> = {
+export const SERVER_ERROR_MESSAGES = {
   // 400 不正リクエスト
   BAD_REQUEST:
     'リクエストの形式が正しくありません。',

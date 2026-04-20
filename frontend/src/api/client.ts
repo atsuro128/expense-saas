@@ -143,8 +143,8 @@ async function handleErrorResponse(res: Response): Promise<never> {
   //   未知コードの場合は INTERNAL_ERROR 文言にフォールバックする。
   const message =
     code === 'VALIDATION_ERROR'
-      ? (serverMessage ?? SERVER_ERROR_MESSAGES['VALIDATION_ERROR'])
-      : (SERVER_ERROR_MESSAGES[code] ?? SERVER_ERROR_MESSAGES['INTERNAL_ERROR']);
+      ? (serverMessage ?? SERVER_ERROR_MESSAGES.VALIDATION_ERROR)
+      : ((SERVER_ERROR_MESSAGES as Record<string, string>)[code] ?? SERVER_ERROR_MESSAGES.INTERNAL_ERROR);
 
   throw new ApiClientError(message, res.status, code, details);
 }

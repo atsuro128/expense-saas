@@ -5,7 +5,7 @@
 // - handleErrorResponse が SERVER_ERROR_MESSAGES のマッピングを正しく適用することを検証する。
 
 import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
-import { api, ApiClientError } from '../client';
+import { api } from '../client';
 import * as authStore from '../../stores/auth';
 import { SERVER_ERROR_MESSAGES } from '../../lib/error-messages';
 
