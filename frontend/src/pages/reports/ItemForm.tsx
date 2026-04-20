@@ -150,6 +150,12 @@ export default function ItemForm({
       categoryId: '',
       description: '',
     },
+    // screens/report-detail.md §バリデーション:
+    // V1/V2/V6: フォーカスアウト/保存時、V3/V4/V7: 入力時（リアルタイム）、V5: 保存時（カテゴリ）
+    // mode: 'onBlur' + reValidateMode: 'onChange' で V1-V4/V6-V7 を onBlur で発火、初回エラー後は onChange で再評価する。
+    // V5（カテゴリ）は AppSelect の Controller で field.onBlur を渡さないことで保存時のみバリデーションとする。
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
   });
 
   // resetRef に reset 関数を登録して、親コンポーネント（ItemSlidePanel）から破棄操作時に呼べるようにする。
@@ -278,7 +284,9 @@ export default function ItemForm({
       />
 
       {/* カテゴリ。読み取り専用モードでは AppSelect の readOnly prop でドロップダウンを開かせない（案 A ①）。
-          disabled は送信中かつ読み取り専用でない場合のみ適用し、グレーアウトしない。 */}
+          disabled は送信中かつ読み取り専用でない場合のみ適用し、グレーアウトしない。
+          V5（カテゴリ）は設計書上「保存時のみ」バリデーションのため、field.onBlur を渡さない。
+          （screens/report-detail.md §バリデーション V5: 保存時） */}
       <Controller
         name="categoryId"
         control={control}
@@ -289,6 +297,7 @@ export default function ItemForm({
             options={categories}
             value={field.value}
             onChange={field.onChange}
+            // onBlur は渡さない（V5 は設計書上「保存時のみ」のため field.onBlur を渡さない）
             errorMessage={errors.categoryId?.message}
             disabled={isPending && !isReadOnly}
             readOnly={isReadOnly}

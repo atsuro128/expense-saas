@@ -720,4 +720,95 @@ describe('ItemForm', () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
+
+  // --- onBlur リアルタイムバリデーションテスト（issue 118）---
+  // mode: 'onBlur' / reValidateMode: 'onChange' 設定により、
+  // フィールドからフォーカスが外れた時点でエラーが表示されることを検証する（V1〜V7）。
+
+  // onBlur-1: 金額に 0 を入力 → blur → 「正の金額を入力してください」表示（V3）。
+  it('onBlur-1: 金額に 0 を入力してblurすると「正の金額を入力してください」エラーが即時表示される（V3）', async () => {
+    const user = userEvent.setup();
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.type(amountInput, '0');
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/正の金額を入力してください/)).toBeInTheDocument();
+  });
+
+  // onBlur-2: 金額に -1 を入力 → blur → 「正の金額を入力してください」表示（V3）。
+  it('onBlur-2: 金額に -1 を入力してblurすると「正の金額を入力してください」エラーが即時表示される（V3）', async () => {
+    const user = userEvent.setup();
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.type(amountInput, '-1');
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/正の金額を入力してください/)).toBeInTheDocument();
+  });
+
+  // onBlur-3: 金額に 1.5 を入力 → blur → 「円単位の整数で入力してください」表示（V4）。
+  it('onBlur-3: 金額に 1.5 を入力してblurすると「円単位の整数で入力してください」エラーが即時表示される（V4）', async () => {
+    const user = userEvent.setup();
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.type(amountInput, '1.5');
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/円単位の整数で入力してください/)).toBeInTheDocument();
+  });
+
+  // onBlur-4: 日付フィールドをフォーカス → blur（未入力）→ 「日付を入力してください」表示（V1）。
+  it('onBlur-4: 日付を未入力のままblurすると「日付を入力してください」エラーが即時表示される（V1）', async () => {
+    const user = userEvent.setup();
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const dateInput = screen.getByLabelText(/日付/);
+    await user.click(dateInput); // フォーカス
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/日付を入力してください/)).toBeInTheDocument();
+  });
+
+  // ITM-FE-108: 金額フィールドを空のままフォーカスアウトすると「金額を入力してください」エラー表示（V2）。
+  it('ITM-FE-108: shows_validation_error_when_amount_empty_on_blur: 金額フィールドを空のままフォーカスアウトすると「金額を入力してください」がエラー表示される（V2）', async () => {
+    const user = userEvent.setup();
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const amountInput = screen.getByLabelText(/金額/);
+    // 既存入力がある場合は空にクリアし、未入力のままフォーカスアウトする。
+    await user.clear(amountInput);
+    await user.click(amountInput); // フォーカス
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/金額を入力してください/)).toBeInTheDocument();
+  });
+
+  // onBlur-6: 摘要を未入力のまま blur → 「摘要を入力してください」表示（V6）。
+  it('onBlur-6: 摘要を未入力のままblurすると「摘要を入力してください」エラーが即時表示される（V6）', async () => {
+    const user = userEvent.setup();
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const descInput = screen.getByLabelText(/摘要/);
+    await user.click(descInput); // フォーカス
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/摘要を入力してください/)).toBeInTheDocument();
+  });
+
+  // onBlur-7: 摘要に 501 文字を入力 → blur → 「摘要は500文字以内で入力してください」表示（V7）。
+  it('onBlur-7: 摘要に501文字入力してblurすると「摘要は500文字以内で入力してください」エラーが即時表示される（V7）', async () => {
+    const user = userEvent.setup();
+    const tooLong = 'あ'.repeat(501);
+    render(<ItemForm mode="add" {...defaultProps} />);
+
+    const descInput = screen.getByLabelText(/摘要/);
+    await user.type(descInput, tooLong);
+    await user.tab(); // blur を発火させる
+
+    expect(screen.getByText(/摘要は500文字以内で入力してください/)).toBeInTheDocument();
+  });
 });
