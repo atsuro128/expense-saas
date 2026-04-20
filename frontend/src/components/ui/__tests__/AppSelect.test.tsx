@@ -1,6 +1,7 @@
 // AppSelect コンポーネントのユニットテスト。
 // issue 097: outlined 切り欠きとラベル位置の整合性を検証する。
 // issue 098-4: readOnly prop の開閉制御を検証する。
+// issue 118 スコープ拡張: ASL-001/ASL-002 onBlur prop の配線を検証する。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -285,5 +286,60 @@ describe('AppSelect', () => {
     await user.click(combobox);
 
     expect(screen.getByRole('listbox')).toBeInTheDocument();
+  });
+
+  // ASL-001: onBlur prop がフォーカスアウトで呼び出される。
+  // MUI Select の combobox をクリックして開き、Escape で閉じて tab するとフォーカスが外れる。
+  // AppSelect に渡した onBlur コールバックが 1 回呼ばれることを検証する。
+  it('ASL-001: AppSelect onBlur prop がフォーカスアウトで呼び出される', async () => {
+    const user = userEvent.setup();
+    const handleBlur = vi.fn();
+
+    render(
+      <AppSelect
+        name="test-select"
+        label="テスト"
+        value=""
+        onChange={() => undefined}
+        options={OPTIONS}
+        onBlur={handleBlur}
+        placeholder="選んでください"
+      />,
+    );
+
+    // combobox をクリックしてドロップダウンを開き、Escape で閉じて blur を発生させる。
+    const combobox = screen.getByRole('combobox');
+    await user.click(combobox);
+    await user.keyboard('{Escape}');
+    // tab でフォーカスを外し blur イベントを確実に発火させる。
+    await user.tab();
+
+    expect(handleBlur).toHaveBeenCalledTimes(1);
+  });
+
+  // ASL-002: onBlur prop 未指定時にフォーカスアウトしても例外が発生しない。
+  // onBlur を渡さない場合に MUI Select の内部処理でエラーにならないことを検証する。
+  it('ASL-002: onBlur prop 未指定時にフォーカスアウトしても例外なし', async () => {
+    const user = userEvent.setup();
+
+    render(
+      <AppSelect
+        name="test-select"
+        label="テスト"
+        value=""
+        onChange={() => undefined}
+        options={OPTIONS}
+        placeholder="選んでください"
+      />,
+    );
+
+    // onBlur なしでフォーカスアウト操作しても例外にならないことを検証する。
+    const combobox = screen.getByRole('combobox');
+    await user.click(combobox);
+    await user.keyboard('{Escape}');
+    await user.tab();
+
+    // 例外が発生していないことを暗黙的に検証（テストが完了すれば PASS）。
+    expect(combobox).toBeInTheDocument();
   });
 });

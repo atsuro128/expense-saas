@@ -51,6 +51,12 @@ export interface AppSelectProps {
    */
   fullWidth?: boolean;
   /**
+   * フォーカスアウト時のコールバック。
+   * React Hook Form の Controller が渡す field.onBlur を受け取り、
+   * MUI Select の onBlur に配線する。バリデーション即時表示に使用する。
+   */
+  onBlur?: () => void;
+  /**
    * MUI Select の SelectDisplayProps。
    * data-testid 等のカスタムデータ属性を display div に設定したい場合に使用する。
    * HTMLAttributes に加えてカスタムデータ属性（data-*）を受け付ける。
@@ -80,6 +86,7 @@ export default function AppSelect({
   readOnly = false,
   fullWidth = true,
   selectDisplayProps,
+  onBlur,
 }: AppSelectProps) {
   const labelId = `${name}-label`;
 
@@ -121,6 +128,7 @@ export default function AppSelect({
         value={value}
         label={label}
         onChange={handleChange}
+        onBlur={onBlur}
         displayEmpty={shouldDisplayEmpty}
         SelectDisplayProps={selectDisplayProps}
         readOnly={readOnly}
