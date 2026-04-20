@@ -4,11 +4,10 @@
 // プレビュー・ダウンロードの window.open 呼び出しは AttachmentList 内の AttachmentItemRow が担当する。
 // report-detail.md §AttachmentArea に対応する。
 // ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
-// ATT-FE-072/073/075/076/077: 追加モードのローカル保持対応（issue #115）。
+// ATT-FE-072/073/075/077: 追加モードのローカル保持対応（issue #115）。
 
 import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
-import Typography from '@mui/material/Typography';
 import AttachmentList from './AttachmentList';
 import AttachmentUploader from './AttachmentUploader';
 import AppToast from '../../components/ui/AppToast';
@@ -19,14 +18,6 @@ import type { Attachment } from '../../api/types';
 
 /** AttachmentArea のパネルモード（追加・編集・閲覧）。 */
 export type AttachmentAreaMode = 'add' | 'edit' | 'view';
-
-// 編集モードの即時保存方式をユーザーに案内するテキスト（report-detail.md §7 冒頭の仕様に準拠）。
-const EDIT_MODE_NOTICE =
-  '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。';
-
-// 追加モードのローカル保持方式をユーザーに案内するテキスト（report-detail.md §7「モード別の案内文」に準拠）。
-const ADD_MODE_NOTICE =
-  '※ 添付ファイルは『保存する』ボタン押下後にまとめてアップロードされます。';
 
 export interface AttachmentAreaProps {
   /** レポート ID */
@@ -196,16 +187,6 @@ function AttachmentAreaContent({
         onDelete={handleDeleteRequest}
         onError={(message) => showToast('error', message)}
       />
-      {/* 永続化タイミング案内文（編集モード）。 */}
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        display="block"
-        sx={{ mt: 1 }}
-        data-testid="attachment-persistence-notice"
-      >
-        {EDIT_MODE_NOTICE}
-      </Typography>
       {canModify && (
         <AttachmentUploader
           reportId={reportId}
@@ -257,16 +238,6 @@ function AttachmentAreaAddMode({
 }) {
   return (
     <div data-testid="attachment-area">
-      {/* 追加モード案内文（report-detail.md §7「モード別の案内文」に準拠）。 */}
-      <Typography
-        variant="caption"
-        color="text.secondary"
-        display="block"
-        sx={{ mt: 1 }}
-        data-testid="attachment-persistence-notice"
-      >
-        {ADD_MODE_NOTICE}
-      </Typography>
       {/* ファイル選択 UI（canModify=true のときのみ表示）。
           保留ファイルの一覧・削除ボタン・「保存後にアップロード予定」ラベルは
           AttachmentUploader 内部で管理する（ATT-FE-073/075/077）。 */}

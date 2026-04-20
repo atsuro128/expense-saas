@@ -1,11 +1,11 @@
 // AttachmentArea コンポーネントのユニットテスト。
 // report-detail.md §AttachmentArea の Props 仕様に基づくテスト。
 // ATT-FE-001〜006、ATT-FE-054〜056 に対応する。
-// ATT-FE-072, 075, 076, 077 に対応する（issue #115: 新規明細のローカル保持方式）。
+// ATT-FE-072, 075, 077 に対応する（issue #115: 新規明細のローカル保持方式）。
 //
 // 注意: AttachmentArea はスタブ実装のため、ATT-FE-001・ATT-FE-003・ATT-FE-005・ATT-FE-006 の
 // 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
-// ATT-FE-072, 075, 076, 077 は issue #115 の機能実装前のため FAIL 前提。
+// ATT-FE-072, 075, 077 は issue #115 の機能実装前のため FAIL 前提。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -298,49 +298,6 @@ describe('AttachmentArea', () => {
     expect(fetchCallCountAfterCancel).toBe(fetchCallCountBeforeDelete);
   });
 
-  // ATT-FE-076: モード別の案内文が正しく表示される（issue #115）。
-  // (a) mode='add' のとき追加モード案内文、(b) mode='edit' のとき編集モード案内文を検証する。
-  it('ATT-FE-076: shows_mode_specific_guidance_text', () => {
-    // (a) 追加モード: 保存時一括アップロード案内文が表示される。
-    const WrapperAdd = createWrapper();
-    const { unmount: unmountAdd } = render(
-      <WrapperAdd>
-        <AttachmentArea
-          reportId="rpt-1"
-          itemId={null}
-          canModify={true}
-          mode="add"
-        />
-      </WrapperAdd>,
-    );
-    // 追加モードの案内文が表示されること。
-    expect(
-      screen.getByText(
-        '※ 添付ファイルは『保存する』ボタン押下後にまとめてアップロードされます。',
-      ),
-    ).toBeInTheDocument();
-    unmountAdd();
-
-    // (b) 編集モード: 即時保存案内文が表示される。
-    const WrapperEdit = createWrapper();
-    render(
-      <WrapperEdit>
-        <AttachmentArea
-          reportId="rpt-1"
-          itemId="item-1"
-          canModify={true}
-          mode="edit"
-        />
-      </WrapperEdit>,
-    );
-    // 編集モードの案内文が表示されること。
-    expect(
-      screen.getByText(
-        '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。',
-      ),
-    ).toBeInTheDocument();
-  });
-
   // ATT-FE-056: 確認ダイアログの「削除する」押下で削除 API が呼ばれる（issue-103 修正）。
   it('ATT-FE-056: ダイアログで削除するを押すと削除 API が呼ばれる', async () => {
     const Wrapper = createWrapper();
@@ -407,12 +364,12 @@ describe('AttachmentArea', () => {
 });
 
 // =============================================================================
-// ATT-FE-072, 075, 076, 077: 新規明細でのローカル保持方式（issue #115）
+// ATT-FE-072, 075, 077: 新規明細でのローカル保持方式（issue #115）
 // 機能実装前のため全テスト FAIL 前提。
-// FAIL 原因: AttachmentArea の mode prop・ローカル保持 state・案内文分岐が未実装。
+// FAIL 原因: AttachmentArea の mode prop・ローカル保持 state が未実装。
 // =============================================================================
 
-describe('AttachmentArea 追加モード（ATT-FE-072, 075, 076, 077, issue #115）', () => {
+describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
