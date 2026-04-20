@@ -94,8 +94,8 @@ type ExpenseItemDTO struct {
 type ExpenseReportSummary struct {
 	ID          uuid.UUID         `json:"id"`
 	Title       string            `json:"title"`
-	PeriodStart time.Time         `json:"period_start"`
-	PeriodEnd   time.Time         `json:"period_end"`
+	PeriodStart string            `json:"period_start"`
+	PeriodEnd   string            `json:"period_end"`
 	Status      domain.ReportStatus `json:"status"`
 	TotalAmount int               `json:"total_amount"`
 	SubmittedAt *time.Time        `json:"submitted_at,omitempty"`
@@ -109,8 +109,8 @@ type ExpenseReportSummary struct {
 type ExpenseReportDetail struct {
 	ID                uuid.UUID         `json:"id"`
 	Title             string            `json:"title"`
-	PeriodStart       time.Time         `json:"period_start"`
-	PeriodEnd         time.Time         `json:"period_end"`
+	PeriodStart       string            `json:"period_start"`
+	PeriodEnd         string            `json:"period_end"`
 	Status            domain.ReportStatus `json:"status"`
 	TotalAmount       int               `json:"total_amount"`
 	Submitter         UserSummary       `json:"submitter"`
@@ -154,8 +154,8 @@ type PayableReport struct {
 type RecentReport struct {
 	ID          uuid.UUID         `json:"id"`
 	Title       string            `json:"title"`
-	PeriodStart time.Time         `json:"period_start"`
-	PeriodEnd   time.Time         `json:"period_end"`
+	PeriodStart string            `json:"period_start"`
+	PeriodEnd   string            `json:"period_end"`
 	TotalAmount int               `json:"total_amount"`
 	Status      domain.ReportStatus `json:"status"`
 	UpdatedAt   time.Time         `json:"updated_at"`

@@ -13,8 +13,11 @@ package handler_test
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -23,6 +26,25 @@ import (
 	"expense-saas/internal/domain"
 	"expense-saas/internal/testutil"
 )
+
+// dateOnlyPattern は YYYY-MM-DD 形式の正規表現。
+// issue 117: period_start / period_end が RFC3339 トークン（T, Z）を含まない日付のみの文字列であることを検証する。
+var dateOnlyPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// assertDateOnlyFormat は文字列 s が YYYY-MM-DD 形式であり、RFC3339 トークン（T / Z）を含まないことを検証する。
+// issue 117 codex 指摘対応: period_start / period_end の形式検証ヘルパー。
+func assertDateOnlyFormat(t *testing.T, field, s string) {
+	t.Helper()
+	if !dateOnlyPattern.MatchString(s) {
+		t.Errorf("%s: YYYY-MM-DD 形式ではありません: got %q", field, s)
+	}
+	if strings.Contains(s, "T") {
+		t.Errorf("%s: RFC3339 の 'T' トークンが含まれています: got %q", field, s)
+	}
+	if strings.Contains(s, "Z") {
+		t.Errorf("%s: RFC3339 の 'Z' トークンが含まれています: got %q", field, s)
+	}
+}
 
 // =============================================================================
 // テスト共通セットアップ
@@ -72,6 +94,25 @@ func TestListMyReports_Success(t *testing.T) {
 
 	// 200 OK: 自分のレポート一覧が返る（RPT-001）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusOK)
+
+	// issue 117 codex 指摘: period_start / period_end が YYYY-MM-DD 形式で返ることを検証する。
+	// RFC3339 形式（"T"/"Z" を含む）であってはならない。
+	var body struct {
+		Data []struct {
+			PeriodStart string `json:"period_start"`
+			PeriodEnd   string `json:"period_end"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("レスポンス JSON のデコードに失敗しました: %v (body: %s)", err, rec.Body.String())
+	}
+	if len(body.Data) == 0 {
+		t.Fatal("data が空です: period_start / period_end の形式検証ができません")
+	}
+	for i, r := range body.Data {
+		assertDateOnlyFormat(t, fmt.Sprintf("data[%d].period_start", i), r.PeriodStart)
+		assertDateOnlyFormat(t, fmt.Sprintf("data[%d].period_end", i), r.PeriodEnd)
+	}
 }
 
 // RPT-002: status=draft フィルタで draft のみが返る。
@@ -478,6 +519,20 @@ func TestGetReport_Owner_Success(t *testing.T) {
 
 	// 200 OK: レポート詳細（items + attachments ネスト）が返る（RPT-027）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusOK)
+
+	// issue 117 codex 指摘: 詳細レスポンスの period_start / period_end が YYYY-MM-DD 形式であることを検証する。
+	// RFC3339 形式（"T"/"Z" を含む）であってはならない。
+	var body struct {
+		Data struct {
+			PeriodStart string `json:"period_start"`
+			PeriodEnd   string `json:"period_end"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("レスポンス JSON のデコードに失敗しました: %v (body: %s)", err, rec.Body.String())
+	}
+	assertDateOnlyFormat(t, "data.period_start", body.Data.PeriodStart)
+	assertDateOnlyFormat(t, "data.period_end", body.Data.PeriodEnd)
 }
 
 // RPT-028: Member が他者の draft レポートにアクセス → 403（RBC-010）。
