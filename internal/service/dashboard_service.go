@@ -97,13 +97,14 @@ func (s *dashboardService) fillMemberFields(ctx context.Context, tenantID, userI
 		return fmt.Errorf("dashboardService.fillMemberFields: ListRecentReports: %w", err)
 	}
 
+	// PeriodStart / PeriodEnd は openapi.yaml の format:date 契約に合わせ YYYY-MM-DD 文字列で返す。
 	recentReports := make([]RecentReport, len(recent))
 	for i, r := range recent {
 		recentReports[i] = RecentReport{
 			ID:          r.ReportID,
 			Title:       r.Title,
-			PeriodStart: r.PeriodStart,
-			PeriodEnd:   r.PeriodEnd,
+			PeriodStart: r.PeriodStart.Format("2006-01-02"),
+			PeriodEnd:   r.PeriodEnd.Format("2006-01-02"),
 			TotalAmount: r.TotalAmount,
 			Status:      r.Status,
 			UpdatedAt:   r.UpdatedAt,

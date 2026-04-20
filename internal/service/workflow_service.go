@@ -241,8 +241,8 @@ func (s *workflowService) buildWorkflowDetail(ctx context.Context, actor domain.
 	detail := &ExpenseReportDetail{
 		ID:                report.ReportID,
 		Title:             report.Title,
-		PeriodStart:       report.PeriodStart,
-		PeriodEnd:         report.PeriodEnd,
+		PeriodStart:       report.PeriodStart.Format("2006-01-02"),
+		PeriodEnd:         report.PeriodEnd.Format("2006-01-02"),
 		Status:            report.Status,
 		TotalAmount:       report.TotalAmount,
 		Submitter:         UserSummary{ID: submitter.UserID, Name: submitter.Name},
