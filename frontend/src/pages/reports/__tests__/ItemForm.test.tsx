@@ -630,6 +630,34 @@ describe('ItemForm', () => {
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
 
+  // ITM-FE-104（RFC3339 境界値・防御コード検証）:
+  // API が period_start / period_end を RFC3339（2026-04-01T00:00:00Z）で返す
+  // ケース（issue 117）でも、ItemForm 内の正規化（.slice(0, 10)）により
+  // 開始日ちょうどの expenseDate が期間内として扱われることを検証する。
+  it('ITM-FE-104（RFC3339 境界値）: period_start が RFC3339 形式でも開始日ちょうどは期間内扱い', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01T00:00:00Z"
+        reportPeriodEnd="2026-04-30T00:00:00Z"
+      />,
+    );
+
+    // expenseDate='2026-04-01'（開始日ちょうど、YYYY-MM-DD）で保存ボタン押下。
+    await fillFormAndSave(user, '2026-04-01');
+
+    // 正規化されていない場合は '2026-04-01' < '2026-04-01T00:00:00Z' が true になり
+    // 誤警告が出るが、isOutsidePeriod 内の .slice(0, 10) により期間内扱いになることを検証する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
   // ITM-FE-105: 「保存して続けて追加」ボタンでも ConfirmDialog が機能する。
   it('ITM-FE-105: 保存して続けて追加ボタンでも期間外日付はConfirmDialogが表示されonSaveAndContinueは呼ばれない', async () => {
     const user = userEvent.setup();

@@ -188,12 +188,18 @@ export default function ItemForm({
    * expenseDate が reportPeriodStart より前、または reportPeriodEnd より後の場合に true を返す。
    * 境界値（開始日/終了日ちょうど）は期間内扱い（strict less/greater）。
    * View モードでは判定をスキップして常に false を返す。
+   *
+   * period_start / period_end は YYYY-MM-DD 形式が前提だが、API が RFC3339
+   * （例: 2026-04-01T00:00:00Z）で返すケースを考慮して先頭 10 文字を切り出して
+   * 正規化する（issue 117 の根本修正が完了するまでの防御コード）。
    * @param expenseDate 支出日（YYYY-MM-DD 形式）
    */
   const isOutsidePeriod = (expenseDate: string): boolean => {
     if (isView) return false;
     if (!reportPeriodStart || !reportPeriodEnd || !expenseDate) return false;
-    return expenseDate < reportPeriodStart || expenseDate > reportPeriodEnd;
+    const normalizedStart = reportPeriodStart.slice(0, 10);
+    const normalizedEnd = reportPeriodEnd.slice(0, 10);
+    return expenseDate < normalizedStart || expenseDate > normalizedEnd;
   };
 
   /**
