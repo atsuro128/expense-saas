@@ -28,11 +28,11 @@ export default function AllReportsPage() {
   const { data: userData } = useCurrentUser();
   const currentUser = userData?.data;
 
-  // フィルタ状態。
+  // フィルタ状態。空文字は「未指定」を表す（null 不使用）。
   const [filters, setFilters] = useState<AllReportsFilterValues>({
     status: '',
-    from: null,
-    to: null,
+    from: '',
+    to: '',
     submitterId: '',
   });
 

@@ -40,8 +40,9 @@ export default function ReportPeriodField({
           <AppDatePicker
             name="periodStart"
             label="開始日"
-            value={field.value ?? null}
+            value={field.value ?? ''}
             onChange={field.onChange}
+            onBlur={field.onBlur}
             errorMessage={periodStartError}
             required
             disabled={disabled}
@@ -65,8 +66,9 @@ export default function ReportPeriodField({
           <AppDatePicker
             name="periodEnd"
             label="終了日"
-            value={field.value ?? null}
+            value={field.value ?? ''}
             onChange={field.onChange}
+            onBlur={field.onBlur}
             errorMessage={periodEndError}
             required
             disabled={disabled}
