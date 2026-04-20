@@ -35,9 +35,9 @@ func (h *ReportHandler) ListMyReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params, err := parseReportListParams(r)
+	params, details, err := parseReportListParams(r)
 	if err != nil {
-		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", nil)
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -525,54 +525,92 @@ func parseUUIDParam(r *http.Request, paramName string) (uuid.UUID, error) {
 }
 
 // parseReportListParams はクエリパラメータから ReportListParams を構築します。
-func parseReportListParams(r *http.Request) (domain.ReportListParams, error) {
+// バリデーションエラーがある場合は details にフィールド単位のエラーを蓄積して返します。
+func parseReportListParams(r *http.Request) (domain.ReportListParams, []middleware.ValidationError, error) {
 	q := r.URL.Query()
 	params := domain.ReportListParams{
 		Page:    1,
 		PerPage: 20,
 	}
 
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
+	// page のパースとバリデーション。
 	if pageStr := q.Get("page"); pageStr != "" {
 		var page int
 		if _, err := parseIntQuery(pageStr, &page); err != nil || page < 1 {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "page",
+				Message: "page は正の整数でなければなりません",
+			})
+		} else {
+			params.Page = page
 		}
-		params.Page = page
 	}
 
+	// per_page のパースとバリデーション（上限 100）。
 	if perPageStr := q.Get("per_page"); perPageStr != "" {
 		var perPage int
 		if _, err := parseIntQuery(perPageStr, &perPage); err != nil || perPage < 1 {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page は正の整数でなければなりません",
+			})
+		} else if perPage > 100 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page の上限は 100 です",
+			})
+		} else {
+			params.PerPage = perPage
 		}
-		params.PerPage = perPage
 	}
 
+	// status のバリデーション（許可値リスト）。
 	if statusStr := q.Get("status"); statusStr != "" {
 		s := domain.ReportStatus(statusStr)
 		if !s.IsValid() {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "status",
+				Message: "status は draft, submitted, approved, rejected, paid のいずれかでなければなりません",
+			})
+		} else {
+			params.Status = &s
 		}
-		params.Status = &s
 	}
 
+	// from のバリデーション（YYYY-MM-DD 形式のみ許可）。
 	if fromStr := q.Get("from"); fromStr != "" {
 		t, err := time.Parse("2006-01-02", fromStr)
 		if err != nil {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "from",
+				Message: "from は YYYY-MM-DD 形式でなければなりません",
+			})
+		} else {
+			params.From = &t
 		}
-		params.From = &t
 	}
 
+	// to のバリデーション（YYYY-MM-DD 形式のみ許可）。
 	if toStr := q.Get("to"); toStr != "" {
 		t, err := time.Parse("2006-01-02", toStr)
 		if err != nil {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "to",
+				Message: "to は YYYY-MM-DD 形式でなければなりません",
+			})
+		} else {
+			params.To = &t
 		}
-		params.To = &t
 	}
 
-	return params, nil
+	if len(details) > 0 {
+		return params, details, fmt.Errorf("クエリパラメータにバリデーションエラーがあります")
+	}
+
+	return params, nil, nil
 }
 
 // parseIntQuery は文字列を int にパースします。
