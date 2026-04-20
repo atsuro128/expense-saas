@@ -2,7 +2,7 @@
 // ITM-FE-026〜047 に対応する。
 // ItemForm は未実装（スタブ）のため、テストは失敗する（赤い仕様テスト）。
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import ItemForm from '../ItemForm';
@@ -402,5 +402,290 @@ describe('ItemForm', () => {
     await user.click(categorySelect);
 
     expect(screen.getByRole('listbox')).toBeInTheDocument();
+  });
+
+  // --- ITM-FE-099〜106: 期間外警告（ITM-007、ConfirmDialog）---
+  // 判定条件: expenseDate < reportPeriodStart || expenseDate > reportPeriodEnd（strict less/greater）
+  // 確認ボタン押下 → 保存処理継続、キャンセル押下 → ダイアログ閉じて保存せず（入力値維持）
+  // View モードでは ConfirmDialog を表示しない
+
+  // 期間外警告テスト共通のヘルパー: 全フィールドに有効値を入力して保存ボタンを押下する。
+  // expenseDate は引数で指定する。
+  async function fillFormAndSave(
+    user: ReturnType<typeof userEvent.setup>,
+    expenseDateValue: string,
+  ): Promise<void> {
+    const dateInput = screen.getByLabelText(/日付/);
+    await user.clear(dateInput);
+    await user.type(dateInput, expenseDateValue);
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.clear(amountInput);
+    await user.type(amountInput, '1000');
+    // カテゴリ Select: combobox をクリックして選択肢を開き「交通費」を選択する。
+    const categorySelect = screen.getByLabelText(/カテゴリ/);
+    await user.click(categorySelect);
+    const option = await screen.findByRole('option', { name: '交通費' });
+    await user.click(option);
+    const descInput = screen.getByLabelText(/摘要/);
+    await user.clear(descInput);
+    await user.type(descInput, 'タクシー代');
+    const saveButton = screen.getByRole('button', { name: /^保存する$/ });
+    await user.click(saveButton);
+  }
+
+  // ITM-FE-099: 期間開始日より前の日付で保存 → ConfirmDialog 表示・onSubmit 未呼び出し。
+  it('ITM-FE-099: 期間開始日より前の日付で保存するとConfirmDialogが表示されonSubmitは呼ばれない', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // expenseDate='2026-03-15'（開始日 2026-04-01 より前）で全フィールド入力後、保存ボタン押下。
+    await fillFormAndSave(user, '2026-03-15');
+
+    // ConfirmDialog が表示されることを検証する（ITM-FE-099）。機能未実装のため現在は失敗する。
+    expect(
+      screen.getByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).toBeInTheDocument();
+    // onSubmit は ConfirmDialog の確認前には呼ばれないことを検証する。
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // ITM-FE-100: 期間終了日より後の日付（edit モード）→ ConfirmDialog 表示・onSubmit 未呼び出し。
+  it('ITM-FE-100: 期間終了日より後の日付（editモード）で保存するとConfirmDialogが表示される', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="edit"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        defaultValues={mockItem}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // expenseDate を '2026-05-05'（終了日 2026-04-30 より後）に変更して保存ボタン押下。
+    const dateInput = screen.getByLabelText(/日付/);
+    await user.clear(dateInput);
+    await user.type(dateInput, '2026-05-05');
+    const saveButton = screen.getByRole('button', { name: /^保存する$/ });
+    await user.click(saveButton);
+
+    // ConfirmDialog が表示されることを検証する（ITM-FE-100）。機能未実装のため現在は失敗する。
+    expect(
+      screen.getByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).toBeInTheDocument();
+    // onSubmit は ConfirmDialog の確認前には呼ばれないことを検証する。
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // ITM-FE-101: ConfirmDialog 確認ボタン押下 → onSubmit が呼ばれ ConfirmDialog が閉じる。
+  it('ITM-FE-101: ConfirmDialog確認ボタン押下でonSubmitが呼ばれConfirmDialogが閉じる', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // 期間外日付で保存して ConfirmDialog を表示させる。
+    await fillFormAndSave(user, '2026-03-15');
+
+    // ConfirmDialog タイトルを確認してから確認ボタンを押下する（ITM-FE-101）。機能未実装のため現在は失敗する。
+    expect(screen.getByText('明細日付の確認')).toBeInTheDocument();
+    // ConfirmDialog 内の「保存する」ボタン（confirm）を押下する。
+    // ページ上に「保存する」ボタンが複数ある場合を考慮してダイアログ内を絞り込む。
+    const dialog = screen.getByRole('dialog');
+    const confirmButton = within(dialog).getByRole('button', { name: '保存する' });
+    await user.click(confirmButton);
+
+    // onSubmit が期間外の入力値を含む ItemFormValues で呼ばれることを検証する。
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    // ConfirmDialog が閉じることを検証する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+  });
+
+  // ITM-FE-102: ConfirmDialog キャンセルボタン押下 → onSubmit 未呼び出し・フォーム入力値維持。
+  it('ITM-FE-102: ConfirmDialogキャンセルボタン押下でonSubmitが呼ばれずフォーム入力値が維持される', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // 期間外日付で保存して ConfirmDialog を表示させる。
+    await fillFormAndSave(user, '2026-03-15');
+
+    // ConfirmDialog の「キャンセル」ボタンを押下する（ITM-FE-102）。機能未実装のため現在は失敗する。
+    const dialog = screen.getByRole('dialog');
+    const cancelButton = within(dialog).getByRole('button', { name: 'キャンセル' });
+    await user.click(cancelButton);
+
+    // onSubmit が呼ばれないことを検証する。
+    expect(onSubmit).not.toHaveBeenCalled();
+    // ConfirmDialog が閉じることを検証する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+    // フォームの入力値が維持されていることを検証する（expenseDate='2026-03-15'）。
+    const dateInput = screen.getByLabelText(/日付/);
+    expect(dateInput).toHaveValue('2026-03-15');
+  });
+
+  // ITM-FE-103: 期間内の日付 → ConfirmDialog 非表示・onSubmit 即時呼び出し。
+  it('ITM-FE-103: 期間内の日付で保存するとConfirmDialogは表示されずonSubmitが即座に呼ばれる', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // expenseDate='2026-04-15'（期間内）で全フィールド入力後、保存ボタン押下。
+    await fillFormAndSave(user, '2026-04-15');
+
+    // ConfirmDialog が表示されないことを検証する（ITM-FE-103）。機能未実装のため現在は失敗する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+    // onSubmit が即座に呼ばれることを検証する。
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  // ITM-FE-104: 境界値（開始日/終了日ちょうど）→ 期間内扱いで ConfirmDialog 非表示・onSubmit 呼び出し。
+  it('ITM-FE-104（開始日境界値）: 期間開始日ちょうどの日付で保存するとConfirmDialogは表示されずonSubmitが呼ばれる', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // expenseDate='2026-04-01'（開始日ちょうど）で保存ボタン押下。
+    await fillFormAndSave(user, '2026-04-01');
+
+    // ConfirmDialog が表示されないことを検証する（境界値は期間内扱い、ITM-FE-104）。機能未実装のため現在は失敗する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('ITM-FE-104（終了日境界値）: 期間終了日ちょうどの日付で保存するとConfirmDialogは表示されずonSubmitが呼ばれる', async () => {
+    const user = userEvent.setup();
+    const onSubmit = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSubmit={onSubmit}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // expenseDate='2026-04-30'（終了日ちょうど）で保存ボタン押下。
+    await fillFormAndSave(user, '2026-04-30');
+
+    // ConfirmDialog が表示されないことを検証する（境界値は期間内扱い、ITM-FE-104）。機能未実装のため現在は失敗する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  // ITM-FE-105: 「保存して続けて追加」ボタンでも ConfirmDialog が機能する。
+  it('ITM-FE-105: 保存して続けて追加ボタンでも期間外日付はConfirmDialogが表示されonSaveAndContinueは呼ばれない', async () => {
+    const user = userEvent.setup();
+    const onSaveAndContinue = vi.fn();
+    render(
+      <ItemForm
+        mode="add"
+        {...defaultProps}
+        onSaveAndContinue={onSaveAndContinue}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // 全フィールドに有効値を入力して「保存して続けて追加」ボタンを押下する。
+    const dateInput = screen.getByLabelText(/日付/);
+    await user.type(dateInput, '2026-03-15');
+    const amountInput = screen.getByLabelText(/金額/);
+    await user.type(amountInput, '1000');
+    // カテゴリ Select: combobox をクリックして選択肢を開き「交通費」を選択する。
+    const categorySelect = screen.getByLabelText(/カテゴリ/);
+    await user.click(categorySelect);
+    const option = await screen.findByRole('option', { name: '交通費' });
+    await user.click(option);
+    const descInput = screen.getByLabelText(/摘要/);
+    await user.type(descInput, 'タクシー代');
+    const saveAndContinueButton = screen.getByRole('button', { name: /保存して続けて追加/ });
+    await user.click(saveAndContinueButton);
+
+    // ConfirmDialog が表示されることを検証する（ITM-FE-105）。機能未実装のため現在は失敗する。
+    expect(
+      screen.getByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).toBeInTheDocument();
+    // onSaveAndContinue は ConfirmDialog の確認前には呼ばれないことを検証する。
+    expect(onSaveAndContinue).not.toHaveBeenCalled();
+
+    // ConfirmDialog の確認ボタン押下後に onSaveAndContinue が呼ばれることを検証する。
+    const dialog = screen.getByRole('dialog');
+    const confirmButton = within(dialog).getByRole('button', { name: '保存する' });
+    await user.click(confirmButton);
+    expect(onSaveAndContinue).toHaveBeenCalledTimes(1);
+  });
+
+  // ITM-FE-106: View モードでは ConfirmDialog が表示されない。
+  it('ITM-FE-106: viewモードでは期間外日付でもConfirmDialogは表示されない', () => {
+    render(
+      <ItemForm
+        mode="view"
+        {...defaultProps}
+        defaultValues={{ ...mockItem, expenseDate: '2026-03-15' }}
+        reportPeriodStart="2026-04-01"
+        reportPeriodEnd="2026-04-30"
+      />,
+    );
+
+    // view モードでは保存操作が存在しないため、ConfirmDialog は表示されない（ITM-FE-106）。
+    // 期間外日付がデフォルト値として設定されていても ConfirmDialog は非表示であることを検証する。
+    expect(
+      screen.queryByText('明細日付がレポートの対象期間外です。入力を確認してください。'),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 });
