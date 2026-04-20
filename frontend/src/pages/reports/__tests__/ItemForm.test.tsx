@@ -773,20 +773,18 @@ describe('ItemForm', () => {
     expect(screen.getByText(/日付を入力してください/)).toBeInTheDocument();
   });
 
-  // ITM-FE-107: カテゴリを未選択のままブラーするとエラー表示（V5）。
-  // MUI Select はドロップダウンを開いてキャンセルすることで blur イベントを発火させる。
-  // AppSelect に onBlur prop が配線されていることで field.onBlur が呼ばれ、即時バリデーションが動く。
-  it('ITM-FE-107: shows_validation_error_when_category_not_selected_on_blur: カテゴリを未選択のままblurすると「カテゴリを選択してください」エラーが即時表示される（V5）', async () => {
+  // ITM-FE-108: 金額フィールドを空のままフォーカスアウトすると「金額を入力してください」エラー表示（V2）。
+  it('ITM-FE-108: shows_validation_error_when_amount_empty_on_blur: 金額フィールドを空のままフォーカスアウトすると「金額を入力してください」がエラー表示される（V2）', async () => {
     const user = userEvent.setup();
     render(<ItemForm mode="add" {...defaultProps} />);
 
-    // MUI Select: combobox をクリックしてドロップダウンを開き、Escape で閉じて blur を発火させる。
-    const categorySelect = screen.getByRole('combobox');
-    await user.click(categorySelect);
-    await user.keyboard('{Escape}'); // ドロップダウンを閉じる（選択なし）
-    await user.tab(); // Select からフォーカスを外す
+    const amountInput = screen.getByLabelText(/金額/);
+    // 既存入力がある場合は空にクリアし、未入力のままフォーカスアウトする。
+    await user.clear(amountInput);
+    await user.click(amountInput); // フォーカス
+    await user.tab(); // blur を発火させる
 
-    expect(screen.getByText(/カテゴリを選択してください/)).toBeInTheDocument();
+    expect(screen.getByText(/金額を入力してください/)).toBeInTheDocument();
   });
 
   // onBlur-6: 摘要を未入力のまま blur → 「摘要を入力してください」表示（V6）。
