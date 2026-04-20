@@ -293,6 +293,7 @@ export default function ItemForm({
             options={categories}
             value={field.value}
             onChange={field.onChange}
+            onBlur={field.onBlur}
             errorMessage={errors.categoryId?.message}
             disabled={isPending && !isReadOnly}
             readOnly={isReadOnly}

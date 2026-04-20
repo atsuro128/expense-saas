@@ -773,9 +773,10 @@ describe('ItemForm', () => {
     expect(screen.getByText(/日付を入力してください/)).toBeInTheDocument();
   });
 
-  // onBlur-5: カテゴリを未選択のままブラーするとエラー表示（V5）。
+  // ITM-FE-107: カテゴリを未選択のままブラーするとエラー表示（V5）。
   // MUI Select はドロップダウンを開いてキャンセルすることで blur イベントを発火させる。
-  it('onBlur-5: カテゴリを未選択のままblurすると「カテゴリを選択してください」エラーが即時表示される（V5）', async () => {
+  // AppSelect に onBlur prop が配線されていることで field.onBlur が呼ばれ、即時バリデーションが動く。
+  it('ITM-FE-107: shows_validation_error_when_category_not_selected_on_blur: カテゴリを未選択のままblurすると「カテゴリを選択してください」エラーが即時表示される（V5）', async () => {
     const user = userEvent.setup();
     render(<ItemForm mode="add" {...defaultProps} />);
 
