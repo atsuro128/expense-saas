@@ -352,6 +352,7 @@ func TestCreateItem_AmountZero(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: amount=0 は不正（ITM-011）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertValidationErrorField(t, rec, "amount")
 }
 
 // TestCreateItem_AmountNegative は amount=-1 で 422 VALIDATION_ERROR が返ることを検証する。
@@ -374,6 +375,7 @@ func TestCreateItem_AmountNegative(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: amount=-1 は不正（ITM-012）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertValidationErrorField(t, rec, "amount")
 }
 
 // TestCreateItem_MissingExpenseDate は expense_date 省略で 422 VALIDATION_ERROR が返ることを検証する。
@@ -395,6 +397,7 @@ func TestCreateItem_MissingExpenseDate(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: expense_date は必須（ITM-015）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertValidationErrorField(t, rec, "expense_date")
 }
 
 // TestCreateItem_InvalidExpenseDateFormat は expense_date に不正フォーマットで 422 が返ることを検証する。
@@ -437,6 +440,7 @@ func TestCreateItem_MissingCategoryId(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: category_id は必須（ITM-017）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertValidationErrorField(t, rec, "category_id")
 }
 
 // TestCreateItem_InvalidCategoryId は category_id に不正 UUID で 422 が返ることを検証する。
@@ -502,6 +506,7 @@ func TestCreateItem_MissingDescription(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: description は必須（ITM-020）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertValidationErrorField(t, rec, "description")
 }
 
 // TestCreateItem_EmptyDescription は description="" で 422 VALIDATION_ERROR が返ることを検証する。
@@ -922,6 +927,7 @@ func TestUpdateItem_MissingUpdatedAt(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: updated_at は楽観的ロック用必須フィールド（ITM-113）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertValidationErrorField(t, rec, "updated_at")
 }
 
 // TestUpdateItem_MissingDescription は description 省略で 422 VALIDATION_ERROR が返ることを検証する。
