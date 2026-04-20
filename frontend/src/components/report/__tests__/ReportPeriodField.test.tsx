@@ -1,6 +1,6 @@
 // ReportPeriodField コンポーネントのユニットテスト。
-// RPT-FE-039〜042、RPT-FE-043〜044 に対応する。
-// RPT-FE-043〜044: issue 119（onBlur 伝播）修正確認テスト。
+// RPT-FE-039〜042、RPT-FE-103〜104 に対応する。
+// RPT-FE-103〜104: issue 119（onBlur 伝播）修正確認テスト。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -67,9 +67,9 @@ describe('ReportPeriodField', () => {
     expect(screen.getByLabelText('終了日')).toBeDisabled();
   });
 
-  // RPT-FE-043: 開始日フィールドでフォーカスアウトすると RHF の onBlur バリデーションが発火し、
+  // RPT-FE-103: 開始日フィールドでフォーカスアウトすると RHF の onBlur バリデーションが発火し、
   // 「開始日を入力してください」エラーが表示される（issue 119 修正確認）。
-  it('RPT-FE-043: 開始日フォーカスアウトで RHF の onBlur バリデーションが発火し必須エラーが表示される', async () => {
+  it('RPT-FE-103: 開始日フォーカスアウトで RHF の onBlur バリデーションが発火し必須エラーが表示される', async () => {
     const user = userEvent.setup();
     render(<Wrapper withFormErrors />);
 
@@ -83,9 +83,9 @@ describe('ReportPeriodField', () => {
     });
   });
 
-  // RPT-FE-044: 終了日フィールドでフォーカスアウトすると RHF の onBlur バリデーションが発火し、
+  // RPT-FE-104: 終了日フィールドでフォーカスアウトすると RHF の onBlur バリデーションが発火し、
   // 「終了日を入力してください」エラーが表示される（issue 119 修正確認）。
-  it('RPT-FE-044: 終了日フォーカスアウトで RHF の onBlur バリデーションが発火し必須エラーが表示される', async () => {
+  it('RPT-FE-104: 終了日フォーカスアウトで RHF の onBlur バリデーションが発火し必須エラーが表示される', async () => {
     const user = userEvent.setup();
     render(<Wrapper withFormErrors />);
 

@@ -151,10 +151,10 @@ describe('ReportForm', () => {
     expect(screen.getByRole('button', { name: '保存する' })).toBeInTheDocument();
   });
 
-  // RPT-FE-059: 開始日フィールドをフォーカスアウトしたとき、日本語エラーが表示される（issue 120 修正確認）。
+  // RPT-FE-105: 開始日フィールドをフォーカスアウトしたとき、日本語エラーが表示される（issue 120 修正確認）。
   // AppDatePicker が空文字を返すことで z.string().min(1, '...') が発火し、
   // Zod デフォルト英語エラー "Invalid input: expected string, received null" が出ないことを確認。
-  it('RPT-FE-059: 開始日フィールドを空のままフォーカスアウトしたとき「開始日を入力してください」が表示される', async () => {
+  it('RPT-FE-105: 開始日フィールドを空のままフォーカスアウトしたとき「開始日を入力してください」が表示される', async () => {
     const onSubmit = vi.fn();
     render(<ReportForm {...defaultProps} onSubmit={onSubmit} />);
 
@@ -172,8 +172,8 @@ describe('ReportForm', () => {
     ).not.toBeInTheDocument();
   });
 
-  // RPT-FE-060: 終了日フィールドをフォーカスアウトしたとき、日本語エラーが表示される（issue 120 修正確認）。
-  it('RPT-FE-060: 終了日フィールドを空のままフォーカスアウトしたとき「終了日を入力してください」が表示される', async () => {
+  // RPT-FE-106: 終了日フィールドをフォーカスアウトしたとき、日本語エラーが表示される（issue 120 修正確認）。
+  it('RPT-FE-106: 終了日フィールドを空のままフォーカスアウトしたとき「終了日を入力してください」が表示される', async () => {
     const onSubmit = vi.fn();
     render(<ReportForm {...defaultProps} onSubmit={onSubmit} />);
 
