@@ -150,6 +150,10 @@ export default function ItemForm({
       categoryId: '',
       description: '',
     },
+    // V1〜V7: フォーカスアウト時にバリデーション（リアルタイム）、再バリデーションは入力時。
+    // ReportForm と同設定（screens/report-detail.md §バリデーション 全項目「入力時（リアルタイム）」）。
+    mode: 'onBlur',
+    reValidateMode: 'onChange',
   });
 
   // resetRef に reset 関数を登録して、親コンポーネント（ItemSlidePanel）から破棄操作時に呼べるようにする。
