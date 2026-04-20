@@ -280,3 +280,97 @@ describe('api/client handleErrorResponse: SERVER_ERROR_MESSAGES マッピング'
     });
   });
 });
+
+// 422 details パースの回帰テスト（issue 121 工程 C）。
+// ApiClientError.details に ValidationError[] が正しく格納されることを検証する。
+describe('api/client 422 details パース回帰テスト', () => {
+  let fetchSpy: ReturnType<typeof vi.fn>;
+
+  // details 付き JSON エラーレスポンスを返す fetch モック用ヘルパー。
+  function makeValidationErrorResponse(
+    details: Array<{ field: string; message: string }> | undefined,
+  ): Response {
+    const body = {
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: '入力内容に誤りがあります',
+        ...(details !== undefined ? { details } : {}),
+      },
+    };
+    return new Response(JSON.stringify(body), {
+      status: 422,
+      statusText: 'Unprocessable Entity',
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+
+  beforeEach(() => {
+    Object.defineProperty(window, 'location', {
+      value: { href: '/' },
+      writable: true,
+      configurable: true,
+    });
+    fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
+    authStore.clearTokens();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+    authStore.clearTokens();
+  });
+
+  // CLT-DETAILS-001: 422 レスポンスに details 配列（単一フィールド）が含まれるとき、
+  // ApiClientError.details に正しく格納されること。
+  it('CLT-DETAILS-001: 422 レスポンスの details 配列が ApiClientError.details に反映される', async () => {
+    const detailsPayload = [{ field: 'title', message: 'タイトルは必須です' }];
+    fetchSpy.mockResolvedValueOnce(makeValidationErrorResponse(detailsPayload));
+
+    await expect(api.post('/api/reports', {})).rejects.toMatchObject({
+      name: 'ApiClientError',
+      status: 422,
+      code: 'VALIDATION_ERROR',
+      details: detailsPayload,
+    });
+  });
+
+  // CLT-DETAILS-002: 422 レスポンスに details が存在しないとき、
+  // ApiClientError.details が undefined になり例外なく動作すること。
+  it('CLT-DETAILS-002: details が未指定の場合でも例外なく動作し details が undefined になる', async () => {
+    // details キーなしのレスポンスを返す。
+    fetchSpy.mockResolvedValueOnce(makeValidationErrorResponse(undefined));
+
+    const error = await api.post('/api/reports', {}).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      name: 'ApiClientError',
+      status: 422,
+      code: 'VALIDATION_ERROR',
+    });
+    // details が undefined であること（キーなしレスポンスに対する fallback 確認）。
+    expect((error as { details: unknown }).details).toBeUndefined();
+  });
+
+  // CLT-DETAILS-003: 422 レスポンスに複数フィールドの details が含まれるとき、
+  // ApiClientError.details にすべての要素が保持されること。
+  it('CLT-DETAILS-003: details[] に複数フィールドのエラーが含まれる場合すべて保持される', async () => {
+    const detailsPayload = [
+      { field: 'title', message: 'タイトルは必須です' },
+      { field: 'period_start', message: '開始日は必須です' },
+      { field: 'period_end', message: '終了日は開始日より後の日付を入力してください' },
+    ];
+    fetchSpy.mockResolvedValueOnce(makeValidationErrorResponse(detailsPayload));
+
+    const error = await api.post('/api/reports', {}).catch((e: unknown) => e);
+
+    expect(error).toMatchObject({
+      name: 'ApiClientError',
+      status: 422,
+      code: 'VALIDATION_ERROR',
+    });
+    // details の全要素が保持されること。
+    expect((error as { details: unknown }).details).toEqual(detailsPayload);
+    expect((error as { details: unknown[] }).details).toHaveLength(3);
+  });
+});
