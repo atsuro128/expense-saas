@@ -1,9 +1,11 @@
 // AttachmentArea コンポーネントのユニットテスト。
 // report-detail.md §AttachmentArea の Props 仕様に基づくテスト。
 // ATT-FE-001〜006、ATT-FE-054〜056 に対応する。
+// ATT-FE-072, 075, 076, 077 に対応する（issue #115: 新規明細のローカル保持方式）。
 //
 // 注意: AttachmentArea はスタブ実装のため、ATT-FE-001・ATT-FE-003・ATT-FE-005・ATT-FE-006 の
 // 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
+// ATT-FE-072, 075, 076, 077 は issue #115 の機能実装前のため FAIL 前提。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -20,6 +22,12 @@ function createWrapper() {
   return ({ children }: { children: ReactNode }) => (
     <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
   );
+}
+
+// テスト用ファイルオブジェクト生成ヘルパー。
+function createMockFile(name: string, size: number, type: string): File {
+  const buffer = new ArrayBuffer(size);
+  return new File([buffer], name, { type });
 }
 
 describe('AttachmentArea', () => {
@@ -290,6 +298,49 @@ describe('AttachmentArea', () => {
     expect(fetchCallCountAfterCancel).toBe(fetchCallCountBeforeDelete);
   });
 
+  // ATT-FE-076: モード別の案内文が正しく表示される（issue #115）。
+  // (a) mode='add' のとき追加モード案内文、(b) mode='edit' のとき編集モード案内文を検証する。
+  it('ATT-FE-076: shows_mode_specific_guidance_text', () => {
+    // (a) 追加モード: 保存時一括アップロード案内文が表示される。
+    const WrapperAdd = createWrapper();
+    const { unmount: unmountAdd } = render(
+      <WrapperAdd>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          canModify={true}
+          mode="add"
+        />
+      </WrapperAdd>,
+    );
+    // 追加モードの案内文が表示されること。
+    expect(
+      screen.getByText(
+        '※ 添付ファイルは『保存する』ボタン押下後にまとめてアップロードされます。',
+      ),
+    ).toBeInTheDocument();
+    unmountAdd();
+
+    // (b) 編集モード: 即時保存案内文が表示される。
+    const WrapperEdit = createWrapper();
+    render(
+      <WrapperEdit>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+          mode="edit"
+        />
+      </WrapperEdit>,
+    );
+    // 編集モードの案内文が表示されること。
+    expect(
+      screen.getByText(
+        '※ 添付ファイルは選択した時点で保存されます。フォームをキャンセルしても添付は残ります。',
+      ),
+    ).toBeInTheDocument();
+  });
+
   // ATT-FE-056: 確認ダイアログの「削除する」押下で削除 API が呼ばれる（issue-103 修正）。
   it('ATT-FE-056: ダイアログで削除するを押すと削除 API が呼ばれる', async () => {
     const Wrapper = createWrapper();
@@ -352,5 +403,154 @@ describe('AttachmentArea', () => {
       );
       expect(deleteCalled).toBe(true);
     });
+  });
+});
+
+// =============================================================================
+// ATT-FE-072, 075, 076, 077: 新規明細でのローカル保持方式（issue #115）
+// 機能実装前のため全テスト FAIL 前提。
+// FAIL 原因: AttachmentArea の mode prop・ローカル保持 state・案内文分岐が未実装。
+// =============================================================================
+
+describe('AttachmentArea 追加モード（ATT-FE-072, 075, 076, 077, issue #115）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    // useAttachments が fetch を呼ぶ場合の安全なモック（itemId=null では呼ばれない想定）。
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
+    } as unknown as Response);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // ATT-FE-072: 追加モード + itemId=null で AttachmentArea が表示され、useAttachments は API を呼ばない。
+  // FAIL 原因（機能未実装）: 現在の AttachmentArea は itemId=null で null を返すため何も描画されない。
+  // 機能実装後: mode="add" + itemId=null でも AttachmentArea が描画され、ローカル保持方式が有効になる。
+  it('ATT-FE-072: renders_attachment_area_in_add_mode_with_itemId_null', () => {
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 追加モード（itemId=null）でも AttachmentArea が描画されること（FAIL 前提）。
+    expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    // AttachmentUploader が表示されること（ローカル保持用のファイル選択 UI）。
+    expect(screen.getByTestId('attachment-uploader')).toBeInTheDocument();
+    // useAttachments は itemId=null のため API 呼び出しをスキップすること。
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  // ATT-FE-075: 保留中添付の「×」削除は API 未呼出・確認ダイアログなしでローカル state から除去のみ。
+  // FAIL 原因（機能未実装）: 追加モードが未実装のため保留中添付を保持できない。
+  // 機能実装後: ローカル state に保留した添付ファイルを「×」削除するとローカル state から除去され、
+  //            API は呼ばれず、確認ダイアログも表示されない。
+  it('ATT-FE-075: removes_pending_attachment_from_local_state_without_api_call', async () => {
+    const user = userEvent.setup();
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+          <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 添付エリアが描画されること（FAIL 前提）。
+    expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+
+    // JPEG 1 件目をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile1 = createMockFile('receipt1.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile1);
+
+    // JPEG 2 件目をローカル保留する。
+    const jpegFile2 = createMockFile('receipt2.jpg', 2048, 'image/jpeg');
+    await user.upload(fileInput, jpegFile2);
+
+    // 保留中添付が 2 件表示されること。
+    expect(screen.getAllByTestId(/pending-attachment-/)).toHaveLength(2);
+
+    // 保留件数の事前確認。
+    const fetchCallsBefore = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
+
+    // 1 件目の「×」削除ボタンをクリックする。
+    const deleteBtn = screen.getByTestId('pending-attachment-delete-0');
+    await user.click(deleteBtn);
+
+    // 確認ダイアログは表示されないこと（保留中添付の削除は即時）。
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // 一覧には残り 1 件が表示されること。
+    expect(screen.getAllByTestId(/pending-attachment-/)).toHaveLength(1);
+    expect(screen.getByText('receipt2.jpg')).toBeInTheDocument();
+    expect(screen.queryByText('receipt1.jpg')).not.toBeInTheDocument();
+
+    // API は呼ばれていないこと（削除 API は保存前の添付には不要）。
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(fetchCallsBefore);
+  });
+
+
+
+  // ATT-FE-077: 保留中添付のダウンロード/プレビューは非表示、関連 hook 未呼出。
+  // FAIL 原因（機能未実装）: 追加モードが未実装のため保留中添付の UI 自体が存在しない。
+  // 機能実装後: 保留中の行には「保存後にアップロード予定」ラベルのみ表示され、
+  //            プレビューリンクとダウンロードアイコンは表示されない。
+  it('ATT-FE-077: hides_download_and_preview_for_pending_attachments', async () => {
+    const user = userEvent.setup();
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+          <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 添付エリアが描画されること（FAIL 前提）。
+    expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+
+    // JPEG 1 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // 保留中ファイル行が表示されること。
+    const pendingLabel = screen.getByText('保存後にアップロード予定');
+    expect(pendingLabel).toBeInTheDocument();
+
+    // プレビューリンクは表示されないこと（保留中は S3 URL がないためプレビュー不可）。
+    // data-testid の命名規則: pending-attachment-preview-{index}。
+    expect(screen.queryByTestId('pending-attachment-preview-0')).not.toBeInTheDocument();
+
+    // ダウンロードアイコンは表示されないこと（保留中は S3 URL がないためダウンロード不可）。
+    // data-testid の命名規則: pending-attachment-download-{index}。
+    expect(screen.queryByTestId('pending-attachment-download-0')).not.toBeInTheDocument();
+
+    // fetch は呼ばれていないこと（useAttachmentPreviewUrl / useAttachmentDownloadUrl 未呼出）。
+    expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 });

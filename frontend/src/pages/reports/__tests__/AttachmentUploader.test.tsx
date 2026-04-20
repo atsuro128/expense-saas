@@ -2,10 +2,14 @@
 // report-detail.md §AttachmentUploader の Props 仕様に基づくテスト。
 // ATT-FE-016〜028 に対応する。
 // issue-100 修正対応: CircularProgress 表示・VisuallyHiddenInput・DnD 視覚フィードバックのテストを追加。
+// ATT-FE-073, 074, 078 に対応する（issue #115: 追加モードのローカル保持・バリデーション・編集モード不変）。
+// ATT-FE-073, 074 は機能実装前のため FAIL 前提。
+// FAIL 原因: AttachmentUploader に mode prop がなく、ローカル保持の分岐が未実装。
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { type ComponentType } from 'react';
 import AttachmentUploader from '../AttachmentUploader';
 
 // テスト用ファイルオブジェクト生成ヘルパー。
@@ -567,6 +571,56 @@ describe('AttachmentUploader', () => {
     expect(buttons).toHaveLength(1);
   });
 
+  // ATT-FE-078: mode='edit' で即時アップロード挙動が不変であることを保証する（issue #115）。
+  // 編集モードとの分岐が AttachmentUploader に波及しないことを確認する。
+  // mode='edit' で JPEG を選択すると useUploadAttachment.mutate が即時呼ばれ、ローカル state に保留されない。
+  // mode prop は機能実装後に AttachmentUploader に追加予定のため @ts-expect-error を付与する。
+  // 機能実装で mode prop 型が追加されたら @ts-expect-error を外すこと。
+  it('ATT-FE-078: keeps_edit_mode_behavior_unchanged_immediate_upload', async () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: true,
+      status: 201,
+      headers: { get: () => null },
+      json: async () => ({
+        data: {
+          id: 'att-new',
+          item_id: 'item-001',
+          file_name: 'receipt.jpg',
+          file_size: 1024,
+          mime_type: 'image/jpeg',
+          created_at: '2026-04-01T00:00:00Z',
+        },
+      }),
+    } as unknown as Response);
+
+    // mode prop は機能実装後に AttachmentUploader に追加予定。現時点では型定義が存在しない。
+    // ComponentType<any> にキャストして mode prop を渡す（機能実装で mode 型が追加されたらキャストを外すこと）。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AttachmentUploaderWithMode = AttachmentUploader as ComponentType<any>;
+    renderWithQueryClient(
+      <AttachmentUploaderWithMode
+        reportId="rpt-1"
+        itemId="item-1"
+        mode="edit"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = new File([new ArrayBuffer(1024)], 'receipt.jpg', { type: 'image/jpeg' });
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // 編集モードでもファイル選択時点で即時アップロードが行われること（ローカル state に保留されない）。
+    await waitFor(() => {
+      expect(globalThis.fetch).toHaveBeenCalled();
+    });
+    // onUploadSuccess が呼ばれること（即時アップロード完了）。
+    await waitFor(() => {
+      expect(onUploadSuccess).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる（視覚フィードバック確認）。
   it('ATT-FE-053: dragover 時にドロップゾーンの data-drag-over 属性が true になる', () => {
     const onUploadSuccess = vi.fn();
@@ -596,4 +650,144 @@ describe('AttachmentUploader', () => {
     // dragleave 後は data-drag-over が false に戻ること。
     expect(dropZone).toHaveAttribute('data-drag-over', 'false');
   });
+});
+
+// =============================================================================
+// ATT-FE-073, 074: 追加モードのローカル保持・バリデーション（issue #115）
+// 機能実装前のため FAIL 前提。
+// FAIL 原因: AttachmentUploader に mode prop がなく、追加モードでのローカル保持分岐が未実装。
+// =============================================================================
+
+describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    // setup.ts のグローバル fetch モックを revert（FIX 3）したため、
+    // ATT-FE-073/074 で「fetch が呼ばれないこと」を検証するには
+    // このブロックで明示的に vi.fn() でスパイ化する（FIX 3 対応）。
+    globalThis.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // ATT-FE-073: 追加モードでファイル選択すると useUploadAttachment.mutate を呼ばず、
+  //             ローカル state に保留し「保存後にアップロード予定」ラベルが表示される。
+  // FAIL 原因（機能未実装）: mode prop が未実装のため、追加モードの分岐が存在せず即時アップロードされる。
+  // 機能実装後: mode="add" 時にファイル選択しても mutate は呼ばれず、ローカル state に保留される。
+  it('ATT-FE-073: buffers_selected_file_in_local_state_in_add_mode', async () => {
+    const onUploadSuccess = vi.fn();
+    // fetch が呼ばれないことを確認するため、呼ばれた場合にエラーになるようにモックする。
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="rpt-1"
+        itemId={null}
+        mode="add"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // useUploadAttachment.mutate は呼ばれないこと（fetch 未呼出で確認）。
+    // 追加モードではファイルをローカル state に保留する。
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+
+    // 「保存後にアップロード予定」ラベルが表示されること（FAIL 前提）。
+    expect(screen.getByText('保存後にアップロード予定')).toBeInTheDocument();
+
+    // バリデーションエラーは表示されないこと（JPEG は許可形式）。
+    expect(screen.queryByTestId('attachment-validation-error')).not.toBeInTheDocument();
+  });
+
+  // ATT-FE-074: クライアント側バリデーション（追加モード）。
+  // (a) GIF 拒否 / (b) 5MB+1B 拒否 / (c) 5MB ちょうど許可。いずれも mutate 未呼出。
+  // FAIL 原因（機能未実装）: mode prop が未実装のため、追加モードの分岐が存在しない。
+  // 機能実装後: 追加モードでもクライアント側バリデーションが動作し、
+  //            エラー時はローカル state に保留されず、mutate は呼ばれない。
+  it('ATT-FE-074: rejects_invalid_mime_or_oversize_file_in_add_mode_without_buffering', async () => {
+    const onUploadSuccess = vi.fn();
+
+    // (a) GIF 拒否。
+    {
+      const { unmount } = renderWithQueryClient(
+        <AttachmentUploader
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          onUploadSuccess={onUploadSuccess}
+        />,
+      );
+
+      const fileInput = screen.getByTestId('attachment-file-input');
+      const gifFile = createMockFile('animation.gif', 1024, 'image/gif');
+      fireEvent.change(fileInput, { target: { files: [gifFile] } });
+
+      // バリデーションエラーが表示されること（MIME 違反）。
+      expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
+      // 「保存後にアップロード予定」は表示されないこと（ローカル state に保留されない）。
+      expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+      // fetch は呼ばれないこと（mutate 未呼出）。
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+
+      unmount();
+    }
+
+    // (b) 5MB + 1B 拒否。
+    {
+      const { unmount } = renderWithQueryClient(
+        <AttachmentUploader
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          onUploadSuccess={onUploadSuccess}
+        />,
+      );
+
+      const fileInput = screen.getByTestId('attachment-file-input');
+      const oversizeFile = createMockFile('large.jpg', 5242881, 'image/jpeg');
+      fireEvent.change(fileInput, { target: { files: [oversizeFile] } });
+
+      // バリデーションエラーが表示されること（サイズ超過）。
+      expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
+      // ローカル state に保留されないこと。
+      expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+      // fetch は呼ばれないこと。
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+
+      unmount();
+    }
+
+    // (c) ちょうど 5MB は許可。
+    {
+      renderWithQueryClient(
+        <AttachmentUploader
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          onUploadSuccess={onUploadSuccess}
+        />,
+      );
+
+      const fileInput = screen.getByTestId('attachment-file-input');
+      const exactlyMaxFile = createMockFile('exactly5mb.jpg', 5242880, 'image/jpeg');
+      expect(exactlyMaxFile.size).toBe(5 * 1024 * 1024);
+      fireEvent.change(fileInput, { target: { files: [exactlyMaxFile] } });
+
+      // バリデーションエラーは表示されないこと（ちょうど 5MB は許可）。
+      expect(screen.queryByTestId('attachment-validation-error')).not.toBeInTheDocument();
+      // 「保存後にアップロード予定」が表示されること（ローカル state に保留済み）。
+      expect(screen.getByText('保存後にアップロード予定')).toBeInTheDocument();
+      // fetch は呼ばれないこと（追加モードでは即時アップロードしない）。
+      expect(globalThis.fetch).not.toHaveBeenCalled();
+    }
+  });
+
 });

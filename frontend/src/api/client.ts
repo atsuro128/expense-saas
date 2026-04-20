@@ -66,6 +66,7 @@ async function apiClient<T>(path: string, init: RequestInit = {}): Promise<T> {
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  // AbortSignal が渡された場合、fetch に signal を伝播させる。
   const res = await fetch(path, {
     ...init,
     headers: {
@@ -135,16 +136,18 @@ async function handleErrorResponse(res: Response): Promise<never> {
 }
 
 export const api = {
-  get: <T>(path: string) => apiClient<T>(path, { method: 'GET' }),
-  post: <T>(path: string, body?: unknown) =>
+  get: <T>(path: string, signal?: AbortSignal) => apiClient<T>(path, { method: 'GET', signal }),
+  post: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
     apiClient<T>(path, {
       method: 'POST',
       body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      signal,
     }),
-  put: <T>(path: string, body?: unknown) =>
+  put: <T>(path: string, body?: unknown, signal?: AbortSignal) =>
     apiClient<T>(path, {
       method: 'PUT',
       body: body instanceof FormData ? body : body ? JSON.stringify(body) : undefined,
+      signal,
     }),
-  delete: <T>(path: string) => apiClient<T>(path, { method: 'DELETE' }),
+  delete: <T>(path: string, signal?: AbortSignal) => apiClient<T>(path, { method: 'DELETE', signal }),
 };
