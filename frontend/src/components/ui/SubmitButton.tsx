@@ -17,6 +17,8 @@ export interface SubmitButtonProps {
   variant?: 'contained' | 'outlined' | 'text';
   /** フル幅表示（デフォルト: true） */
   fullWidth?: boolean;
+  /** 追加の disabled フラグ（loading と OR 合成で disabled を制御する、§7-1 / §7-3 アップロード・削除中の保存ボタン制御） */
+  disabled?: boolean;
 }
 
 /**
@@ -31,6 +33,7 @@ export default function SubmitButton({
   color = 'primary',
   variant = 'contained',
   fullWidth = true,
+  disabled = false,
 }: SubmitButtonProps) {
   return (
     <Button
@@ -38,7 +41,7 @@ export default function SubmitButton({
       color={color}
       variant={variant}
       fullWidth={fullWidth}
-      disabled={loading}
+      disabled={loading || disabled}
       aria-busy={loading}
       startIcon={
         loading ? (

@@ -1,7 +1,9 @@
 // 明細フォームコンポーネント。
 // 明細の入力フォーム。React Hook Form + Zod でバリデーションを行う。
 // SCR-RPT-004 §6 に対応する。
+// ATT-FE-064〜071: dirty 判定・beforeunload 対応（issue #108 課題 2）。
 
+import { useEffect, useRef } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -36,10 +38,26 @@ export interface ItemFormProps {
   categories: Array<{ value: string; label: string }>;
   /** API エラーメッセージ */
   apiError: string | null;
-  /** 送信中フラグ */
+  /** 送信中フラグ（フォーム保存 API 呼び出し中）。フィールドの disabled 制御に使用する。 */
   isPending: boolean;
+  /** 保存ボタン disabled フラグ（isPending || isUploading || isDeleting の OR 合成）。
+   * 省略時は isPending と同じ値を使用する。 */
+  isSaveDisabled?: boolean;
+  /** 保存ボタンのローディング表示フラグ（isPending と独立して制御する場合に使用）。 */
+  isSaveButtonLoading?: boolean;
+  /** 保存ボタンのラベル（省略時は「保存する」）。順次アップロード中は進捗テキストを渡す。 */
+  saveButtonLabel?: string;
+  /**
+   * フォームフィールドを全体的に readonly にするフラグ（mode='view' とは独立）。
+   * 追加モードで順次アップロード中はフォームフィールドを readonly にする（issue #115 §6）。
+   */
+  readOnly?: boolean;
   /** 編集/閲覧時の初期値 */
   defaultValues?: ItemFormValues;
+  /** dirty 状態変化コールバック（パネル側の破棄確認制御に使用） */
+  onDirtyChange?: (isDirty: boolean) => void;
+  /** フォームリセット関数を外部に渡すための ref（「破棄」操作時に呼ぶ） */
+  resetRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 /**
@@ -68,6 +86,9 @@ const itemFormSchema = z.object({
  * mode='view' のとき全フィールドが readOnly（inputProps.readOnly）になる（案 A）。
  * disabled は送信中（isPending）かつ閲覧モードでない場合のみ適用する。
  * mode='add' のとき「保存して続けて追加」ボタンも表示する。
+ * dirty 判定: React Hook Form の isDirty を使い、フィールド変更時に onDirtyChange で通知する（issue #108）。
+ * 添付操作（追加・削除）は isDirty に含めない（即時保存方式と整合、issue 114 §7 冒頭）。
+ * readOnly=true のとき（追加モードの順次アップロード中）: mode='view' と同様の readOnly 制御を適用（issue #115）。
  */
 export default function ItemForm({
   mode,
@@ -77,16 +98,27 @@ export default function ItemForm({
   categories,
   apiError,
   isPending,
+  isSaveDisabled,
+  isSaveButtonLoading,
+  saveButtonLabel,
+  readOnly = false,
   defaultValues,
+  onDirtyChange,
+  resetRef,
 }: ItemFormProps) {
+  // 保存ボタンの disabled フラグ: isSaveDisabled が指定されていない場合は isPending を使用する。
+  const saveDisabled = isSaveDisabled ?? isPending;
   const isView = mode === 'view';
   const isAdd = mode === 'add';
+  // readOnly: mode='view' または外部から readOnly=true が渡された場合（順次アップロード中）。
+  const isReadOnly = isView || readOnly;
 
   const {
     register,
     control,
     handleSubmit,
-    formState: { errors },
+    reset,
+    formState: { errors, isDirty },
   } = useForm<ItemFormValues>({
     resolver: zodResolver(itemFormSchema),
     defaultValues: defaultValues ?? {
@@ -97,6 +129,37 @@ export default function ItemForm({
       description: '',
     },
   });
+
+  // resetRef に reset 関数を登録して、親コンポーネント（ItemSlidePanel）から破棄操作時に呼べるようにする。
+  useEffect(() => {
+    if (resetRef) {
+      resetRef.current = () => {
+        reset(
+          defaultValues ?? {
+            expenseDate: '',
+            amount: NaN,
+            categoryId: '',
+            description: '',
+          },
+        );
+      };
+    }
+    return () => {
+      if (resetRef) {
+        resetRef.current = null;
+      }
+    };
+  }, [resetRef, reset, defaultValues]);
+
+  // isDirty が変化したときに親コンポーネントに通知する。
+  // useRef で前の値を保持して不要な通知を防ぐ。
+  const prevIsDirtyRef = useRef<boolean>(isDirty);
+  useEffect(() => {
+    if (prevIsDirtyRef.current !== isDirty) {
+      prevIsDirtyRef.current = isDirty;
+      onDirtyChange?.(isDirty);
+    }
+  }, [isDirty, onDirtyChange]);
 
   // 「保存して続けて追加」ボタン押下時: バリデーション通過後に onSaveAndContinue を呼ぶ。
   const handleSaveAndContinue = handleSubmit((data) => {
@@ -110,30 +173,30 @@ export default function ItemForm({
       {/* API エラー表示 */}
       <FormAlert message={apiError} />
 
-      {/* 支出日。閲覧モード（isView）では inputProps.readOnly で読み取り専用にする（案 A）。
-          disabled は送信中（isPending）かつ閲覧モードでない場合のみ適用する。 */}
+      {/* 支出日。閲覧モード（isReadOnly）では inputProps.readOnly で読み取り専用にする（案 A）。
+          disabled は送信中（isPending）かつ読み取り専用でない場合のみ適用する。 */}
       <AppTextField
         {...register('expenseDate')}
         label="日付"
         type="date"
         InputLabelProps={{ shrink: true }}
-        inputProps={{ readOnly: isView, 'aria-label': '日付' }}
-        disabled={isPending && !isView}
+        inputProps={{ readOnly: isReadOnly, 'aria-label': '日付' }}
+        disabled={isPending && !isReadOnly}
         errorMessage={errors.expenseDate?.message}
       />
 
-      {/* 金額。閲覧モードでは readOnly、送信中は disabled。 */}
+      {/* 金額。読み取り専用モードでは readOnly、送信中は disabled。 */}
       <AppTextField
         {...register('amount', { valueAsNumber: true })}
         label="金額"
         type="number"
-        inputProps={{ readOnly: isView, 'aria-label': '金額' }}
-        disabled={isPending && !isView}
+        inputProps={{ readOnly: isReadOnly, 'aria-label': '金額' }}
+        disabled={isPending && !isReadOnly}
         errorMessage={errors.amount?.message}
       />
 
-      {/* カテゴリ。閲覧モードでは AppSelect の readOnly prop でドロップダウンを開かせない（案 A ①）。
-          disabled は送信中かつ閲覧モードでない場合のみ適用し、グレーアウトしない。 */}
+      {/* カテゴリ。読み取り専用モードでは AppSelect の readOnly prop でドロップダウンを開かせない（案 A ①）。
+          disabled は送信中かつ読み取り専用でない場合のみ適用し、グレーアウトしない。 */}
       <Controller
         name="categoryId"
         control={control}
@@ -145,37 +208,43 @@ export default function ItemForm({
             value={field.value}
             onChange={field.onChange}
             errorMessage={errors.categoryId?.message}
-            disabled={isPending && !isView}
-            readOnly={isView}
+            disabled={isPending && !isReadOnly}
+            readOnly={isReadOnly}
           />
         )}
       />
 
-      {/* 摘要。閲覧モードでは readOnly、送信中は disabled。 */}
+      {/* 摘要。読み取り専用モードでは readOnly、送信中は disabled。 */}
       <AppTextField
         {...register('description')}
         label="摘要"
         multiline
         rows={3}
-        inputProps={{ readOnly: isView, 'aria-label': '摘要' }}
-        disabled={isPending && !isView}
+        inputProps={{ readOnly: isReadOnly, 'aria-label': '摘要' }}
+        disabled={isPending && !isReadOnly}
         errorMessage={errors.description?.message}
       />
 
       {/* アクションボタン */}
       {!isView && (
         <>
-          <SubmitButton label="保存する" loading={isPending} />
+          {/* 保存ボタン: isPending || isUploading || isDeleting || isSequentialUploading の OR 合成で disabled になる（§7-1 / §7-3 / §6 issue #115）。 */}
+          <SubmitButton
+            label={saveButtonLabel ?? '保存する'}
+            loading={isSaveButtonLoading ?? isPending}
+            disabled={saveDisabled}
+          />
           {isAdd && onSaveAndContinue && (
             <Button
               type="button"
               variant="outlined"
               onClick={handleSaveAndContinue}
-              disabled={isPending}
+              disabled={saveDisabled}
             >
               保存して続けて追加
             </Button>
           )}
+          {/* キャンセルボタン: 常時有効（アップロード中・削除中でも閉じ操作を許可、§7-1）。 */}
           <Button
             type="button"
             variant="text"
