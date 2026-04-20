@@ -67,9 +67,11 @@ func respondDomainError(w http.ResponseWriter, err error) {
 	case domain.ErrConflict:
 		middleware.RespondError(w, http.StatusConflict, "CONFLICT", err.Error())
 	case domain.ErrInvalidPeriod:
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		// domain error は field 情報を持たないため details は空配列。後続 issue で拡張検討。
+		middleware.RespondValidationError(w, err.Error(), []middleware.ValidationError{})
 	case domain.ErrInvalidAmount:
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		// domain error は field 情報を持たないため details は空配列。後続 issue で拡張検討。
+		middleware.RespondValidationError(w, err.Error(), []middleware.ValidationError{})
 	default:
 		middleware.RespondError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error")
 	}
