@@ -2,8 +2,9 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
+	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -31,9 +32,9 @@ func (h *WorkflowHandler) ListPendingReports(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	params, err := parseWorkflowListParams(r)
+	params, details, err := parseWorkflowListParams(r)
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -65,28 +66,50 @@ func (h *WorkflowHandler) ApproveReport(w http.ResponseWriter, r *http.Request) 
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req approveReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
 
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
+	var updatedAt time.Time
 	if req.UpdatedAt == "" {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at は必須です",
+		})
+	} else if t, err := time.Parse(time.RFC3339, req.UpdatedAt); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at の形式が不正です",
+		})
+	} else {
+		updatedAt = t.UTC()
+	}
+
+	if len(details) > 0 {
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
-	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
-		return
-	}
-
-	detail, err := h.svc.ApproveReport(r.Context(), actor, reportID, req.Comment, updatedAt.UTC())
+	detail, err := h.svc.ApproveReport(r.Context(), actor, reportID, req.Comment, updatedAt)
 	if err != nil {
 		respondDomainError(w, err)
 		return
@@ -111,34 +134,58 @@ func (h *WorkflowHandler) RejectReport(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req rejectReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
+
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
 
 	// reason の最大長チェック（openapi.yaml: maxLength: 1000）。
 	if utf8.RuneCountInString(req.Reason) > 1000 {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "reason must be 1000 characters or less")
-		return
+		details = append(details, middleware.ValidationError{
+			Field:   "reason",
+			Message: "reason は 1000 文字以下でなければなりません",
+		})
 	}
 
+	var updatedAt time.Time
 	if req.UpdatedAt == "" {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at は必須です",
+		})
+	} else if t, err := time.Parse(time.RFC3339, req.UpdatedAt); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at の形式が不正です",
+		})
+	} else {
+		updatedAt = t.UTC()
+	}
+
+	if len(details) > 0 {
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
-	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
-		return
-	}
-
-	detail, err := h.svc.RejectReport(r.Context(), actor, reportID, req.Reason, updatedAt.UTC())
+	detail, err := h.svc.RejectReport(r.Context(), actor, reportID, req.Reason, updatedAt)
 	if err != nil {
 		respondDomainError(w, err)
 		return
@@ -156,9 +203,9 @@ func (h *WorkflowHandler) ListPayableReports(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	params, err := parseWorkflowListParams(r)
+	params, details, err := parseWorkflowListParams(r)
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -189,28 +236,50 @@ func (h *WorkflowHandler) MarkReportAsPaid(w http.ResponseWriter, r *http.Reques
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req markAsPaidRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
 
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
+	var updatedAt time.Time
 	if req.UpdatedAt == "" {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "updated_at is required")
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at は必須です",
+		})
+	} else if t, err := time.Parse(time.RFC3339, req.UpdatedAt); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at の形式が不正です",
+		})
+	} else {
+		updatedAt = t.UTC()
+	}
+
+	if len(details) > 0 {
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
-	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
-		return
-	}
-
-	detail, err := h.svc.MarkReportAsPaid(r.Context(), actor, reportID, updatedAt.UTC())
+	detail, err := h.svc.MarkReportAsPaid(r.Context(), actor, reportID, updatedAt)
 	if err != nil {
 		respondDomainError(w, err)
 		return
@@ -221,32 +290,46 @@ func (h *WorkflowHandler) MarkReportAsPaid(w http.ResponseWriter, r *http.Reques
 
 // parseWorkflowListParams はクエリパラメータから WorkflowListParams を構築します。
 // page のデフォルトは 1、per_page のデフォルトは 20（上限 100）。
-func parseWorkflowListParams(r *http.Request) (domain.WorkflowListParams, error) {
+// バリデーションエラーがある場合は details にフィールド単位のエラーを蓄積して返します。
+func parseWorkflowListParams(r *http.Request) (domain.WorkflowListParams, []middleware.ValidationError, error) {
 	q := r.URL.Query()
 	params := domain.WorkflowListParams{
 		Page:    1,
 		PerPage: 20,
 	}
 
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
 	// page のパースとバリデーション。
 	if pageStr := q.Get("page"); pageStr != "" {
-		v, err := strconv.Atoi(pageStr)
-		if err != nil || v <= 0 {
-			return params, domain.ErrInvalidPeriod
+		var page int
+		if _, err := parseIntQuery(pageStr, &page); err != nil || page < 1 {
+			details = append(details, middleware.ValidationError{
+				Field:   "page",
+				Message: "page は正の整数でなければなりません",
+			})
+		} else {
+			params.Page = page
 		}
-		params.Page = v
 	}
 
 	// per_page のパースとバリデーション（上限 100）。
 	if perPageStr := q.Get("per_page"); perPageStr != "" {
-		v, err := strconv.Atoi(perPageStr)
-		if err != nil || v <= 0 {
-			return params, domain.ErrInvalidPeriod
+		var perPage int
+		if _, err := parseIntQuery(perPageStr, &perPage); err != nil || perPage < 1 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page は正の整数でなければなりません",
+			})
+		} else if perPage > 100 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page の上限は 100 です",
+			})
+		} else {
+			params.PerPage = perPage
 		}
-		if v > 100 {
-			return params, domain.ErrInvalidPeriod
-		}
-		params.PerPage = v
 	}
 
 	// applicant_name は省略可能な部分一致フィルタ。
@@ -254,5 +337,9 @@ func parseWorkflowListParams(r *http.Request) (domain.WorkflowListParams, error)
 		params.ApplicantName = &name
 	}
 
-	return params, nil
+	if len(details) > 0 {
+		return params, details, fmt.Errorf("クエリパラメータにバリデーションエラーがあります")
+	}
+
+	return params, nil, nil
 }

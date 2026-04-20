@@ -526,7 +526,7 @@ func TestApproveReport_Conflict_OptimisticLock(t *testing.T) {
 	testutil.AssertStatus(t, rec, http.StatusConflict)
 }
 
-// WFL-025: updated_at フィールドなしでリクエストすると 400 または 422 になる。
+// WFL-025: updated_at フィールドなしでリクエストすると 422 VALIDATION_ERROR になる。
 func TestApproveReport_MissingUpdatedAt(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
@@ -538,10 +538,10 @@ func TestApproveReport_MissingUpdatedAt(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 400 または 422: updated_at は必須（WFL-025）。機能未実装のため現在は失敗する。
-	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusUnprocessableEntity {
-		t.Errorf("WFL-025: got status %d, want 400 or 422 (body: %s)", rec.Code, rec.Body.String())
-	}
+	// 422 VALIDATION_ERROR: updated_at は必須（WFL-025）。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertErrorCode(t, rec, "VALIDATION_ERROR")
+	testutil.AssertValidationErrorField(t, rec, "updated_at")
 }
 
 // =============================================================================
@@ -624,14 +624,14 @@ func TestRejectReport_RejectionReasonMaxLength(t *testing.T) {
 	testutil.AssertStatus(t, rec, http.StatusOK)
 }
 
-// WFL-030: rejection_reason が 1001 文字（上限超過）は 400 または 422 になる。
+// WFL-030: rejection_reason が 1001 文字（上限超過）は 422 VALIDATION_ERROR になる。
 func TestRejectReport_RejectionReasonTooLong(t *testing.T) {
 	srv, pool := setupWorkflowTest(t)
 
 	updatedAt := getReportUpdatedAt(t, pool, testutil.ReportSubmittedID)
 	body := workflowJSONBody(t, map[string]string{
-		"reason": strings.Repeat("あ", 1001),
-		"updated_at":       updatedAt,
+		"reason":     strings.Repeat("あ", 1001),
+		"updated_at": updatedAt,
 	})
 
 	req := srv.AuthRequest(t, http.MethodPost,
@@ -639,10 +639,10 @@ func TestRejectReport_RejectionReasonTooLong(t *testing.T) {
 		testutil.UserApproverID, testutil.TenantAID, "approver")
 	rec := srv.Execute(req)
 
-	// 400 または 422: rejection_reason 1001 文字は超過（WFL-030）。機能未実装のため現在は失敗する。
-	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusUnprocessableEntity {
-		t.Errorf("WFL-030: got status %d, want 400 or 422 (body: %s)", rec.Code, rec.Body.String())
-	}
+	// 422 VALIDATION_ERROR: rejection_reason 1001 文字は超過（WFL-030）。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertErrorCode(t, rec, "VALIDATION_ERROR")
+	testutil.AssertValidationErrorField(t, rec, "reason")
 }
 
 // WFL-031: approved 状態のレポートを却下しようとすると 422 INVALID_STATE_TRANSITION になる（X8）。
@@ -1222,7 +1222,7 @@ func TestMarkReportAsPaid_Conflict_OptimisticLock(t *testing.T) {
 	testutil.AssertStatus(t, rec, http.StatusConflict)
 }
 
-// WFL-063: updated_at フィールドなしでリクエストすると 400 または 422 になる。
+// WFL-063: updated_at フィールドなしでリクエストすると 422 VALIDATION_ERROR になる。
 func TestMarkReportAsPaid_MissingUpdatedAt(t *testing.T) {
 	srv, _ := setupWorkflowTest(t)
 
@@ -1234,8 +1234,8 @@ func TestMarkReportAsPaid_MissingUpdatedAt(t *testing.T) {
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	rec := srv.Execute(req)
 
-	// 400 または 422: updated_at は必須（WFL-063）。機能未実装のため現在は失敗する。
-	if rec.Code != http.StatusBadRequest && rec.Code != http.StatusUnprocessableEntity {
-		t.Errorf("WFL-063: got status %d, want 400 or 422 (body: %s)", rec.Code, rec.Body.String())
-	}
+	// 422 VALIDATION_ERROR: updated_at は必須（WFL-063）。
+	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	testutil.AssertErrorCode(t, rec, "VALIDATION_ERROR")
+	testutil.AssertValidationErrorField(t, rec, "updated_at")
 }
