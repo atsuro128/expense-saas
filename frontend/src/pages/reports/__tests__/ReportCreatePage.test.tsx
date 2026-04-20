@@ -24,9 +24,15 @@ const mockUseCreateReport = vi.mocked(useCreateReport);
 const mockUseReport = vi.mocked(useReport);
 
 // ルーティングによる遷移先を検証するためのヘルパーコンポーネント。
+// location.state も検証できるよう JSON シリアライズして表示する。
 function LocationDisplay() {
   const location = useLocation();
-  return <div data-testid="location">{location.pathname + location.search}</div>;
+  return (
+    <>
+      <div data-testid="location">{location.pathname + location.search}</div>
+      <div data-testid="location-state">{JSON.stringify(location.state)}</div>
+    </>
+  );
 }
 
 function renderPage(initialEntry = '/reports/new') {
@@ -214,6 +220,122 @@ describe('ReportCreatePage', () => {
     await waitFor(() => {
       const titleInput = screen.getByRole('textbox', { name: /タイトル/ });
       expect((titleInput as HTMLInputElement).value).toBe('元レポートタイトル');
+    });
+  });
+
+  // issue-126: フォーム送信成功後に navigate が state.toast 付きで呼ばれることを検証する。
+  // navigate 直後にアンマウントされるためトーストは遷移先で表示する設計。
+  it('issue-126: フォーム送信成功後に navigate が severity=success・message=レポートを作成しました の state.toast 付きで呼ばれる', async () => {
+    const user = userEvent.setup();
+
+    // useCreateReport が成功を返すようにモックする。
+    mockUseCreateReport.mockReturnValue({
+      mutate: vi.fn().mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (_data: unknown, options?: any) => {
+          options?.onSuccess?.({ id: 'new-id-002' });
+        },
+      ),
+      isPending: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    mockUseReport.mockReturnValue({
+      data: undefined,
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports/new');
+
+    // フォームに値を入力して送信する。
+    const titleInput = screen.getByRole('textbox', { name: /タイトル/ });
+    await user.clear(titleInput);
+    await user.type(titleInput, 'テストレポート');
+
+    const periodStartInput = document.querySelector('input[name="periodStart"]') as HTMLInputElement;
+    await user.clear(periodStartInput);
+    await user.type(periodStartInput, '2026-03-01');
+
+    const periodEndInput = document.querySelector('input[name="periodEnd"]') as HTMLInputElement;
+    await user.clear(periodEndInput);
+    await user.type(periodEndInput, '2026-03-31');
+
+    const submitButton = screen.getByRole('button', { name: /作成する/ });
+    await user.click(submitButton);
+
+    // 遷移先に state.toast が渡されること。
+    await waitFor(() => {
+      const stateText = screen.getByTestId('location-state').textContent ?? '';
+      const state = JSON.parse(stateText) as { toast?: { severity: string; message: string } };
+      expect(state?.toast?.severity).toBe('success');
+      expect(state?.toast?.message).toBe('レポートを作成しました');
+    });
+  });
+
+  // issue-126: ?ref=:id 付きの再申請フローでも同一文言でトーストが渡されることを検証する。
+  it('issue-126: 再申請フロー（?ref=:id）でも severity=success・message=レポートを作成しました の state.toast が渡される', async () => {
+    const user = userEvent.setup();
+    const rejectedReportId = 'cccccccc-0004-0004-0004-000000000004';
+
+    // useCreateReport が成功を返すようにモックする。
+    mockUseCreateReport.mockReturnValue({
+      mutate: vi.fn().mockImplementation(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (_data: unknown, options?: any) => {
+          options?.onSuccess?.({ id: 'resubmit-id-001' });
+        },
+      ),
+      isPending: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // useReport が元レポートデータを返すようにモックする。
+    mockUseReport.mockReturnValue({
+      data: {
+        data: {
+          id: rejectedReportId,
+          title: '元レポートタイトル',
+          period_start: '2026-03-01',
+          period_end: '2026-03-31',
+          status: 'rejected',
+          total_amount: 50000,
+          submitter: { id: 'user-001', name: 'テスト太郎' },
+          items: [],
+          created_at: '2026-03-01T00:00:00Z',
+          updated_at: '2026-03-01T00:00:00Z',
+        },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage(`/reports/new?ref=${rejectedReportId}`);
+
+    // 元レポートのプリフィルが表示されるまで待つ。
+    await waitFor(() => {
+      const titleInput = screen.getByRole('textbox', { name: /タイトル/ });
+      expect((titleInput as HTMLInputElement).value).toBe('元レポートタイトル');
+    });
+
+    // 送信ボタンをクリックする。
+    const submitButton = screen.getByRole('button', { name: /作成する/ });
+    await user.click(submitButton);
+
+    // 再申請でも「レポートを作成しました」の文言で state.toast が渡されること。
+    await waitFor(() => {
+      const stateText = screen.getByTestId('location-state').textContent ?? '';
+      const state = JSON.parse(stateText) as { toast?: { severity: string; message: string } };
+      expect(state?.toast?.severity).toBe('success');
+      expect(state?.toast?.message).toBe('レポートを作成しました');
     });
   });
 
