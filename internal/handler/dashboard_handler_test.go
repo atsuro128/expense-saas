@@ -6,7 +6,10 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +18,25 @@ import (
 	"expense-saas/internal/domain"
 	"expense-saas/internal/testutil"
 )
+
+// dashboardDateOnlyPattern は YYYY-MM-DD 形式の正規表現。
+// issue 117: ダッシュボードの recent_reports における period_start / period_end の形式検証に使用する。
+var dashboardDateOnlyPattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// assertDashboardDateOnlyFormat は文字列 s が YYYY-MM-DD 形式であり、RFC3339 トークン（T / Z）を含まないことを検証する。
+// issue 117 codex 指摘対応: ダッシュボード recent_reports の period_start / period_end 形式検証ヘルパー。
+func assertDashboardDateOnlyFormat(t *testing.T, field, s string) {
+	t.Helper()
+	if !dashboardDateOnlyPattern.MatchString(s) {
+		t.Errorf("%s: YYYY-MM-DD 形式ではありません: got %q", field, s)
+	}
+	if strings.Contains(s, "T") {
+		t.Errorf("%s: RFC3339 の 'T' トークンが含まれています: got %q", field, s)
+	}
+	if strings.Contains(s, "Z") {
+		t.Errorf("%s: RFC3339 の 'Z' トークンが含まれています: got %q", field, s)
+	}
+}
 
 // dashboardResponse は GET /api/dashboard のレスポンスボディ構造。
 // ロール別に返却フィールドが異なるため、全フィールドをポインタで定義する。
@@ -187,6 +209,13 @@ func TestGetDashboard_Member_RecentReports_MaxFive(t *testing.T) {
 	}
 	if got := len(*resp.Data.RecentReports); got > 5 {
 		t.Errorf("recent_reports の件数が 5 を超えています: got %d", got)
+	}
+
+	// issue 117 codex 指摘: recent_reports の各レポートの period_start / period_end が
+	// YYYY-MM-DD 形式であり、RFC3339 トークン（T / Z）を含まないことを検証する。
+	for i, r := range *resp.Data.RecentReports {
+		assertDashboardDateOnlyFormat(t, fmt.Sprintf("recent_reports[%d].period_start", i), r.PeriodStart)
+		assertDashboardDateOnlyFormat(t, fmt.Sprintf("recent_reports[%d].period_end", i), r.PeriodEnd)
 	}
 }
 
