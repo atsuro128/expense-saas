@@ -46,3 +46,27 @@ func ParseJSON[T any](t *testing.T, rec *httptest.ResponseRecorder) T {
 	}
 	return v
 }
+
+// AssertValidationErrorField は 422 VALIDATION_ERROR レスポンスの details 配列に
+// 指定 field のエラーが含まれていることを検証する。
+// OpenAPI Error.details の ValidationError スキーマ（{field, message}）に準拠。
+func AssertValidationErrorField(t *testing.T, rec *httptest.ResponseRecorder, wantField string) {
+	t.Helper()
+	var body struct {
+		Error struct {
+			Details []struct {
+				Field   string `json:"field"`
+				Message string `json:"message"`
+			} `json:"details"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("AssertValidationErrorField: JSON unmarshal error: %v (body: %s)", err, rec.Body.String())
+	}
+	for _, d := range body.Error.Details {
+		if d.Field == wantField {
+			return
+		}
+	}
+	t.Errorf("AssertValidationErrorField: details[].field に %q が含まれていません: %+v (body: %s)", wantField, body.Error.Details, rec.Body.String())
+}
