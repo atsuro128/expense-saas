@@ -577,6 +577,8 @@ export default function ReportDetailPage() {
         isPending={isItemPending}
         onItemSubmit={handleItemSubmit}
         onItemSaveAndContinue={handleItemSaveAndContinue}
+        reportPeriodStart={report.period_start}
+        reportPeriodEnd={report.period_end}
       />
 
       {/* 提出・削除確認ダイアログ */}
