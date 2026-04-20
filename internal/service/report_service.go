@@ -293,8 +293,8 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 	detail := &ExpenseReportDetail{
 		ID:                report.ReportID,
 		Title:             report.Title,
-		PeriodStart:       report.PeriodStart,
-		PeriodEnd:         report.PeriodEnd,
+		PeriodStart:       report.PeriodStart.Format("2006-01-02"),
+		PeriodEnd:         report.PeriodEnd.Format("2006-01-02"),
 		Status:            report.Status,
 		TotalAmount:       report.TotalAmount,
 		Submitter:         UserSummary{ID: submitter.UserID, Name: submitter.Name},
@@ -407,12 +407,13 @@ func (s *reportService) buildDetail(ctx context.Context, actor domain.Actor, rep
 }
 
 // toSummary はレポートエンティティから ExpenseReportSummary を構築する。
+// PeriodStart / PeriodEnd は openapi.yaml の format:date 契約に合わせ YYYY-MM-DD 文字列で返す。
 func toSummary(r domain.ExpenseReport) ExpenseReportSummary {
 	return ExpenseReportSummary{
 		ID:          r.ReportID,
 		Title:       r.Title,
-		PeriodStart: r.PeriodStart,
-		PeriodEnd:   r.PeriodEnd,
+		PeriodStart: r.PeriodStart.Format("2006-01-02"),
+		PeriodEnd:   r.PeriodEnd.Format("2006-01-02"),
 		Status:      r.Status,
 		TotalAmount: r.TotalAmount,
 		SubmittedAt: r.SubmittedAt,

@@ -8,8 +8,8 @@ import type { ExpenseReportDetail } from '../../../api/types';
 const draftReport: ExpenseReportDetail = {
   id: 'report-001',
   title: '出張費テスト',
-  period_start: '2026-03-01T00:00:00Z',
-  period_end: '2026-03-31T00:00:00Z',
+  period_start: '2026-03-01',
+  period_end: '2026-03-31',
   status: 'draft',
   total_amount: 50000,
   submitter: { id: 'user-001', name: 'テストユーザー' },
