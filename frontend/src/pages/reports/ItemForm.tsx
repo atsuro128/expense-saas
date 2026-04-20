@@ -2,8 +2,9 @@
 // 明細の入力フォーム。React Hook Form + Zod でバリデーションを行う。
 // SCR-RPT-004 §6 に対応する。
 // ATT-FE-064〜071: dirty 判定・beforeunload 対応（issue #108 課題 2）。
+// ITM-FE-099〜106: 期間外警告 ConfirmDialog（issue #127 Phase 4）。
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm, Controller } from 'react-hook-form';
 import { z } from 'zod/v4';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -13,6 +14,8 @@ import FormAlert from '../../components/ui/FormAlert';
 import AppTextField from '../../components/ui/AppTextField';
 import AppSelect from '../../components/ui/AppSelect';
 import SubmitButton from '../../components/ui/SubmitButton';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
+import { WARNING_MESSAGES } from '../../lib/warningMessages';
 
 export interface ItemFormValues {
   /** 支出日（YYYY-MM-DD 形式） */
@@ -58,6 +61,18 @@ export interface ItemFormProps {
   onDirtyChange?: (isDirty: boolean) => void;
   /** フォームリセット関数を外部に渡すための ref（「破棄」操作時に呼ぶ） */
   resetRef?: React.MutableRefObject<(() => void) | null>;
+  /**
+   * レポートの対象期間開始日（YYYY-MM-DD 形式）。
+   * 指定された場合、保存時に expenseDate との比較で期間外警告 ConfirmDialog を表示する（ITM-007）。
+   * View モードでは判定をスキップする。
+   */
+  reportPeriodStart?: string;
+  /**
+   * レポートの対象期間終了日（YYYY-MM-DD 形式）。
+   * 指定された場合、保存時に expenseDate との比較で期間外警告 ConfirmDialog を表示する（ITM-007）。
+   * View モードでは判定をスキップする。
+   */
+  reportPeriodEnd?: string;
 }
 
 /**
@@ -105,6 +120,8 @@ export default function ItemForm({
   defaultValues,
   onDirtyChange,
   resetRef,
+  reportPeriodStart,
+  reportPeriodEnd,
 }: ItemFormProps) {
   // 保存ボタンの disabled フラグ: isSaveDisabled が指定されていない場合は isPending を使用する。
   const saveDisabled = isSaveDisabled ?? isPending;
@@ -112,6 +129,11 @@ export default function ItemForm({
   const isAdd = mode === 'add';
   // readOnly: mode='view' または外部から readOnly=true が渡された場合（順次アップロード中）。
   const isReadOnly = isView || readOnly;
+
+  // 期間外警告 ConfirmDialog の表示状態（ITM-007）。
+  // 確認ボタン押下後に呼ぶコールバックを保持する（onSubmit か onSaveAndContinue かを区別するため）。
+  const [periodWarningDialogOpen, setPeriodWarningDialogOpen] = useState(false);
+  const pendingSubmitCallbackRef = useRef<(() => void) | null>(null);
 
   const {
     register,
@@ -161,15 +183,75 @@ export default function ItemForm({
     }
   }, [isDirty, onDirtyChange]);
 
+  /**
+   * 期間外判定（ITM-007）。
+   * expenseDate が reportPeriodStart より前、または reportPeriodEnd より後の場合に true を返す。
+   * 境界値（開始日/終了日ちょうど）は期間内扱い（strict less/greater）。
+   * View モードでは判定をスキップして常に false を返す。
+   *
+   * period_start / period_end は YYYY-MM-DD 形式が前提だが、API が RFC3339
+   * （例: 2026-04-01T00:00:00Z）で返すケースを考慮して先頭 10 文字を切り出して
+   * 正規化する（issue 117 の根本修正が完了するまでの防御コード）。
+   * @param expenseDate 支出日（YYYY-MM-DD 形式）
+   */
+  const isOutsidePeriod = (expenseDate: string): boolean => {
+    if (isView) return false;
+    if (!reportPeriodStart || !reportPeriodEnd || !expenseDate) return false;
+    const normalizedStart = reportPeriodStart.slice(0, 10);
+    const normalizedEnd = reportPeriodEnd.slice(0, 10);
+    return expenseDate < normalizedStart || expenseDate > normalizedEnd;
+  };
+
+  /**
+   * 保存処理の共通ロジック。
+   * 期間外の場合は ConfirmDialog を表示し、確認後に callback を呼ぶ。
+   * 期間内の場合は即座に callback を呼ぶ。
+   * @param data バリデーション通過後のフォーム値
+   * @param callback 実際の保存処理（onSubmit または onSaveAndContinue）
+   */
+  const executeSaveWithPeriodCheck = (data: ItemFormValues, callback: (d: ItemFormValues) => void) => {
+    if (isOutsidePeriod(data.expenseDate)) {
+      // 期間外: ConfirmDialog を表示し、確認後にコールバックを呼ぶ。
+      pendingSubmitCallbackRef.current = () => callback(data);
+      setPeriodWarningDialogOpen(true);
+    } else {
+      // 期間内: 即座に保存処理を実行する。
+      callback(data);
+    }
+  };
+
   // 「保存して続けて追加」ボタン押下時: バリデーション通過後に onSaveAndContinue を呼ぶ。
   const handleSaveAndContinue = handleSubmit((data) => {
     if (onSaveAndContinue) {
-      onSaveAndContinue(data);
+      executeSaveWithPeriodCheck(data, onSaveAndContinue);
     }
   });
 
+  // form の onSubmit ハンドラ: バリデーション通過後に期間外チェックを行い、
+  // 期間外なら ConfirmDialog を表示、期間内なら即座に onSubmit コールバックを呼ぶ。
+  const handleFormSubmit = handleSubmit((data) => {
+    executeSaveWithPeriodCheck(data, onSubmit);
+  });
+
+  // 期間外警告 ConfirmDialog の確認ボタン押下時: ダイアログを閉じ、保留中の保存処理を実行する。
+  const handlePeriodWarningConfirm = () => {
+    setPeriodWarningDialogOpen(false);
+    if (pendingSubmitCallbackRef.current) {
+      const callback = pendingSubmitCallbackRef.current;
+      pendingSubmitCallbackRef.current = null;
+      callback();
+    }
+  };
+
+  // 期間外警告 ConfirmDialog のキャンセルボタン押下時: ダイアログを閉じ、フォームに戻る（保存しない）。
+  // フォームの入力値は維持する（reset() を呼ばない）。
+  const handlePeriodWarningCancel = () => {
+    setPeriodWarningDialogOpen(false);
+    pendingSubmitCallbackRef.current = null;
+  };
+
   return (
-    <form data-testid="item-form" onSubmit={handleSubmit(onSubmit)} noValidate>
+    <form data-testid="item-form" onSubmit={handleFormSubmit} noValidate>
       {/* API エラー表示 */}
       <FormAlert message={apiError} />
 
@@ -254,6 +336,22 @@ export default function ItemForm({
           </Button>
         </>
       )}
+
+      {/* 期間外警告 ConfirmDialog（ITM-007）。
+          View モードでは表示しない（isView=true のとき periodWarningDialogOpen は常に false）。
+          タイトル「入力内容の確認」・確認ボタン「保存する」・キャンセルボタン「キャンセル」。
+          確認押下: 保存処理を継続（期間外でも保存は許可）。
+          キャンセル押下: ダイアログを閉じてフォームに戻る（入力値は維持）。 */}
+      <ConfirmDialog
+        open={periodWarningDialogOpen}
+        title="入力内容の確認"
+        message={WARNING_MESSAGES.ITEM_DATE_OUTSIDE_PERIOD_WARNING}
+        confirmLabel="保存する"
+        confirmColor="primary"
+        cancelLabel="キャンセル"
+        onConfirm={handlePeriodWarningConfirm}
+        onCancel={handlePeriodWarningCancel}
+      />
     </form>
   );
 }
