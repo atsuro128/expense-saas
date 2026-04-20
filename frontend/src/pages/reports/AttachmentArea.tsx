@@ -4,7 +4,7 @@
 // プレビュー・ダウンロードの window.open 呼び出しは AttachmentList 内の AttachmentItemRow が担当する。
 // report-detail.md §AttachmentArea に対応する。
 // ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
-// ATT-FE-072/073/075/076/077: 追加モードのローカル保持対応（issue #115）。
+// ATT-FE-072/073/075/077: 追加モードのローカル保持対応（issue #115）。
 
 import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
