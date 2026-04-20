@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 	"unicode/utf8"
 
@@ -33,11 +32,9 @@ func (h *WorkflowHandler) ListPendingReports(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	params, err := parseWorkflowListParams(r)
+	params, details, err := parseWorkflowListParams(r)
 	if err != nil {
-		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
-			{Field: "page", Message: "page または per_page の値が不正です"},
-		})
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -206,11 +203,9 @@ func (h *WorkflowHandler) ListPayableReports(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	params, err := parseWorkflowListParams(r)
+	params, details, err := parseWorkflowListParams(r)
 	if err != nil {
-		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
-			{Field: "page", Message: "page または per_page の値が不正です"},
-		})
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -295,32 +290,46 @@ func (h *WorkflowHandler) MarkReportAsPaid(w http.ResponseWriter, r *http.Reques
 
 // parseWorkflowListParams はクエリパラメータから WorkflowListParams を構築します。
 // page のデフォルトは 1、per_page のデフォルトは 20（上限 100）。
-func parseWorkflowListParams(r *http.Request) (domain.WorkflowListParams, error) {
+// バリデーションエラーがある場合は details にフィールド単位のエラーを蓄積して返します。
+func parseWorkflowListParams(r *http.Request) (domain.WorkflowListParams, []middleware.ValidationError, error) {
 	q := r.URL.Query()
 	params := domain.WorkflowListParams{
 		Page:    1,
 		PerPage: 20,
 	}
 
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
 	// page のパースとバリデーション。
 	if pageStr := q.Get("page"); pageStr != "" {
-		v, err := strconv.Atoi(pageStr)
-		if err != nil || v <= 0 {
-			return params, domain.ErrInvalidPeriod
+		var page int
+		if _, err := parseIntQuery(pageStr, &page); err != nil || page < 1 {
+			details = append(details, middleware.ValidationError{
+				Field:   "page",
+				Message: "page は正の整数でなければなりません",
+			})
+		} else {
+			params.Page = page
 		}
-		params.Page = v
 	}
 
 	// per_page のパースとバリデーション（上限 100）。
 	if perPageStr := q.Get("per_page"); perPageStr != "" {
-		v, err := strconv.Atoi(perPageStr)
-		if err != nil || v <= 0 {
-			return params, domain.ErrInvalidPeriod
+		var perPage int
+		if _, err := parseIntQuery(perPageStr, &perPage); err != nil || perPage < 1 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page は正の整数でなければなりません",
+			})
+		} else if perPage > 100 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page の上限は 100 です",
+			})
+		} else {
+			params.PerPage = perPage
 		}
-		if v > 100 {
-			return params, domain.ErrInvalidPeriod
-		}
-		params.PerPage = v
 	}
 
 	// applicant_name は省略可能な部分一致フィルタ。
@@ -328,5 +337,9 @@ func parseWorkflowListParams(r *http.Request) (domain.WorkflowListParams, error)
 		params.ApplicantName = &name
 	}
 
-	return params, nil
+	if len(details) > 0 {
+		return params, details, fmt.Errorf("クエリパラメータにバリデーションエラーがあります")
+	}
+
+	return params, nil, nil
 }
