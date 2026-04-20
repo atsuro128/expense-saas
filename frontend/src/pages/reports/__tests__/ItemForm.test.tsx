@@ -506,7 +506,7 @@ describe('ItemForm', () => {
     await fillFormAndSave(user, '2026-03-15');
 
     // ConfirmDialog タイトルを確認してから確認ボタンを押下する（ITM-FE-101）。機能未実装のため現在は失敗する。
-    expect(screen.getByText('明細日付の確認')).toBeInTheDocument();
+    expect(screen.getByText('入力内容の確認')).toBeInTheDocument();
     // ConfirmDialog 内の「保存する」ボタン（confirm）を押下する。
     // ページ上に「保存する」ボタンが複数ある場合を考慮してダイアログ内を絞り込む。
     const dialog = screen.getByRole('dialog');

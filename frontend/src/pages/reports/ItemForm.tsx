@@ -333,12 +333,12 @@ export default function ItemForm({
 
       {/* 期間外警告 ConfirmDialog（ITM-007）。
           View モードでは表示しない（isView=true のとき periodWarningDialogOpen は常に false）。
-          タイトル「明細日付の確認」・確認ボタン「保存する」・キャンセルボタン「キャンセル」。
+          タイトル「入力内容の確認」・確認ボタン「保存する」・キャンセルボタン「キャンセル」。
           確認押下: 保存処理を継続（期間外でも保存は許可）。
           キャンセル押下: ダイアログを閉じてフォームに戻る（入力値は維持）。 */}
       <ConfirmDialog
         open={periodWarningDialogOpen}
-        title="明細日付の確認"
+        title="入力内容の確認"
         message={WARNING_MESSAGES.ITEM_DATE_OUTSIDE_PERIOD_WARNING}
         confirmLabel="保存する"
         confirmColor="primary"
