@@ -227,8 +227,10 @@ func TestCreateReport_ValidationError_EmptyTitle(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 422 VALIDATION_ERROR: title は必須（RPT-009）。機能未実装のため現在は失敗する。
+	// 422 VALIDATION_ERROR: title は必須（RPT-009）。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	// details[].field に "title" が含まれることを検証する（RPT-009: OpenAPI 契約 details 配列）。
+	testutil.AssertValidationErrorField(t, rec, "title")
 }
 
 // RPT-010: period_from > period_to → 422 VALIDATION_ERROR。
@@ -244,8 +246,10 @@ func TestCreateReport_ValidationError_PeriodRange(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
 
-	// 422 VALIDATION_ERROR: period_from > period_to（RPT-010）。機能未実装のため現在は失敗する。
+	// 422 VALIDATION_ERROR: period_from > period_to（RPT-010）。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	// details[].field に "period_end" が含まれることを検証する（RPT-010: OpenAPI 契約 details 配列）。
+	testutil.AssertValidationErrorField(t, rec, "period_end")
 }
 
 // RPT-011: 認証トークンなし → 401。
@@ -417,6 +421,8 @@ func TestCreateReport_Resubmit_NonRejectedSourceFails(t *testing.T) {
 
 	// 422 VALIDATION_ERROR: 再申請元は rejected 状態のみ許可（RPT-019）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
+	// details[].field に "reference_report_id" が含まれることを検証する（RPT-019: OpenAPI 契約 details 配列）。
+	testutil.AssertValidationErrorField(t, rec, "reference_report_id")
 }
 
 // =============================================================================

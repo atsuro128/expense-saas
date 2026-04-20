@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -34,9 +35,9 @@ func (h *ReportHandler) ListMyReports(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	params, err := parseReportListParams(r)
+	params, details, err := parseReportListParams(r)
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", err.Error())
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -209,50 +210,95 @@ func (h *ReportHandler) CreateReport(w http.ResponseWriter, r *http.Request) {
 
 	var req createReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
 
-	// バリデーション。
+	// バリデーションエラーを収集する（複数フィールドを一括検証）。
+	var details []middleware.ValidationError
+
 	if req.Title == "" {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "title is required")
-		return
+		details = append(details, middleware.ValidationError{
+			Field:   "title",
+			Message: "title は必須です",
+		})
 	}
 
-	periodStart, err := time.Parse("2006-01-02", req.PeriodStart)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid period_start format (YYYY-MM-DD)")
-		return
+	var periodStart, periodEnd time.Time
+	var periodStartOK, periodEndOK bool
+
+	if ps, err := time.Parse("2006-01-02", req.PeriodStart); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "period_start",
+			Message: "period_start は YYYY-MM-DD 形式でなければなりません",
+		})
+	} else {
+		periodStart = ps
+		periodStartOK = true
 	}
 
-	periodEnd, err := time.Parse("2006-01-02", req.PeriodEnd)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid period_end format (YYYY-MM-DD)")
-		return
+	if pe, err := time.Parse("2006-01-02", req.PeriodEnd); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "period_end",
+			Message: "period_end は YYYY-MM-DD 形式でなければなりません",
+		})
+	} else {
+		periodEnd = pe
+		periodEndOK = true
 	}
 
-	if periodStart.After(periodEnd) {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "period_start must be before or equal to period_end")
+	// 期間の前後関係チェック（両方のパースが成功した場合のみ）。
+	if periodStartOK && periodEndOK && periodStart.After(periodEnd) {
+		details = append(details, middleware.ValidationError{
+			Field:   "period_end",
+			Message: "period_end は period_start 以降の日付でなければなりません",
+		})
+	}
+
+	// reference_report_id の UUID バリデーション。
+	var refID *uuid.UUID
+	if req.ReferenceReportID != nil {
+		id, err := uuid.Parse(*req.ReferenceReportID)
+		if err != nil {
+			details = append(details, middleware.ValidationError{
+				Field:   "reference_report_id",
+				Message: "reference_report_id は UUID 形式でなければなりません",
+			})
+		} else {
+			refID = &id
+		}
+	}
+
+	if len(details) > 0 {
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
 	params := service.CreateReportParams{
-		Title:       req.Title,
-		PeriodStart: periodStart,
-		PeriodEnd:   periodEnd,
-	}
-
-	if req.ReferenceReportID != nil {
-		refID, err := uuid.Parse(*req.ReferenceReportID)
-		if err != nil {
-			middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid reference_report_id")
-			return
-		}
-		params.ReferenceReportID = &refID
+		Title:             req.Title,
+		PeriodStart:       periodStart,
+		PeriodEnd:         periodEnd,
+		ReferenceReportID: refID,
 	}
 
 	detail, err := h.svc.CreateReport(r.Context(), actor, params)
 	if err != nil {
+		// 再申請元レポートが rejected 以外の場合、ErrInvalidPeriod が返る。
+		// reference_report_id 指定時のみ VALIDATION_ERROR として details 付きで返す。
+		if errors.Is(err, domain.ErrInvalidPeriod) && params.ReferenceReportID != nil {
+			middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+				{Field: "reference_report_id", Message: "再申請元のレポートは rejected 状態でなければなりません"},
+			})
+			return
+		}
 		respondDomainError(w, err)
 		return
 	}
@@ -270,7 +316,9 @@ func (h *ReportHandler) GetReport(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -301,36 +349,79 @@ func (h *ReportHandler) UpdateReport(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req updateReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
+
+	// バリデーションエラーを収集する（複数フィールドを一括検証）。
+	var details []middleware.ValidationError
 
 	if req.Title == "" {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "title is required")
-		return
+		details = append(details, middleware.ValidationError{
+			Field:   "title",
+			Message: "title は必須です",
+		})
 	}
 
-	periodStart, err := time.Parse("2006-01-02", req.PeriodStart)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid period_start format")
-		return
+	var periodStart, periodEnd time.Time
+	var periodStartOK, periodEndOK bool
+
+	if ps, err := time.Parse("2006-01-02", req.PeriodStart); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "period_start",
+			Message: "period_start は YYYY-MM-DD 形式でなければなりません",
+		})
+	} else {
+		periodStart = ps
+		periodStartOK = true
 	}
 
-	periodEnd, err := time.Parse("2006-01-02", req.PeriodEnd)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid period_end format")
-		return
+	if pe, err := time.Parse("2006-01-02", req.PeriodEnd); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "period_end",
+			Message: "period_end は YYYY-MM-DD 形式でなければなりません",
+		})
+	} else {
+		periodEnd = pe
+		periodEndOK = true
 	}
 
-	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
-	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
+	// 期間の前後関係チェック（両方のパースが成功した場合のみ）。
+	if periodStartOK && periodEndOK && periodStart.After(periodEnd) {
+		details = append(details, middleware.ValidationError{
+			Field:   "period_end",
+			Message: "period_end は period_start 以降の日付でなければなりません",
+		})
+	}
+
+	var updatedAt time.Time
+	if ua, err := time.Parse(time.RFC3339, req.UpdatedAt); err != nil {
+		details = append(details, middleware.ValidationError{
+			Field:   "updated_at",
+			Message: "updated_at は RFC3339 形式でなければなりません",
+		})
+	} else {
+		updatedAt = ua.UTC()
+	}
+
+	if len(details) > 0 {
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
 		return
 	}
 
@@ -338,7 +429,7 @@ func (h *ReportHandler) UpdateReport(w http.ResponseWriter, r *http.Request) {
 		Title:       req.Title,
 		PeriodStart: periodStart,
 		PeriodEnd:   periodEnd,
-		UpdatedAt:   updatedAt.UTC(),
+		UpdatedAt:   updatedAt,
 	}
 
 	detail, err := h.svc.UpdateReport(r.Context(), actor, reportID, params)
@@ -360,7 +451,9 @@ func (h *ReportHandler) DeleteReport(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -387,19 +480,31 @@ func (h *ReportHandler) SubmitReport(w http.ResponseWriter, r *http.Request) {
 
 	reportID, err := parseUUIDParam(r, "id")
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid report id")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "report_id", Message: "report_id は UUID 形式でなければなりません"},
+		})
 		return
 	}
 
 	var req submitReportRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid request body")
+		var details []middleware.ValidationError
+		var typeErr *json.UnmarshalTypeError
+		if errors.As(err, &typeErr) && typeErr.Field != "" {
+			details = append(details, middleware.ValidationError{
+				Field:   typeErr.Field,
+				Message: fmt.Sprintf("%s の型が不正です（期待: %s）", typeErr.Field, typeErr.Type.String()),
+			})
+		}
+		middleware.RespondValidationError(w, "リクエストボディの JSON 解析に失敗しました", details)
 		return
 	}
 
 	updatedAt, err := time.Parse(time.RFC3339, req.UpdatedAt)
 	if err != nil {
-		middleware.RespondError(w, http.StatusUnprocessableEntity, "VALIDATION_ERROR", "invalid updated_at format")
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", []middleware.ValidationError{
+			{Field: "updated_at", Message: "updated_at は RFC3339 形式でなければなりません"},
+		})
 		return
 	}
 
@@ -420,54 +525,92 @@ func parseUUIDParam(r *http.Request, paramName string) (uuid.UUID, error) {
 }
 
 // parseReportListParams はクエリパラメータから ReportListParams を構築します。
-func parseReportListParams(r *http.Request) (domain.ReportListParams, error) {
+// バリデーションエラーがある場合は details にフィールド単位のエラーを蓄積して返します。
+func parseReportListParams(r *http.Request) (domain.ReportListParams, []middleware.ValidationError, error) {
 	q := r.URL.Query()
 	params := domain.ReportListParams{
 		Page:    1,
 		PerPage: 20,
 	}
 
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
+	// page のパースとバリデーション。
 	if pageStr := q.Get("page"); pageStr != "" {
 		var page int
 		if _, err := parseIntQuery(pageStr, &page); err != nil || page < 1 {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "page",
+				Message: "page は正の整数でなければなりません",
+			})
+		} else {
+			params.Page = page
 		}
-		params.Page = page
 	}
 
+	// per_page のパースとバリデーション（上限 100）。
 	if perPageStr := q.Get("per_page"); perPageStr != "" {
 		var perPage int
 		if _, err := parseIntQuery(perPageStr, &perPage); err != nil || perPage < 1 {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page は正の整数でなければなりません",
+			})
+		} else if perPage > 100 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page の上限は 100 です",
+			})
+		} else {
+			params.PerPage = perPage
 		}
-		params.PerPage = perPage
 	}
 
+	// status のバリデーション（許可値リスト）。
 	if statusStr := q.Get("status"); statusStr != "" {
 		s := domain.ReportStatus(statusStr)
 		if !s.IsValid() {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "status",
+				Message: "status は draft, submitted, approved, rejected, paid のいずれかでなければなりません",
+			})
+		} else {
+			params.Status = &s
 		}
-		params.Status = &s
 	}
 
+	// from のバリデーション（YYYY-MM-DD 形式のみ許可）。
 	if fromStr := q.Get("from"); fromStr != "" {
 		t, err := time.Parse("2006-01-02", fromStr)
 		if err != nil {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "from",
+				Message: "from は YYYY-MM-DD 形式でなければなりません",
+			})
+		} else {
+			params.From = &t
 		}
-		params.From = &t
 	}
 
+	// to のバリデーション（YYYY-MM-DD 形式のみ許可）。
 	if toStr := q.Get("to"); toStr != "" {
 		t, err := time.Parse("2006-01-02", toStr)
 		if err != nil {
-			return params, domain.ErrInvalidPeriod
+			details = append(details, middleware.ValidationError{
+				Field:   "to",
+				Message: "to は YYYY-MM-DD 形式でなければなりません",
+			})
+		} else {
+			params.To = &t
 		}
-		params.To = &t
 	}
 
-	return params, nil
+	if len(details) > 0 {
+		return params, details, fmt.Errorf("クエリパラメータにバリデーションエラーがあります")
+	}
+
+	return params, nil, nil
 }
 
 // parseIntQuery は文字列を int にパースします。
