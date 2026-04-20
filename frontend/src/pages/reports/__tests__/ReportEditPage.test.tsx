@@ -53,9 +53,15 @@ const mockCurrentUser = {
 };
 
 // ルーティングによる遷移先を検証するためのヘルパーコンポーネント。
+// location.state も検証できるよう JSON シリアライズして表示する。
 function LocationDisplay() {
   const location = useLocation();
-  return <div data-testid="location">{location.pathname + location.search}</div>;
+  return (
+    <>
+      <div data-testid="location">{location.pathname + location.search}</div>
+      <div data-testid="location-state">{JSON.stringify(location.state)}</div>
+    </>
+  );
 }
 
 function renderPage(reportId = 'test-report-id') {
@@ -343,5 +349,53 @@ describe('ReportEditPage', () => {
     // スタブ実装では PageSkeleton が存在しないため失敗する。
     expect(screen.getByTestId('page-skeleton')).toBeInTheDocument();
     expect(screen.getByTestId('page-skeleton')).toHaveAttribute('data-variant', 'form');
+  });
+
+  // issue-126: フォーム送信成功後に navigate が state.toast 付きで呼ばれることを検証する。
+  // navigate 直後にアンマウントされるためトーストは遷移先で表示する設計。
+  it('issue-126: フォーム送信成功後に navigate が severity=success・message=レポートを更新しました の state.toast 付きで呼ばれる', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReport }, isLoading: false, isError: false, error: null } as any);
+
+    // useUpdateReport が成功を返すようにモックする。
+    mockUseUpdateReport.mockReturnValue({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      mutate: vi.fn().mockImplementation((_data: unknown, options?: any) => { options?.onSuccess?.(); }),
+      isPending: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('test-report-id');
+
+    // フォームに値を入力して送信する。
+    const titleInput = await screen.findByRole('textbox', { name: /タイトル/ });
+    await user.clear(titleInput);
+    await user.type(titleInput, '更新タイトル');
+
+    const periodStartInput = document.querySelector('input[name="periodStart"]') as HTMLInputElement;
+    await user.clear(periodStartInput);
+    await user.type(periodStartInput, '2026-03-01');
+
+    const periodEndInput = document.querySelector('input[name="periodEnd"]') as HTMLInputElement;
+    await user.clear(periodEndInput);
+    await user.type(periodEndInput, '2026-03-31');
+
+    const submitButton = screen.getByRole('button', { name: /保存する/ });
+    await user.click(submitButton);
+
+    // 遷移先に state.toast が渡されること。
+    await waitFor(() => {
+      const stateText = screen.getByTestId('location-state').textContent ?? '';
+      const state = JSON.parse(stateText) as { toast?: { severity: string; message: string } };
+      expect(state?.toast?.severity).toBe('success');
+      expect(state?.toast?.message).toBe('レポートを更新しました');
+    });
   });
 });
