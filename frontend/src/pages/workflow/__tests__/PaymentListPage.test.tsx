@@ -406,6 +406,29 @@ describe('PaymentListPage（PayableReportsPage）', () => {
     expect(screen.getByTestId('page-skeleton')).toHaveAttribute('data-variant', 'table');
   });
 
+  // WFL-FE-035b: isLoading=true のとき、ページタイトルとフィルタが表示される（issue 116 対応）。
+  // スケルトン表示はテーブル領域のみとし、ヘッダー・フィルタは常時表示される設計に基づく。
+  it('WFL-FE-035b: isLoading=true でもページタイトルとフィルタ UI が表示される', () => {
+    mockUsePayableReports.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage();
+
+    // ページ root 要素が表示されること（ページ全体がスケルトンに置換されていないことを確認）。
+    expect(screen.getByTestId('payable-reports-page')).toBeInTheDocument();
+    // ページタイトル「支払待ち一覧」が表示されること。
+    expect(screen.getByRole('heading', { name: '支払待ち一覧' })).toBeInTheDocument();
+    // 申請者名フィルタ入力欄が表示されること。
+    expect(screen.getByTestId('payable-filter-applicant-name')).toBeInTheDocument();
+    // テーブルは表示されないこと（スケルトンで代替）。
+    expect(screen.queryByTestId('payable-report-table')).not.toBeInTheDocument();
+  });
+
   // WFL-FE-036: reports=[], isLoading=false, filters={} のとき「支払待ちのレポートはありません。」が表示される。
   it('WFL-FE-036: shows_empty_state_no_filter — 空リストでフィルタなしの EmptyState', () => {
     mockUsePayableReports.mockReturnValue({

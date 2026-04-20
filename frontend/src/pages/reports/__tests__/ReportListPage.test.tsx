@@ -302,6 +302,29 @@ describe('ReportListPage', () => {
     expect(screen.getByTestId('page-skeleton')).toHaveAttribute('data-variant', 'table');
   });
 
+  // RPT-FE-006b: isLoading=true のとき、ヘッダー・フィルタが表示される（issue 116 対応）。
+  // スケルトン表示はテーブル領域のみとし、ヘッダー・フィルタは常時表示される設計に基づく。
+  it('RPT-FE-006b: isLoading=true でもヘッダー（タイトル・作成ボタン）とフィルタ UI が表示される', () => {
+    mockUseMyReports.mockReturnValue({
+      data: undefined,
+      isLoading: true,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports');
+
+    // ページヘッダーが表示されること（タイトル「マイレポート」を含む）。
+    expect(screen.getByTestId('report-list-header')).toBeInTheDocument();
+    // 「+ レポート作成」ボタンが表示されること。
+    expect(screen.getByTestId('create-report-button')).toBeInTheDocument();
+    // フィルタ UI が表示されること。
+    expect(screen.getByTestId('report-list-filter')).toBeInTheDocument();
+    // テーブルは表示されないこと（スケルトンで代替）。
+    expect(screen.queryByTestId('report-list-table')).not.toBeInTheDocument();
+  });
+
   // RPT-FE-007: useMyReports がエラーを返す
   // → AppToast（severity: 'error'）が表示される
   // （report-list.md §ReportListPage: API エラー時は AppToast で error 表示）
