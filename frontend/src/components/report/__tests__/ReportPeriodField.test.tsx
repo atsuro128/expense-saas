@@ -1,7 +1,9 @@
 // ReportPeriodField コンポーネントのユニットテスト。
-// RPT-FE-039〜042 に対応する。
+// RPT-FE-039〜042、RPT-FE-103〜104 に対応する。
+// RPT-FE-103〜104: issue 119（onBlur 伝播）修正確認テスト。
 
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import ReportPeriodField from '../ReportPeriodField';
@@ -13,18 +15,21 @@ interface WrapperProps {
   periodStartError?: string;
   periodEndError?: string;
   disabled?: boolean;
+  /** onBlur 発火時の RHF バリデーション動作を確認するためにエラー表示を有効化する */
+  withFormErrors?: boolean;
 }
 
-function Wrapper({ periodStartError, periodEndError, disabled }: WrapperProps) {
-  const { control } = useForm<ReportFormValues>({
+function Wrapper({ periodStartError, periodEndError, disabled, withFormErrors }: WrapperProps) {
+  const { control, formState: { errors } } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
     defaultValues: { title: '', periodStart: '', periodEnd: '' },
+    mode: 'onBlur',
   });
   return (
     <ReportPeriodField
       control={control}
-      periodStartError={periodStartError}
-      periodEndError={periodEndError}
+      periodStartError={withFormErrors ? errors.periodStart?.message : periodStartError}
+      periodEndError={withFormErrors ? errors.periodEnd?.message : periodEndError}
       disabled={disabled}
     />
   );
@@ -60,5 +65,37 @@ describe('ReportPeriodField', () => {
 
     expect(screen.getByLabelText('開始日')).toBeDisabled();
     expect(screen.getByLabelText('終了日')).toBeDisabled();
+  });
+
+  // RPT-FE-103: 開始日フィールドでフォーカスアウトすると RHF の onBlur バリデーションが発火し、
+  // 「開始日を入力してください」エラーが表示される（issue 119 修正確認）。
+  it('RPT-FE-103: 開始日フォーカスアウトで RHF の onBlur バリデーションが発火し必須エラーが表示される', async () => {
+    const user = userEvent.setup();
+    render(<Wrapper withFormErrors />);
+
+    const startInput = screen.getByLabelText('開始日');
+    // フォーカスを当ててからフォーカスアウトする（値は空のまま）。
+    await user.click(startInput);
+    await user.tab();
+
+    await waitFor(() => {
+      expect(screen.getByText('開始日を入力してください')).toBeInTheDocument();
+    });
+  });
+
+  // RPT-FE-104: 終了日フィールドでフォーカスアウトすると RHF の onBlur バリデーションが発火し、
+  // 「終了日を入力してください」エラーが表示される（issue 119 修正確認）。
+  it('RPT-FE-104: 終了日フォーカスアウトで RHF の onBlur バリデーションが発火し必須エラーが表示される', async () => {
+    const user = userEvent.setup();
+    render(<Wrapper withFormErrors />);
+
+    const endInput = screen.getByLabelText('終了日');
+    // フォーカスを当ててからフォーカスアウトする（値は空のまま）。
+    await user.click(endInput);
+    await user.tab();
+
+    await waitFor(() => {
+      expect(screen.getByText('終了日を入力してください')).toBeInTheDocument();
+    });
   });
 });
