@@ -2,7 +2,7 @@
 // RPT-FE-064〜069 の仕様に対応する。
 // レポートデータを取得し、ReportInfoCard・ReportActionBar・ItemListSection・ItemSlidePanel を統合する。
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { flushSync } from 'react-dom';
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import { useQueryClient } from '@tanstack/react-query';
@@ -105,6 +105,13 @@ export default function ReportDetailPage() {
   // 単一 state に集約することで open 遷移が必ず closed → open になり、
   // Drawer のスライドアニメーションが全経路で一貫して発火する。
   const [panelState, setPanelState] = useState<PanelState>('closed');
+
+  // 直前の非 closed モードを保持する ref（issue #130）。
+  // panelState が 'closed' に遷移したとき、Drawer のスライドアウトアニメーション中に
+  // mode prop が 'add' にフォールバックされてフラッシュが発生する問題を防ぐため、
+  // 閉じる直前のモードをここに記録し、closed 中は lastModeRef.current を mode prop に渡す。
+  const lastModeRef = useRef<PanelMode>('add');
+
   const [selectedItem, setSelectedItem] = useState<ExpenseItemWithAttachments | null>(null);
   const [itemApiError, setItemApiError] = useState<string | null>(null);
 
@@ -347,6 +354,7 @@ export default function ReportDetailPage() {
   const handleAddItem = () => {
     setSelectedItem(null);
     setItemApiError(null);
+    lastModeRef.current = 'add';
     setPanelState('add');
   };
 
@@ -367,6 +375,7 @@ export default function ReportDetailPage() {
     flushSync(() => {
       setPanelState('closed');
     });
+    lastModeRef.current = 'view';
     setPanelState('view');
   };
 
@@ -387,6 +396,7 @@ export default function ReportDetailPage() {
     flushSync(() => {
       setPanelState('closed');
     });
+    lastModeRef.current = 'edit';
     setPanelState('edit');
   };
 
@@ -489,6 +499,7 @@ export default function ReportDetailPage() {
           // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームをリセットする。
           setSelectedItem(null);
           setFormKey((prev) => prev + 1);
+          lastModeRef.current = 'add';
           setPanelState('add');
           setToast({ open: true, severity: 'success', message: '明細を追加しました' });
         },
@@ -555,11 +566,15 @@ export default function ReportDetailPage() {
       </Box>
 
       {/* 明細スライドパネル（formKey で再マウントしてフォームリセットを実現）。
-          open は panelState !== 'closed' で判定し、常に false → true の遷移を経てアニメーションが発火する。 */}
+          open は panelState !== 'closed' で判定し、常に false → true の遷移を経てアニメーションが発火する。
+          mode: panelState が 'closed' のとき lastModeRef.current を渡すことで、スライドアウト中に
+            mode が 'add' にフォールバックされてレイアウトがフラッシュする issue #130 を解消する。
+          onTransitionExited: スライドアウト完了後に selectedItem / itemApiError をリセットする。
+            アニメーション中はリセットしないことで view/edit モードの DOM を維持し、フラッシュを防ぐ。 */}
       <ItemSlidePanel
         key={formKey}
         open={panelState !== 'closed'}
-        mode={panelState === 'closed' ? 'add' : panelState}
+        mode={panelState === 'closed' ? lastModeRef.current : panelState}
         reportId={report.id}
         item={selectedItem}
         reportStatus={report.status}
@@ -568,7 +583,16 @@ export default function ReportDetailPage() {
         onSaveSuccess={() => setPanelState('closed')}
         onSaveAndContinue={() => {
           setSelectedItem(null);
+          lastModeRef.current = 'add';
           setPanelState('add');
+        }}
+        onTransitionExited={() => {
+          // スライドアウトアニメーション完了後に selectedItem と itemApiError をリセットする。
+          // アニメーション完了前（panelState='closed' 直後）にリセットすると、
+          // Drawer がスライドアウト中の DOM に mode='add' の UI が描画されてフラッシュが発生するため、
+          // onExited コールバックで遅延リセットする（MUI 公式パターン: SlideProps.onExited）。
+          setSelectedItem(null);
+          setItemApiError(null);
         }}
         categories={categoryOptions}
         apiError={itemApiError}
