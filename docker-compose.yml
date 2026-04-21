@@ -175,6 +175,26 @@ services:
       - /app/node_modules
 
   # -----------------------------------------------------------------------
+  # db-test 向けマイグレーション（ワンショット、profile [test]）
+  # `docker compose --profile test run --rm migrate-test` で実行する。
+  # db-test には永続 volume が無く、コンテナ停止でスキーマが消えるため、
+  # BE テスト実行前に必ずこのサービスで migrate up を流す必要がある。
+  # -----------------------------------------------------------------------
+  migrate-test:
+    image: migrate/migrate:v4.17.0
+    profiles: [test]
+    depends_on:
+      db-test:
+        condition: service_healthy
+    volumes:
+      - ./db/migrations:/migrations:ro
+    command:
+      - "-path=/migrations"
+      - "-database=postgres://testuser:testpass@db-test:5432/expense_test?sslmode=disable"
+      - "up"
+    restart: on-failure
+
+  # -----------------------------------------------------------------------
   # BE テスト実行（ワンショット、profile で通常起動から除外）
   # `docker compose --profile test run --rm test-be <command>` で実行する。
   # golangci-lint イメージは Go ツールチェーンを含むため lint/test 両方に使える。
