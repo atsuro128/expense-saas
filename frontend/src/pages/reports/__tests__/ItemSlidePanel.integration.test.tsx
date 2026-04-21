@@ -906,3 +906,92 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     }
   });
 });
+
+// =============================================================================
+// issue #134 回帰テスト: ItemSlidePanel の保存エラー時に err.message が伝播すること
+// =============================================================================
+
+describe('ItemSlidePanel 保存エラー回帰テスト（issue #134）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // issue #134: 追加モードの保存（明細作成 API）で FORBIDDEN エラーが返ったとき、
+  // パネル上部エラーに client.ts 層でマッピング済みの err.message が表示される。
+  // 修正前: catch 節のフォールバックで '明細の保存に失敗しました。もう一度お試しください。' が固定表示された。
+  // 修正後: createErr.message（SERVER_ERROR_MESSAGES.FORBIDDEN）が表示される。
+  it('issue #134: 明細追加保存で API が FORBIDDEN を返したとき err.message がパネルエラーに表示される', async () => {
+    const user = userEvent.setup();
+    const { Wrapper } = createWrapper();
+
+    // 添付一覧 API は空レスポンスを返す。
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/attachments')) {
+        return makeEmptyAttachmentListResponse();
+      }
+      // 明細作成 API が FORBIDDEN を返す。
+      // client.ts の handleErrorResponse が SERVER_ERROR_MESSAGES.FORBIDDEN にマッピングして
+      // ApiClientError をスローする挙動を fetch モックで再現する。
+      return {
+        ok: false,
+        status: 403,
+        headers: { get: () => 'application/json' },
+        json: async () => ({
+          error: {
+            code: 'FORBIDDEN',
+            message: 'Forbidden',
+          },
+        }),
+      } as unknown as Response;
+    });
+
+    const onSaveSuccess = vi.fn();
+    const { unmount } = render(
+      <Wrapper>
+        <ItemSlidePanel
+          {...defaultSlidePanelProps}
+          open={true}
+          mode="add"
+          reportId="report-001"
+          reportStatus="draft"
+          isOwner={true}
+          onSaveSuccess={onSaveSuccess}
+          onSaveAndContinue={vi.fn()}
+          onClose={vi.fn()}
+        />
+      </Wrapper>,
+    );
+
+    // カテゴリ一覧 API が必要なため、テスト環境ではカテゴリなし（空）で進める。
+    // ItemSlidePanel はカテゴリ一覧が空でもフォームを表示する。
+
+    // フォームに入力して保存ボタンをクリックする。
+    const dateInput = screen.getByLabelText(/日付|expense.date/i);
+    await user.clear(dateInput);
+    await user.type(dateInput, '2026-03-10');
+
+    const amountInput = screen.getByLabelText(/金額|amount/i);
+    await user.clear(amountInput);
+    await user.type(amountInput, '1000');
+
+    const saveButton = screen.getByRole('button', { name: /保存/ });
+    await user.click(saveButton);
+
+    // SERVER_ERROR_MESSAGES.FORBIDDEN の文言がパネルエラーエリアに表示されること。
+    // （修正前は「明細の保存に失敗しました。もう一度お試しください。」が固定表示された）
+    await waitFor(() => {
+      expect(screen.getByText('この操作を行う権限がありません。')).toBeInTheDocument();
+    });
+    expect(onSaveSuccess).not.toHaveBeenCalled();
+
+    unmount();
+  });
+});

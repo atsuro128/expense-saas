@@ -1292,3 +1292,134 @@ describe('ReportDetailPage', () => {
     expect(screen.queryByText('レポートを更新しました')).not.toBeInTheDocument();
   });
 });
+
+// =============================================================================
+// issue #134 回帰テスト: handleActionError が err.message ベースのメッセージを表示すること
+// =============================================================================
+
+describe('ReportDetailPage エラーハンドリング回帰テスト（issue #134）', () => {
+  const mockCategories = [
+    { id: 'cat-001', code: 'TRANSPORT', name_ja: '交通費', sort_order: 1 },
+  ];
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCategories.mockReturnValue({ data: mockCategories, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseUpdateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseApproveReport.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseMarkAsPaid.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // issue #134: 提出操作で 403 エラーが返ったとき、SERVER_ERROR_MESSAGES.FORBIDDEN の文言がトーストに表示される。
+  // 修正前: handleActionError が 403 のハードコード文言を使っていた。
+  // 修正後: err.message（client.ts 層でマッピング済み）をそのまま使う。
+  it('issue #134: 提出で 403 エラー時に err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示される', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    // useSubmitReport.mutate が 403 ApiClientError を onError でコールする。
+    // client.ts 層は FORBIDDEN コードを SERVER_ERROR_MESSAGES.FORBIDDEN にマッピングするため、
+    // err.message は 'この操作を行う権限がありません。' になる。
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    const forbiddenError = new ActualApiClientError(
+      'この操作を行う権限がありません。',
+      403,
+      'FORBIDDEN',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const submitMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(forbiddenError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: submitMutate, isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 提出ボタンをクリックして確認ダイアログを開く。
+    const submitButton = screen.getByRole('button', { name: /提出/ });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // ダイアログで「はい」を押す。
+    await user.click(screen.getByRole('button', { name: /はい/ }));
+
+    // err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('この操作を行う権限がありません。');
+    });
+  });
+
+  // issue #134: 明細削除で API エラー時に err.message がパネルのエラーエリアに表示される。
+  // 修正前: onError: () => setItemApiError('明細の削除に失敗しました') （err を受け取らない）
+  // 修正後: onError: (err) => { const message = err instanceof Error ? err.message : '...'; setItemApiError(message); }
+  it('issue #134: 明細削除で FORBIDDEN エラー時に err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）が表示される', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    const forbiddenError = new ActualApiClientError(
+      'この操作を行う権限がありません。',
+      403,
+      'FORBIDDEN',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deleteItemMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(forbiddenError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteItem.mockReturnValue({ mutate: deleteItemMutate, isPending: false } as any);
+
+    renderPage('test-report-id');
+
+    // 明細削除ボタンをクリックする（レポート削除ボタンより後の削除ボタン）。
+    const allDeleteButtons = screen.getAllByRole('button', { name: /削除/ });
+    // item-row 内の削除ボタンを探す。
+    const itemDeleteButton = allDeleteButtons.find((btn) => {
+      const itemRow = screen.queryByTestId('item-row-item-001');
+      return itemRow?.contains(btn);
+    });
+    expect(itemDeleteButton).toBeDefined();
+    await user.click(itemDeleteButton!);
+
+    // 確認ダイアログで「はい」を押す。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole('button', { name: /はい/ }));
+
+    // err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がエラー表示に現れること。
+    await waitFor(() => {
+      expect(screen.getByText('この操作を行う権限がありません。')).toBeInTheDocument();
+    });
+  });
+});

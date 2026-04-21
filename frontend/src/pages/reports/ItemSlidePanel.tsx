@@ -330,10 +330,11 @@ function ItemSlidePanelBody({
         newItemId = createdItem.id;
       } catch (createErr) {
         // 明細作成失敗: itemApiError にセットしてパネル上部に表示する（設計書「パネル上部エラー表示」準拠）。
+        // client.ts 層でマッピング済みの err.message をそのまま使う。
         const message =
           createErr instanceof Error
             ? createErr.message
-            : '明細の保存に失敗しました。もう一度お試しください。';
+            : '明細の保存に失敗しました';
         setItemApiError(message);
         return;
       }

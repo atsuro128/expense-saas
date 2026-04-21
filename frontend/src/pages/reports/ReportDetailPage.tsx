@@ -27,6 +27,7 @@ import type { PanelMode } from './ItemSlidePanel';
 import type { ItemFormValues } from './ItemForm';
 import type { ExpenseItemWithAttachments } from '../../api/types';
 import { ApiClientError } from '../../api/client';
+import { SERVER_ERROR_MESSAGES } from '../../lib/error-messages';
 
 /** ダイアログの操作種別 */
 type DialogAction = 'submit' | 'delete' | null;
@@ -188,7 +189,8 @@ export default function ReportDetailPage() {
 
   /**
    * アクションエラー時の共通トースト表示処理。
-   * ステータスコードに応じてメッセージを切り替える。
+   * ApiClientError の場合は client.ts 層でマッピング済みの err.message をそのまま使う。
+   * 409 Conflict のみ競合バナー表示の副作用があるため個別処理する。
    */
   const handleActionError = (err: unknown, fallbackMsg: string) => {
     if (err instanceof ApiClientError) {
@@ -198,33 +200,23 @@ export default function ReportDetailPage() {
         setToast({
           open: true,
           severity: 'warning',
-          message: 'このレポートは他のユーザーによって更新されました。',
+          message: err.message || SERVER_ERROR_MESSAGES.CONFLICT,
         });
         return;
-      } else if (err.status === 422) {
-        setToast({
-          open: true,
-          severity: 'error',
-          message: err.message || fallbackMsg,
-        });
-      } else if (err.status === 403) {
-        setToast({
-          open: true,
-          severity: 'error',
-          message: 'この操作を行う権限がありません。',
-        });
-      } else {
-        setToast({
-          open: true,
-          severity: 'error',
-          message: 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
-        });
       }
-    } else {
+      // client.ts 層で SERVER_ERROR_MESSAGES にマッピング済みの err.message をそのまま使う。
       setToast({
         open: true,
         severity: 'error',
-        message: 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
+        message: err.message || fallbackMsg,
+      });
+    } else {
+      // ApiClientError 以外（ネットワーク障害等）: err.message を使い、なければフォールバックを使う。
+      const message = err instanceof Error ? err.message : (fallbackMsg || SERVER_ERROR_MESSAGES.INTERNAL_ERROR);
+      setToast({
+        open: true,
+        severity: 'error',
+        message,
       });
     }
   };
@@ -426,7 +418,11 @@ export default function ReportDetailPage() {
         onSuccess: () => {
           setToast({ open: true, severity: 'success', message: '明細を削除しました' });
         },
-        onError: () => setItemApiError('明細の削除に失敗しました'),
+        onError: (err) => {
+          // client.ts 層でマッピング済みの err.message をそのまま使う。
+          const message = err instanceof Error ? err.message : '明細の削除に失敗しました';
+          setItemApiError(message);
+        },
       },
     );
     setDeletingItemId(null);
@@ -451,7 +447,11 @@ export default function ReportDetailPage() {
             setPanelState('closed');
             setToast({ open: true, severity: 'success', message: '明細を追加しました' });
           },
-          onError: () => setItemApiError('明細の追加に失敗しました'),
+          onError: (err) => {
+            // client.ts 層でマッピング済みの err.message をそのまま使う。
+            const message = err instanceof Error ? err.message : '明細の追加に失敗しました';
+            setItemApiError(message);
+          },
         },
       );
     } else if (panelState === 'edit' && selectedItem) {
@@ -470,7 +470,11 @@ export default function ReportDetailPage() {
             setPanelState('closed');
             setToast({ open: true, severity: 'success', message: '明細を更新しました' });
           },
-          onError: () => setItemApiError('明細の更新に失敗しました'),
+          onError: (err) => {
+            // client.ts 層でマッピング済みの err.message をそのまま使う。
+            const message = err instanceof Error ? err.message : '明細の更新に失敗しました';
+            setItemApiError(message);
+          },
         },
       );
     }
@@ -498,7 +502,11 @@ export default function ReportDetailPage() {
           setPanelState('add');
           setToast({ open: true, severity: 'success', message: '明細を追加しました' });
         },
-        onError: () => setItemApiError('明細の追加に失敗しました'),
+        onError: (err) => {
+          // client.ts 層でマッピング済みの err.message をそのまま使う。
+          const message = err instanceof Error ? err.message : '明細の追加に失敗しました';
+          setItemApiError(message);
+        },
       },
     );
   };
