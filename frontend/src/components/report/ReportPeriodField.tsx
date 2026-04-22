@@ -1,8 +1,9 @@
-// 対象期間の開始日・終了日を横並びに配置するコンポーネント。
+// 対象期間の開始日・終了日を配置するコンポーネント。
+// スマホ幅（xs）では縦積み、sm 以上では横並びで表示する。
 // React Hook Form の Controller 経由で制御される。
 // SCR-RPT-002, SCR-RPT-003 で使用する。
 
-import Box from '@mui/material/Box';
+import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import { Controller } from 'react-hook-form';
 import type { Control } from 'react-hook-form';
@@ -21,8 +22,9 @@ export interface ReportPeriodFieldProps {
 }
 
 /**
- * ReportPeriodField は対象期間の開始日・終了日を横並びに配置する。
- * 開始日と終了日の間に「〜」の区切りテキストを表示する。
+ * ReportPeriodField は対象期間の開始日・終了日を配置する。
+ * スマホ幅（xs）では縦積みで全幅表示、sm 以上では横並び + 区切りテキスト表示。
+ * ui-guidelines.md § レスポンシブ対応（Stack 使用方針）に準拠。
  */
 export default function ReportPeriodField({
   control,
@@ -31,7 +33,11 @@ export default function ReportPeriodField({
   disabled = false,
 }: ReportPeriodFieldProps) {
   return (
-    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
+    <Stack
+      direction={{ xs: 'column', sm: 'row' }}
+      alignItems={{ xs: 'stretch', sm: 'flex-start' }}
+      spacing={1}
+    >
       {/* 対象期間開始日 */}
       <Controller
         name="periodStart"
@@ -50,10 +56,10 @@ export default function ReportPeriodField({
         )}
       />
 
-      {/* 区切りテキスト */}
+      {/* 区切りテキスト: sm 以上のみ表示、スマホ幅（xs）では非表示 */}
       <Typography
         variant="body1"
-        sx={{ mt: 1, flexShrink: 0, lineHeight: '40px' }}
+        sx={{ mt: 1, flexShrink: 0, lineHeight: '40px', display: { xs: 'none', sm: 'block' } }}
       >
         〜
       </Typography>
@@ -75,6 +81,6 @@ export default function ReportPeriodField({
           />
         )}
       />
-    </Box>
+    </Stack>
   );
 }
