@@ -1231,7 +1231,7 @@ describe('ItemSlidePanel dirty state リセット（issue #132）', () => {
   });
 
   // issue #132: 「保存して続けて追加」成功後に isDirty が一旦 false になることを確認する。
-  // 続けて入力することで isDirty が true に戻ることも検証する。
+  // 続けて入力することで isDirty が true に戻ることも検証する（warning 対応: テスト名と内容の整合）。
   it('issue #132: 保存して続けて追加の成功後に isDirty が false になり、再入力で true に戻る', async () => {
     const user = userEvent.setup();
     const { Wrapper } = createWrapper();
@@ -1310,6 +1310,233 @@ describe('ItemSlidePanel dirty state リセット（issue #132）', () => {
     // 保存成功後: beforeunload が抑制されないことを確認する（isDirty=false になった）。
     await waitFor(() => {
       expect(fireBeforeUnloadAndCheck()).toBe(false);
+    });
+
+    // 再入力することで isDirty が true に戻り、beforeunload が再び抑制されることを確認する
+    // （warning 対応: テスト名に「再入力で true に戻る」と明示されているため、実際に検証する）。
+    await user.type(screen.getByLabelText(/摘要/), '再入力');
+    await waitFor(() => {
+      expect(fireBeforeUnloadAndCheck()).toBe(true);
+    });
+  });
+
+  // issue #132 codex blocker: 追加モードで添付ファイルありの保存成功後に
+  // pending-file-row-* が DOM から消えることを検証する（AttachmentAreaAddMode 再マウント方式）。
+  it('issue #132 codex blocker: 追加モードで添付あり保存成功後に保留ファイル行が DOM から消える', async () => {
+    const user = userEvent.setup();
+    const { Wrapper } = createWrapper();
+    const onSaveSuccess = vi.fn();
+
+    // 明細作成 API: 即時 201。
+    // 添付 POST API: 即時 201。
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-with-attach',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-19',
+              amount: 1500,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: '添付あり',
+              attachments: [],
+              created_at: '2026-04-19T00:00:00Z',
+              updated_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/attachments')) {
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'att-blocker-1',
+              item_id: 'item-with-attach',
+              file_name: 'receipt.jpg',
+              file_size: 1024,
+              mime_type: 'image/jpeg',
+              created_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      // GET 等はデフォルト空レスポンス。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={() => undefined}
+        onSaveSuccess={onSaveSuccess}
+        onSaveAndContinue={() => undefined}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 1 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // 保留ファイル行（pending-file-row-0）が表示されることを確認する。
+    await waitFor(() => {
+      expect(screen.getByTestId('pending-file-row-0')).toBeInTheDocument();
+    });
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-19');
+    await user.type(screen.getByLabelText(/金額/), '1500');
+    const categorySelectBlocker = screen.getByRole('combobox', { name: /カテゴリ/ });
+    await user.click(categorySelectBlocker);
+    await user.click(screen.getByRole('option', { name: '交通費' }));
+    await user.type(screen.getByLabelText(/摘要/), '添付あり');
+
+    // 保存ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: /保存する/ }));
+
+    // onSaveSuccess が呼ばれるまで待機する。
+    await waitFor(() => {
+      expect(onSaveSuccess).toHaveBeenCalledTimes(1);
+    });
+
+    // 保存成功後: pending-file-row-0 が DOM から消えることを確認する（codex blocker 修正の検証）。
+    // AttachmentAreaAddMode が再マウントされ、AttachmentUploader 内部の pendingFiles がクリアされる。
+    await waitFor(() => {
+      expect(screen.queryByTestId('pending-file-row-0')).not.toBeInTheDocument();
+    });
+  });
+
+  // issue #132 codex blocker: 「保存して続けて追加」後に pending files がクリアされることを検証する。
+  it('issue #132 codex blocker: 保存して続けて追加後に保留ファイル行が DOM から消える', async () => {
+    const user = userEvent.setup();
+    const { Wrapper } = createWrapper();
+    const onSaveAndContinue = vi.fn();
+
+    // 明細作成 API: 即時 201。
+    // 添付 POST API: 即時 201。
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+      if (method === 'POST' && (url as string).includes('/api/reports/rpt-1/items') && !(url as string).includes('/attachments')) {
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-save-cont-att',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-19',
+              amount: 3000,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: '続けて添付テスト',
+              attachments: [],
+              created_at: '2026-04-19T00:00:00Z',
+              updated_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/attachments')) {
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'att-cont-1',
+              item_id: 'item-save-cont-att',
+              file_name: 'receipt.png',
+              file_size: 512,
+              mime_type: 'image/png',
+              created_at: '2026-04-19T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      // GET 等はデフォルト空レスポンス。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({ data: [], pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 } }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={() => undefined}
+        onSaveSuccess={vi.fn()}
+        onSaveAndContinue={onSaveAndContinue}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 1 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const pngFile = createMockFile('receipt.png', 512, 'image/png');
+    await user.upload(fileInput, pngFile);
+
+    // 保留ファイル行が表示されることを確認する。
+    await waitFor(() => {
+      expect(screen.getByTestId('pending-file-row-0')).toBeInTheDocument();
+    });
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-19');
+    await user.type(screen.getByLabelText(/金額/), '3000');
+    const categorySelectCont = screen.getByRole('combobox', { name: /カテゴリ/ });
+    await user.click(categorySelectCont);
+    await user.click(screen.getByRole('option', { name: '交通費' }));
+    await user.type(screen.getByLabelText(/摘要/), '続けて添付テスト');
+
+    // 「保存して続けて追加」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: /保存して続けて追加/ }));
+
+    // onSaveAndContinue が呼ばれるまで待機する。
+    await waitFor(() => {
+      expect(onSaveAndContinue).toHaveBeenCalledTimes(1);
+    });
+
+    // 保存成功後: pending-file-row-0 が DOM から消えることを確認する（codex blocker 修正の検証）。
+    await waitFor(() => {
+      expect(screen.queryByTestId('pending-file-row-0')).not.toBeInTheDocument();
     });
   });
 });

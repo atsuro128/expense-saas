@@ -4,6 +4,7 @@
 // ATT-FE-057〜071: 並行操作整合性・破棄確認ダイアログ（issue #108）。
 // ATT-FE-079〜083: 追加モードの順次アップロード制御（issue #115）。
 // issue #132: 保存成功後の dirty state リセット漏れ修正（beforeunload リスナ残存バグ）。
+// issue #132 codex blocker: 保存成功後に AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする。
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
@@ -130,6 +131,11 @@ interface AttachmentApiResponse {
  * - 編集モード: open=false になったとき（useEffect）に resetDirtyState() を呼ぶ
  * - 保存して続けて追加: handleAddModeSubmit の afterSubmit 前にリセット済み
  * - これにより保存成功後は isDirty=false → beforeunload リスナが解除され F5 での誤警告がなくなる
+ *
+ * AttachmentAreaAddMode の内部 pendingFiles クリア（issue #132 codex blocker）:
+ * - resetDirtyState() に加え attachmentAddModeResetKey をインクリメントすることで
+ *   AttachmentAreaAddMode を再マウントし、AttachmentUploader 内部の pendingFiles をクリアする
+ * - AttachmentAreaContent（edit/view モード）には key を当てないため、クエリキャッシュに影響しない
  */
 function ItemSlidePanelBody({
   open,
@@ -210,6 +216,12 @@ function ItemSlidePanelBody({
 
   // 追加モード: 保留中のファイル一覧（ローカル state で管理、issue #115）。
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  // AttachmentAreaAddMode 再マウントキー（issue #132 codex blocker）。
+  // resetDirtyState() でインクリメントし、AttachmentAreaAddMode を再マウントすることで
+  // AttachmentUploader 内部の pendingFiles state をクリアする。
+  // edit/view モードの AttachmentAreaContent には影響しない。
+  const [attachmentAddModeResetKey, setAttachmentAddModeResetKey] = useState(0);
 
   // dirty 判定:
   // - 追加モード: isFormDirty || pendingFiles.length > 0
@@ -300,11 +312,17 @@ function ItemSlidePanelBody({
    * isFormDirty / pendingFiles / formResetRef をクリアすることで
    * beforeunload リスナが解除された状態でパネルが閉じられる。
    * 破棄経路（handleDiscard）とは独立しており、そちらの挙動は変えない。
+   *
+   * codex blocker 対応: attachmentAddModeResetKey をインクリメントすることで
+   * AttachmentAreaAddMode を再マウントし、AttachmentUploader 内部の
+   * pendingFiles state（UI の保留ファイル行）もクリアする。
    */
   const resetDirtyState = useCallback(() => {
     setIsFormDirty(false);
     setPendingFiles([]);
     formResetRef.current?.();
+    // AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする（issue #132 codex blocker）。
+    setAttachmentAddModeResetKey((prev) => prev + 1);
   }, []);
 
   /**
@@ -505,6 +523,9 @@ function ItemSlidePanelBody({
     formResetRef.current?.();
     setIsFormDirty(false);
     setPendingFiles([]);
+    // AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする（issue #132 codex blocker）。
+    // 破棄経路でも UI 上の保留ファイル行が消えることを保証する。
+    setAttachmentAddModeResetKey((prev) => prev + 1);
     onClose();
   }, [onClose, abortSequentialUpload]);
 
@@ -618,7 +639,9 @@ function ItemSlidePanelBody({
         {/* 添付ファイル管理領域。
             追加モード（mode='add'）: itemId=null でも表示し、ローカル保持方式を使う（issue #115）。
             uploadCancelRef / deleteCancelRef でアップロード・削除キャンセル関数を受け取る（§7-1）。
-            onUploadAborted / onDeleteAborted でパネルレベルの中断トーストを表示する（§7-2）。 */}
+            onUploadAborted / onDeleteAborted でパネルレベルの中断トーストを表示する（§7-2）。
+            addModeResetKey: 保存成功・破棄時に AttachmentAreaAddMode を再マウントして
+              AttachmentUploader 内部の pendingFiles をクリアする（issue #132 codex blocker）。 */}
         <AttachmentArea
           reportId={reportId}
           itemId={item?.id ?? null}
@@ -631,6 +654,7 @@ function ItemSlidePanelBody({
           onUploadAborted={handleUploadAborted}
           onDeleteAborted={handleDeleteAborted}
           onPendingFilesChange={mode === 'add' ? handlePendingFilesChange : undefined}
+          addModeResetKey={attachmentAddModeResetKey}
         />
       </Drawer>
 
