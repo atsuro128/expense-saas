@@ -182,7 +182,6 @@ export default function AttachmentUploader({
       pendingObjectUrlsRef.current.clear();
     }
   // pendingFiles.length の変化のみを監視する（mode は実行中に変わらない想定）。
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFiles.length, mode]);
 
   // 追加モードでは isPending を使わない（常に false 扱い）。
@@ -266,7 +265,6 @@ export default function AttachmentUploader({
     const newWindow = window.open(objectUrl, '_blank');
     if (!newWindow) {
       // ポップアップブロックされた場合はフォールバック（コンソールのみ）。
-      // eslint-disable-next-line no-console
       console.warn('ポップアップがブロックされました。ブラウザ設定を確認してください');
     }
   }, []);
