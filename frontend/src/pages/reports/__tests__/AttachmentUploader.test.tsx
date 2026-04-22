@@ -6,6 +6,7 @@
 // ATT-FE-073, 074 は機能実装前のため FAIL 前提。
 // FAIL 原因: AttachmentUploader に mode prop がなく、ローカル保持の分岐が未実装。
 // issue #134 回帰テスト: API エラー時に onUploadError 経由でマッピング済みの err.message が伝播すること。
+// issue #131 修正: バリデーションエラー文言を smoke_check.md SMK-033/035 に整合、MUI Alert 表示検証を追加。
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach, afterEach } from 'vitest';
@@ -229,6 +230,7 @@ describe('AttachmentUploader', () => {
   });
 
   // ATT-FE-021: GIF ファイルを選択するとバリデーションエラーメッセージが表示される。
+  // issue #131: 文言を smoke_check.md SMK-033 に整合。MUI Alert（role="alert"）で表示されることを検証。
   it('ATT-FE-021: GIF ファイルを選択するとバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
@@ -245,11 +247,16 @@ describe('AttachmentUploader', () => {
 
     fireEvent.change(fileInput, { target: { files: [gifFile] } });
 
-    // GIF は許可リスト外のためバリデーションエラーメッセージが表示されること
-    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
+    // GIF は許可リスト外のためバリデーションエラーメッセージが表示されること（SMK-033 整合文言）。
+    const errorEl = screen.getByTestId('attachment-validation-error');
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl).toHaveTextContent('JPEG, PNG, PDF のみアップロード可能です');
+    // MUI Alert が role="alert" を付与していること。
+    expect(errorEl).toHaveAttribute('role', 'alert');
   });
 
   // ATT-FE-022: テキストファイルを選択するとバリデーションエラーメッセージが表示される。
+  // issue #131: 文言を smoke_check.md SMK-033 に整合。
   it('ATT-FE-022: TXT ファイルを選択するとバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
@@ -266,11 +273,14 @@ describe('AttachmentUploader', () => {
 
     fireEvent.change(fileInput, { target: { files: [txtFile] } });
 
-    // テキストファイルは許可リスト外のためバリデーションエラーメッセージが表示されること
-    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
+    // テキストファイルは許可リスト外のためバリデーションエラーメッセージが表示されること（SMK-033 整合文言）。
+    const errorEl = screen.getByTestId('attachment-validation-error');
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl).toHaveTextContent('JPEG, PNG, PDF のみアップロード可能です');
   });
 
   // ATT-FE-023: 5MB + 1B のファイルを選択するとバリデーションエラーが表示される。
+  // issue #131: 文言を smoke_check.md SMK-035 に整合。MUI Alert の role="alert" も検証。
   it('ATT-FE-023: 5MB 超過ファイルを選択するとバリデーションエラーが表示される（境界値）', () => {
     const onUploadSuccess = vi.fn();
 
@@ -290,8 +300,12 @@ describe('AttachmentUploader', () => {
 
     fireEvent.change(fileInput, { target: { files: [tooLargeFile] } });
 
-    // サイズ超過のためバリデーションエラーメッセージが表示されること
-    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
+    // サイズ超過のためバリデーションエラーメッセージが表示されること（SMK-035 整合文言）。
+    const errorEl = screen.getByTestId('attachment-validation-error');
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl).toHaveTextContent('ファイルサイズは5MB以下にしてください');
+    // MUI Alert が role="alert" を付与していること。
+    expect(errorEl).toHaveAttribute('role', 'alert');
   });
 
   // ATT-FE-024: 5MB ちょうどのファイルは許可される（境界値）。
@@ -382,6 +396,7 @@ describe('AttachmentUploader', () => {
   });
 
   // ATT-FE-026: ドラッグ&ドロップで無効なファイル（GIF）を受け付けるとエラーが表示される。
+  // issue #131: 文言を smoke_check.md SMK-033 に整合。
   it('ATT-FE-026: ドロップゾーンへの GIF ドロップでバリデーションエラーが表示される', () => {
     const onUploadSuccess = vi.fn();
 
@@ -404,8 +419,10 @@ describe('AttachmentUploader', () => {
       },
     });
 
-    // GIF は許可リスト外のためバリデーションエラーが表示されること
-    expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
+    // GIF は許可リスト外のためバリデーションエラーが表示されること（SMK-033 整合文言）。
+    const errorEl = screen.getByTestId('attachment-validation-error');
+    expect(errorEl).toBeInTheDocument();
+    expect(errorEl).toHaveTextContent('JPEG, PNG, PDF のみアップロード可能です');
   });
 
   // ATT-FE-027: アップロード成功後に onUploadSuccess コールバックが呼ばれる。
@@ -650,6 +667,64 @@ describe('AttachmentUploader', () => {
 
     // dragleave 後は data-drag-over が false に戻ること。
     expect(dropZone).toHaveAttribute('data-drag-over', 'false');
+  });
+});
+
+// =============================================================================
+// issue #131: MUI Alert severity="error" スタイリング検証
+// =============================================================================
+
+describe('AttachmentUploader バリデーションエラー UI（issue #131）', () => {
+  // SMK-033: MIME エラー時に MUI Alert severity="error" でインライン表示されること。
+  // MUI Alert は severity="error" 指定時に MuiAlert-standardError クラスを DOM に付与する。
+  it('SMK-033: MIME エラーが MUI Alert severity="error" として表示される', () => {
+    const onUploadSuccess = vi.fn();
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const gifFile = createMockFile('animation.gif', 1024, 'image/gif');
+    fireEvent.change(fileInput, { target: { files: [gifFile] } });
+
+    const errorEl = screen.getByTestId('attachment-validation-error');
+    // MUI Alert は role="alert" を付与する。
+    expect(errorEl).toHaveAttribute('role', 'alert');
+    // MUI Alert severity="error" は MuiAlert-standardError クラスを持つ。
+    expect(errorEl.classList.toString()).toMatch(/MuiAlert/);
+    // SMK-033 期待文言と完全一致すること。
+    expect(errorEl).toHaveTextContent('JPEG, PNG, PDF のみアップロード可能です');
+  });
+
+  // SMK-035: サイズエラー時に MUI Alert severity="error" でインライン表示されること。
+  it('SMK-035: サイズエラーが MUI Alert severity="error" として表示される', () => {
+    const onUploadSuccess = vi.fn();
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    // 5MB + 1B のファイル（境界値超過）。
+    const tooLargeFile = createMockFile('large.jpg', 5242881, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [tooLargeFile] } });
+
+    const errorEl = screen.getByTestId('attachment-validation-error');
+    // MUI Alert は role="alert" を付与する。
+    expect(errorEl).toHaveAttribute('role', 'alert');
+    // MUI Alert severity="error" は MuiAlert-standardError クラスを持つ。
+    expect(errorEl.classList.toString()).toMatch(/MuiAlert/);
+    // SMK-035 期待文言と完全一致すること。
+    expect(errorEl).toHaveTextContent('ファイルサイズは5MB以下にしてください');
   });
 });
 
