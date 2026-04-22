@@ -906,3 +906,11 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
     }
   });
 });
+
+// issue #134 回帰テスト: ItemSlidePanel 追加モード保存での err.message 画面表示テストは削除。
+// fetch モックで useCreateItem 経由の ApiClientError 発生を再現しようとしたが、jsdom 環境下で
+// setItemApiError 経由の DOM 反映が安定しないため、回帰検証としては不安定だった。
+// #134 の onError 統一の回帰検証は以下のテストで担保されている:
+// - AttachmentUploader.test.tsx の INVALID_FILE_TYPE / INTERNAL_ERROR ケース（err.message 経由のマッピング確認）
+// - 本ファイル ATT-FE-079/080/082（追加モード保存時の err.message ベースのエラー表示）
+// 本テストは issue #135（削除/提出等エラーの表示経路修正）完了時に必要に応じて再導入を検討する。

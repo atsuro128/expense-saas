@@ -55,6 +55,7 @@ import { useCreateItem, useUpdateItem, useDeleteItem } from '../../../hooks/useI
 import { useApproveReport } from '../../../hooks/useApproveReport';
 import { useRejectReport } from '../../../hooks/useRejectReport';
 import { useMarkAsPaid } from '../../../hooks/useMarkAsPaid';
+import { ApiClientError } from '../../../api/client';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseSubmitReport = vi.mocked(useSubmitReport);
@@ -230,7 +231,12 @@ describe('ReportDetailPage', () => {
     mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が 404 エラーを返すようにモックする。
-    const notFoundError = Object.assign(new Error('Not Found'), { status: 404, code: 'RESOURCE_NOT_FOUND' });
+    // ApiClientError を使うことで、コンポーネントの `error instanceof ApiClientError && error.status === 404` 分岐に入る。
+    const notFoundError = new ApiClientError(
+      '指定されたデータが見つかりません。',
+      404,
+      'RESOURCE_NOT_FOUND',
+    );
     mockUseReport.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -1291,4 +1297,88 @@ describe('ReportDetailPage', () => {
     expect(screen.queryByText('レポートを作成しました')).not.toBeInTheDocument();
     expect(screen.queryByText('レポートを更新しました')).not.toBeInTheDocument();
   });
+});
+
+// =============================================================================
+// issue #134 回帰テスト: handleActionError が err.message ベースのメッセージを表示すること
+// =============================================================================
+
+describe('ReportDetailPage エラーハンドリング回帰テスト（issue #134）', () => {
+  const mockCategories = [
+    { id: 'cat-001', code: 'TRANSPORT', name_ja: '交通費', sort_order: 1 },
+  ];
+
+  beforeEach(() => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCategories.mockReturnValue({ data: mockCategories, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCreateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseUpdateItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteItem.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseApproveReport.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseMarkAsPaid.mockReturnValue({ mutate: vi.fn(), isPending: false } as any);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  // issue #134: 提出操作で 403 エラーが返ったとき、SERVER_ERROR_MESSAGES.FORBIDDEN の文言がトーストに表示される。
+  // 修正前: handleActionError が 403 のハードコード文言を使っていた。
+  // 修正後: err.message（client.ts 層でマッピング済み）をそのまま使う。
+  it('issue #134: 提出で 403 エラー時に err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示される', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    // useSubmitReport.mutate が 403 ApiClientError を onError でコールする。
+    // client.ts 層は FORBIDDEN コードを SERVER_ERROR_MESSAGES.FORBIDDEN にマッピングするため、
+    // err.message は 'この操作を行う権限がありません。' になる。
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    const forbiddenError = new ActualApiClientError(
+      'この操作を行う権限がありません。',
+      403,
+      'FORBIDDEN',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const submitMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(forbiddenError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: submitMutate, isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 提出ボタンをクリックして確認ダイアログを開く。
+    const submitButton = screen.getByRole('button', { name: /提出/ });
+    await user.click(submitButton);
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // ダイアログで「はい」を押す。
+    await user.click(screen.getByRole('button', { name: /はい/ }));
+
+    // err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('この操作を行う権限がありません。');
+    });
+  });
+
+  // issue #134: 明細削除 FORBIDDEN 時の err.message 画面表示テストは削除。
+  // 既存実装では削除 onError が setItemApiError を呼ぶが、itemApiError は閉じた ItemSlidePanel の
+  // apiError prop としてのみ画面表示されるため、削除操作時（パネル閉）はエラーが画面に出ない既存バグがある。
+  // issue #135 で表示経路を setToast に修正した後、本テストを再導入する想定。
 });

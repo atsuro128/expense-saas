@@ -24,6 +24,8 @@ vi.mock('../../../hooks/useCurrentUser', () => ({
 // vi.mock 後に import することでモック済みの関数参照を取得する。
 import { useReport, useUpdateReport } from '../../../hooks/useReports';
 import { useCurrentUser } from '../../../hooks/useCurrentUser';
+import { ApiClientError } from '../../../api/client';
+import { SERVER_ERROR_MESSAGES } from '../../../lib/error-messages';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseUpdateReport = vi.mocked(useUpdateReport);
@@ -276,7 +278,10 @@ describe('ReportEditPage', () => {
     mockUseReport.mockReturnValue({ data: { data: mockDraftReport }, isLoading: false, isError: false, error: null } as any);
 
     // useUpdateReport が 409 CONFLICT を返すようにモックする。
-    const conflictError = Object.assign(new Error('Conflict'), { status: 409, code: 'CONFLICT' });
+    // ApiClientError を使うことで onError ハンドラの err instanceof ApiClientError 分岐に入る。
+    // client.ts 層では CONFLICT コードを SERVER_ERROR_MESSAGES.CONFLICT にマッピングするため、
+    // モック時も同一文言を message に設定してコンポーネントの実挙動を再現する。
+    const conflictError = new ApiClientError(SERVER_ERROR_MESSAGES.CONFLICT, 409, 'CONFLICT');
     mockUseUpdateReport.mockReturnValue({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       mutate: vi.fn().mockImplementation((_data: unknown, options?: any) => { options?.onError?.(conflictError); }),

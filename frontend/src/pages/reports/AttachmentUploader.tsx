@@ -186,9 +186,9 @@ export default function AttachmentUploader({
             onUploadAborted?.();
             return;
           }
-          // AbortError 以外のエラーをログに記録し、コールバックで親コンポーネントに通知する。
-          console.error('ファイルのアップロードに失敗しました:', err);
-          const message = 'ファイルのアップロードに失敗しました。もう一度お試しください。';
+          // AbortError 以外のエラーは client.ts 層でマッピング済みの err.message をそのまま使う。
+          // err が Error インスタンスでない場合のフォールバック文言のみここに持つ。
+          const message = err instanceof Error ? err.message : 'ファイルのアップロードに失敗しました';
           if (onUploadError) {
             onUploadError(message);
           }
