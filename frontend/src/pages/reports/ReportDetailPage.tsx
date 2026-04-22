@@ -141,33 +141,23 @@ export default function ReportDetailPage() {
 
   // エラー時はステータスコードに応じた表示を行う。
   if (isError) {
-    // ApiClientError またはステータスプロパティを持つエラーからステータスコードを取得する。
-    // 取得できない場合は 500 扱いとする。
-    const errAsUnknown: unknown = error;
-    const status =
-      error instanceof ApiClientError
-        ? error.status
-        : typeof (errAsUnknown as Record<string, unknown>).status === 'number'
-          ? (errAsUnknown as { status: number }).status
-          : 500;
-
-    if (status === 404) {
-      // 404: EmptyState 表示（report-detail.md §11）
+    // 404: EmptyState 表示（report-detail.md §11）。
+    // 画面構造の分岐のみ status で判断する。
+    if (error instanceof ApiClientError && error.status === 404) {
       return (
         <Box>
-          <Typography>指定されたデータが見つかりません。</Typography>
+          <Typography>{SERVER_ERROR_MESSAGES.RESOURCE_NOT_FOUND}</Typography>
           <Link to="/reports">レポート一覧</Link>
         </Box>
       );
     }
 
-    // 403: 権限エラーメッセージ。401: 認証エラーメッセージ（リダイレクトは client.ts が処理）。500系: サーバーエラーメッセージ。
+    // 表示文言は client.ts 層でマッピング済みの err.message をそのまま使う。
+    // 非 ApiClientError（ネットワーク障害等）のフォールバックのみ SERVER_ERROR_MESSAGES を参照する。
     const toastMessage =
-      status === 403
-        ? 'この操作を行う権限がありません。'
-        : status === 401
-          ? '認証が必要です。ログインしてください。'
-          : 'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。';
+      error instanceof Error
+        ? error.message
+        : SERVER_ERROR_MESSAGES.INTERNAL_ERROR;
 
     return (
       <Box>

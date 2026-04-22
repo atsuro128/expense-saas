@@ -11,6 +11,7 @@ import type { ReportFormValues } from '../../components/report/ReportForm';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import { useReport, useUpdateReport } from '../../hooks/useReports';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { SERVER_ERROR_MESSAGES } from '../../lib/error-messages';
 
 /**
  * BodyToast はページコンポーネントのライフサイクルに依存せず
@@ -60,24 +61,30 @@ export default function ReportEditPage() {
   const report = data?.data;
 
   // 404 エラー → /reports にリダイレクト。
+  // 表示文言は SERVER_ERROR_MESSAGES を参照し、ハードコードを避ける。
   useEffect(() => {
     if (isError && error) {
-      setBodyToast({ message: '指定されたデータが見つかりません。', severity: 'error' });
+      // ApiClientError の場合は client.ts 層でマッピング済みの err.message をそのまま使う。
+      // 非 ApiClientError（ネットワーク障害等）のフォールバックのみ SERVER_ERROR_MESSAGES を参照する。
+      const message = error instanceof Error ? error.message : SERVER_ERROR_MESSAGES.INTERNAL_ERROR;
+      setBodyToast({ message, severity: 'error' });
       navigate('/reports');
     }
   }, [isError, error, navigate]);
 
   // 所有者チェック: 非所有者の場合はトーストを表示する。
+  // 表示文言は SERVER_ERROR_MESSAGES.FORBIDDEN を参照し、ハードコードを避ける。
   useEffect(() => {
     if (report && user && report.submitter.id !== user.id) {
-      setBodyToast({ message: 'この操作を行う権限がありません。', severity: 'error' });
+      setBodyToast({ message: SERVER_ERROR_MESSAGES.FORBIDDEN, severity: 'error' });
     }
   }, [report, user]);
 
   // draft 以外チェック: draft でない場合は /reports/:id にリダイレクト。
+  // 表示文言は SERVER_ERROR_MESSAGES.REPORT_NOT_EDITABLE を参照し、ハードコードを避ける。
   useEffect(() => {
     if (report && report.status !== 'draft') {
-      setBodyToast({ message: '提出済みのレポートは編集できません', severity: 'error' });
+      setBodyToast({ message: SERVER_ERROR_MESSAGES.REPORT_NOT_EDITABLE, severity: 'error' });
       navigate(`/reports/${id}`);
     }
   }, [report, id, navigate]);

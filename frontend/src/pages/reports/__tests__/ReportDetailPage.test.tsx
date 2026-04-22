@@ -55,6 +55,7 @@ import { useCreateItem, useUpdateItem, useDeleteItem } from '../../../hooks/useI
 import { useApproveReport } from '../../../hooks/useApproveReport';
 import { useRejectReport } from '../../../hooks/useRejectReport';
 import { useMarkAsPaid } from '../../../hooks/useMarkAsPaid';
+import { ApiClientError } from '../../../api/client';
 
 const mockUseReport = vi.mocked(useReport);
 const mockUseSubmitReport = vi.mocked(useSubmitReport);
@@ -230,7 +231,12 @@ describe('ReportDetailPage', () => {
     mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
 
     // useReport が 404 エラーを返すようにモックする。
-    const notFoundError = Object.assign(new Error('Not Found'), { status: 404, code: 'RESOURCE_NOT_FOUND' });
+    // ApiClientError を使うことで、コンポーネントの `error instanceof ApiClientError && error.status === 404` 分岐に入る。
+    const notFoundError = new ApiClientError(
+      '指定されたデータが見つかりません。',
+      404,
+      'RESOURCE_NOT_FOUND',
+    );
     mockUseReport.mockReturnValue({
       data: undefined,
       isLoading: false,
