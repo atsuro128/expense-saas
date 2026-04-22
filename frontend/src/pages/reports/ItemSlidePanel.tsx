@@ -8,12 +8,6 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
-import Dialog from '@mui/material/Dialog';
-import DialogTitle from '@mui/material/DialogTitle';
-import DialogContent from '@mui/material/DialogContent';
-import DialogContentText from '@mui/material/DialogContentText';
-import DialogActions from '@mui/material/DialogActions';
 import Drawer from '@mui/material/Drawer';
 import IconButton from '@mui/material/IconButton';
 import type { PaperProps } from '@mui/material/Paper';
@@ -24,6 +18,7 @@ import ItemForm from './ItemForm';
 import type { ItemFormValues } from './ItemForm';
 import AttachmentArea from './AttachmentArea';
 import AppToast from '../../components/ui/AppToast';
+import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { api } from '../../api/client';
 import { useQueryClient } from '@tanstack/react-query';
 import { useCreateItem } from '../../hooks/useItems';
@@ -659,28 +654,19 @@ function ItemSlidePanelBody({
       </Drawer>
 
       {/* 破棄確認ダイアログ（設計書 §6「編集中の破棄確認ダイアログ」仕様に準拠）。
-          タイトル・本文・ボタン文言・スタイルは設計書と完全一致させる。
+          ConfirmDialog 共通コンポーネント経由でボタン variant・レイアウトを統一する（issue #136）。
           条件レンダリングで DOM から完全に除去することでアニメーション残留を防ぐ。 */}
       {isDiscardDialogOpen && (
-        <Dialog
+        <ConfirmDialog
           open={true}
-          onClose={handleDiscardCancel}
-          aria-labelledby="discard-dialog-title"
-          aria-describedby="discard-dialog-description"
-        >
-          <DialogTitle id="discard-dialog-title">変更を破棄しますか？</DialogTitle>
-          <DialogContent>
-            <DialogContentText id="discard-dialog-description">
-              編集内容は保存されていません。破棄するとこれまでの変更が失われます。
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={handleDiscardCancel}>キャンセル</Button>
-            <Button onClick={handleDiscard} color="error">
-              破棄
-            </Button>
-          </DialogActions>
-        </Dialog>
+          title="変更を破棄しますか？"
+          message="編集内容は保存されていません。破棄するとこれまでの変更が失われます。"
+          confirmLabel="破棄"
+          confirmColor="error"
+          cancelLabel="キャンセル"
+          onConfirm={handleDiscard}
+          onCancel={handleDiscardCancel}
+        />
       )}
       {/* 中断トースト（アップロード/削除の中断通知）。
           AttachmentAreaContent がアンマウント後でも ItemSlidePanel スコープで確実に表示できる（issue #108 §7-2）。 */}
