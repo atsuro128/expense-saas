@@ -445,8 +445,8 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     const jpegFile2 = createMockFile('receipt2.jpg', 2048, 'image/jpeg');
     await user.upload(fileInput, jpegFile2);
 
-    // 保留中添付が 2 件表示されること。
-    expect(screen.getAllByTestId(/pending-attachment-/)).toHaveLength(2);
+    // 保留中添付が 2 件表示されること（行要素でカウント: preview/delete の 2 要素を持つため行単位で判定）。
+    expect(screen.getAllByTestId(/^pending-file-row-/)).toHaveLength(2);
 
     // 保留件数の事前確認。
     const fetchCallsBefore = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
@@ -458,8 +458,8 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     // 確認ダイアログは表示されないこと（保留中添付の削除は即時）。
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
 
-    // 一覧には残り 1 件が表示されること。
-    expect(screen.getAllByTestId(/pending-attachment-/)).toHaveLength(1);
+    // 一覧には残り 1 件が表示されること（行要素でカウント）。
+    expect(screen.getAllByTestId(/^pending-file-row-/)).toHaveLength(1);
     expect(screen.getByText('receipt2.jpg')).toBeInTheDocument();
     expect(screen.queryByText('receipt1.jpg')).not.toBeInTheDocument();
 
