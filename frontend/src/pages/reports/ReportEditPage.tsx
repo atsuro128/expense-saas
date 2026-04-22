@@ -11,6 +11,7 @@ import type { ReportFormValues } from '../../components/report/ReportForm';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import { useReport, useUpdateReport } from '../../hooks/useReports';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
+import { ApiClientError } from '../../api/client';
 import { SERVER_ERROR_MESSAGES } from '../../lib/error-messages';
 
 /**
@@ -114,12 +115,13 @@ export default function ReportEditPage() {
             state: { toast: { severity: 'success', message: 'レポートを更新しました' } },
           });
         },
-        onError: (err: Error & { status?: number; code?: string }) => {
-          if (err.status === 409) {
-            setApiError('他のユーザーがこのレポートを更新しました。ページを再読み込みしてください。');
-          } else {
-            setApiError(err.message);
-          }
+        onError: (err: Error) => {
+          // ApiClientError.message は client.ts 層で SERVER_ERROR_MESSAGES にマッピング済みのため、
+          // err.message をそのまま使う（ハードコード文言の使用を避ける）。
+          const message = err instanceof ApiClientError
+            ? err.message
+            : (err.message || SERVER_ERROR_MESSAGES.INTERNAL_ERROR);
+          setApiError(message);
         },
       },
     );
