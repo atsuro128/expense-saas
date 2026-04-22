@@ -1377,8 +1377,60 @@ describe('ReportDetailPage エラーハンドリング回帰テスト（issue #1
     });
   });
 
-  // issue #134: 明細削除 FORBIDDEN 時の err.message 画面表示テストは削除。
-  // 既存実装では削除 onError が setItemApiError を呼ぶが、itemApiError は閉じた ItemSlidePanel の
-  // apiError prop としてのみ画面表示されるため、削除操作時（パネル閉）はエラーが画面に出ない既存バグがある。
-  // issue #135 で表示経路を setToast に修正した後、本テストを再導入する想定。
+  // issue #135: 明細削除で FORBIDDEN エラー時に Toast でメッセージが表示されること。
+  // 修正前: handleDeleteItemConfirm の onError が setItemApiError を呼んでいたため、
+  //   パネルが閉じた状態では itemApiError が ItemSlidePanel.apiError prop に渡っても表示されなかった。
+  // 修正後: setToast（handleActionError 経由）に変更し、Toast でエラーを表示する（issue #135）。
+  it('issue #135: 明細削除で 403 エラー時に err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示される', async () => {
+    const user = userEvent.setup();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: mockCurrentUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: mockDraftReportDetail }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    // useDeleteItem.mutate が 403 ApiClientError を onError でコールする。
+    // client.ts 層は FORBIDDEN コードを SERVER_ERROR_MESSAGES.FORBIDDEN にマッピングするため、
+    // err.message は 'この操作を行う権限がありません。' になる。
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    const forbiddenError = new ActualApiClientError(
+      'この操作を行う権限がありません。',
+      403,
+      'FORBIDDEN',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const deleteItemMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(forbiddenError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteItem.mockReturnValue({ mutate: deleteItemMutate, isPending: false } as any);
+
+    renderPage('test-report-id');
+
+    // 明細削除ボタンをクリックして確認ダイアログを開く。
+    // ItemTable の削除ボタン（item-001 の行）をクリックする。
+    // ReportActionBar にもレポート削除ボタンがあるため item-row 内に絞り込んで取得する。
+    const itemRow = screen.getByTestId('item-row-item-001');
+    const deleteItemButton = within(itemRow).getByRole('button', { name: /削除/ });
+    await user.click(deleteItemButton);
+
+    // 明細削除確認ダイアログが表示されること。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // ダイアログで「削除する」ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: /削除する/ }));
+
+    // err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示されること。
+    // 修正前は itemApiError に setItemApiError で設定されたが、パネルが閉じているため画面に出なかった。
+    // 修正後は handleActionError 経由で setToast が呼ばれ、AppToast にメッセージが表示される。
+    await waitFor(() => {
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('この操作を行う権限がありません。');
+    });
+  });
 });
