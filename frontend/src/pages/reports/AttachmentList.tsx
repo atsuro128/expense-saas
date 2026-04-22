@@ -100,12 +100,15 @@ function AttachmentItemRow({
           newWindow.location.href = res.data.data.url;
         } else {
           newWindow.close();
-          onError('プレビューの取得に失敗しました');
+          // res.error は client.ts 層でマッピング済みの err.message を持つ。
+          const message = res.error instanceof Error ? res.error.message : 'プレビューの取得に失敗しました';
+          onError(message);
         }
       })
-      .catch(() => {
+      .catch((err: unknown) => {
         newWindow.close();
-        onError('プレビューの取得に失敗しました');
+        const message = err instanceof Error ? err.message : 'プレビューの取得に失敗しました';
+        onError(message);
       });
   };
 
@@ -128,11 +131,14 @@ function AttachmentItemRow({
           link.click();
           document.body.removeChild(link);
         } else {
-          onError('ダウンロードの取得に失敗しました');
+          // res.error は client.ts 層でマッピング済みの err.message を持つ。
+          const message = res.error instanceof Error ? res.error.message : 'ダウンロードの取得に失敗しました';
+          onError(message);
         }
       })
-      .catch(() => {
-        onError('ダウンロードの取得に失敗しました');
+      .catch((err: unknown) => {
+        const message = err instanceof Error ? err.message : 'ダウンロードの取得に失敗しました';
+        onError(message);
       });
   };
 

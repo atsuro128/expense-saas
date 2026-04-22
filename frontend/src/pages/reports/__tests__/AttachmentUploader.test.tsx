@@ -5,6 +5,7 @@
 // ATT-FE-073, 074, 078 に対応する（issue #115: 追加モードのローカル保持・バリデーション・編集モード不変）。
 // ATT-FE-073, 074 は機能実装前のため FAIL 前提。
 // FAIL 原因: AttachmentUploader に mode prop がなく、ローカル保持の分岐が未実装。
+// issue #134 回帰テスト: API エラー時に onUploadError 経由でマッピング済みの err.message が伝播すること。
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { vi, beforeEach, afterEach } from 'vitest';
@@ -649,6 +650,104 @@ describe('AttachmentUploader', () => {
 
     // dragleave 後は data-drag-over が false に戻ること。
     expect(dropZone).toHaveAttribute('data-drag-over', 'false');
+  });
+});
+
+// =============================================================================
+// issue #134 回帰テスト: onUploadError 経由で err.message が伝播すること
+// =============================================================================
+
+describe('AttachmentUploader エラーハンドリング回帰テスト（issue #134）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // issue #134 回帰: API が INVALID_FILE_TYPE エラーを返したとき、
+  // onUploadError に「JPEG, PNG, PDF のみアップロード可能です」（SERVER_ERROR_MESSAGES.INVALID_FILE_TYPE）が渡る。
+  // client.ts 層でマッピング済みの err.message がそのまま伝播することを確認する。
+  it('issue #134: API が INVALID_FILE_TYPE を返したとき onUploadError に SERVER_ERROR_MESSAGES.INVALID_FILE_TYPE のメッセージが渡る', async () => {
+    const onUploadError = vi.fn();
+    const onUploadSuccess = vi.fn();
+
+    // client.ts の handleErrorResponse が SERVER_ERROR_MESSAGES.INVALID_FILE_TYPE にマッピングして
+    // ApiClientError をスローする挙動を fetch モックで再現する。
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 422,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        error: {
+          code: 'INVALID_FILE_TYPE',
+          message: 'Invalid file type',
+        },
+      }),
+    } as unknown as Response);
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+        onUploadError={onUploadError}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    // MIME は JPEG だが（クライアント側バリデーションを通過）、サーバー側で INVALID_FILE_TYPE を返す想定。
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // onUploadError に SERVER_ERROR_MESSAGES.INVALID_FILE_TYPE の文言が渡ること。
+    await waitFor(() => {
+      expect(onUploadError).toHaveBeenCalledWith('JPEG, PNG, PDF のみアップロード可能です');
+    });
+    expect(onUploadSuccess).not.toHaveBeenCalled();
+  });
+
+  // issue #134 回帰: API が INTERNAL_ERROR を返したとき、
+  // onUploadError に SERVER_ERROR_MESSAGES.INTERNAL_ERROR が渡る。
+  it('issue #134: API が INTERNAL_ERROR を返したとき onUploadError に SERVER_ERROR_MESSAGES.INTERNAL_ERROR のメッセージが渡る', async () => {
+    const onUploadError = vi.fn();
+    const onUploadSuccess = vi.fn();
+
+    globalThis.fetch = vi.fn().mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      headers: { get: () => 'application/json' },
+      json: async () => ({
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Internal server error',
+        },
+      }),
+    } as unknown as Response);
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="report-001"
+        itemId="item-001"
+        onUploadSuccess={onUploadSuccess}
+        onUploadError={onUploadError}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    await waitFor(() => {
+      expect(onUploadError).toHaveBeenCalledWith(
+        'サーバーとの通信に失敗しました。しばらくしてから再度お試しください。',
+      );
+    });
+    expect(onUploadSuccess).not.toHaveBeenCalled();
   });
 });
 

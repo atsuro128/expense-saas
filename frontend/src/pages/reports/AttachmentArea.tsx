@@ -165,7 +165,9 @@ function AttachmentAreaContent({
             }
             return;
           }
-          showToast('error', '削除に失敗しました');
+          // client.ts 層でマッピング済みの err.message をそのまま使う。
+          const message = err instanceof Error ? err.message : '添付ファイルの削除に失敗しました';
+          showToast('error', message);
         },
       },
     );
