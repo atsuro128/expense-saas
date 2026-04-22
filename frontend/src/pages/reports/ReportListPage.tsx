@@ -21,8 +21,8 @@ const STATUS_OPTIONS = [
   { value: 'draft', label: '下書き' },
   { value: 'submitted', label: '提出済み' },
   { value: 'approved', label: '承認済み' },
-  { value: 'rejected', label: '却下済み' },
-  { value: 'paid', label: '支払完了' },
+  { value: 'rejected', label: '却下' },
+  { value: 'paid', label: '支払済み' },
 ];
 
 /**
