@@ -6,11 +6,6 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Table from '@mui/material/Table';
-import TableBody from '@mui/material/TableBody';
-import TableCell from '@mui/material/TableCell';
-import TableHead from '@mui/material/TableHead';
-import TableRow from '@mui/material/TableRow';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AppToast from '../../components/ui/AppToast';
@@ -18,6 +13,7 @@ import AppPagination from '../../components/ui/AppPagination';
 import AppSelect from '../../components/ui/AppSelect';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import { useMyReports } from '../../hooks/useReports';
+import ReportListTable from './ReportListTable';
 
 /** ステータスフィルタの選択肢 */
 const STATUS_OPTIONS = [
@@ -25,8 +21,8 @@ const STATUS_OPTIONS = [
   { value: 'draft', label: '下書き' },
   { value: 'submitted', label: '提出済み' },
   { value: 'approved', label: '承認済み' },
-  { value: 'rejected', label: '却下済み' },
-  { value: 'paid', label: '支払完了' },
+  { value: 'rejected', label: '却下' },
+  { value: 'paid', label: '支払済み' },
 ];
 
 /**
@@ -209,38 +205,25 @@ export default function ReportListPage() {
         />
       </Box>
 
-      {/* テーブル領域: ローディング中はスケルトン表示、完了後はテーブルを表示（issue 116 対応） */}
+      {/* テーブル領域: ローディング中はスケルトン表示、完了後は ReportListTable を表示（issue 116 対応） */}
       {isLoading ? (
         <PageSkeleton variant="table" />
       ) : (
         <Box data-testid="report-list-table">
-          <Table>
-            <TableHead>
-              <TableRow>
-                <TableCell>タイトル</TableCell>
-                <TableCell>期間</TableCell>
-                <TableCell>ステータス</TableCell>
-                <TableCell>合計金額</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {reports.map((report) => (
-                <TableRow
-                  key={report.id}
-                  data-testid={`report-row-${report.id}`}
-                  onClick={() => navigate(`/reports/${report.id}`)}
-                  sx={{ cursor: 'pointer' }}
-                >
-                  <TableCell>{report.title}</TableCell>
-                  <TableCell>
-                    {report.period_start} 〜 {report.period_end}
-                  </TableCell>
-                  <TableCell>{report.status}</TableCell>
-                  <TableCell>{report.total_amount.toLocaleString()} 円</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+          {/* ReportListTable（DataGrid + StatusChip）でステータスを日本語 Chip 表示する（issue #139 対応） */}
+          <ReportListTable
+            reports={reports.map((r) => ({
+              id: r.id,
+              title: r.title,
+              periodStart: r.period_start,
+              periodEnd: r.period_end,
+              totalAmount: r.total_amount,
+              status: r.status,
+              createdAt: r.created_at,
+            }))}
+            onRowClick={(id) => navigate(`/reports/${id}`)}
+            onCreateReport={() => navigate('/reports/new')}
+          />
         </Box>
       )}
 

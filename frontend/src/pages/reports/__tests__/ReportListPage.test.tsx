@@ -10,6 +10,51 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { vi } from 'vitest';
 import ReportListPage from '../ReportListPage';
 
+// AppDataGrid を軽量な HTMLTable モックで差し替える。
+// MUI X DataGrid は jsdom 環境で ESM import 問題が発生するため、テスト時はモックする（ReportListTable.test.tsx と同方針）。
+vi.mock('../../../components/ui/AppDataGrid', () => ({
+  default: (props: {
+    rows: Array<{ id: string; title: string; periodStart: string; periodEnd: string; totalAmount: number; status: string; createdAt: string }>;
+    columns: unknown[];
+    onRowClick?: (params: { row: unknown }) => void;
+    loading?: boolean;
+  }) => {
+    if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
+    return (
+      <table data-testid="app-data-grid">
+        <tbody>
+          {props.rows.map((row) => (
+            <tr
+              key={row.id}
+              onClick={() => props.onRowClick?.({ row })}
+              data-testid={`row-${row.id}`}
+            >
+              <td>{row.title}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    );
+  },
+}));
+
+// StatusChip をモックする。
+vi.mock('../../../components/ui/StatusChip', () => ({
+  default: (props: { status: string }) => <span data-testid="status-chip">{props.status}</span>,
+}));
+
+// EmptyState をモックする。
+vi.mock('../../../components/ui/EmptyState', () => ({
+  default: (props: { message: string; action?: { label: string; onClick: () => void } }) => (
+    <div data-testid="empty-state">
+      <p>{props.message}</p>
+      {props.action && (
+        <button onClick={props.action.onClick}>{props.action.label}</button>
+      )}
+    </div>
+  ),
+}));
+
 // useMyReports Hook をモックする。
 // スタブ実装段階では実際の Hook は存在しないため vi.mock でインターセプトする。
 vi.mock('../../../hooks/useReports', () => ({
@@ -241,8 +286,8 @@ describe('ReportListPage', () => {
     renderPage('/reports');
 
     // テーブル行をクリックする。
-    // スタブ実装では ReportListTable が存在しないため失敗する。
-    const row = screen.getByTestId('report-row-test-id-001');
+    // ReportListTable（DataGrid ベース）のモックは data-testid="row-{id}" を使用する。
+    const row = screen.getByTestId('row-test-id-001');
     await user.click(row);
 
     // /reports/test-id-001 に遷移すること。
