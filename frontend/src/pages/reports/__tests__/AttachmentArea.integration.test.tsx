@@ -186,7 +186,8 @@ describe('AttachmentArea 統合テスト', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
     });
-    expect(screen.getByRole('alert')).toHaveTextContent(/エラー|失敗|許可/);
+    // #134 修正後: err.message（SERVER_ERROR_MESSAGES.INVALID_FILE_TYPE）がそのままトーストに表示される。
+    expect(screen.getByRole('alert')).toHaveTextContent(/JPEG, PNG, PDF のみアップロード可能です/);
   });
 
   // ATT-FE-047: 削除成功後に AppToast で成功通知が表示され、一覧が再取得される（統合）。
