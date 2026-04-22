@@ -3,8 +3,9 @@
 // report-detail.md §AttachmentUploader に対応する。
 // ATT-FE-059/060: AbortController によるアップロード中断対応（issue #108）。
 // ATT-FE-073/074: 追加モードでのローカル保持対応（issue #115）。
+// issue #129: 追加モードの保留ファイルにプレビュー対応（URL.createObjectURL）。
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
@@ -15,6 +16,7 @@ import ListItem from '@mui/material/ListItem';
 import { styled } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import { useUploadAttachment } from '../../hooks/useUploadAttachment';
+import { formatFileSize } from '../../lib/format';
 
 /** パネルモード（追加・編集・閲覧）。 */
 export type UploaderMode = 'add' | 'edit' | 'view';
@@ -89,7 +91,9 @@ function validateFile(file: File): string | null {
  * ファイル形式（JPEG, PNG, PDF）とサイズ（5MB）のクライアントサイドバリデーションを行う。
  *
  * mode='add'（追加モード）: バリデーション通過後にローカル state（pendingFiles）へ保留し、
- *   「保存後にアップロード予定」ラベル付きの一覧を表示する。
+ *   ファイル名クリックで URL.createObjectURL によるブラウザ内プレビューを提供する（issue #129）。
+ *   ダウンロードアイコンは非表示（サーバー未保存のため署名付き URL なし）。
+ *   ラベル（「保存後にアップロード予定」）は表示しない（issue #129: UX 改善）。
  *   useUploadAttachment.mutate は呼ばない。onPendingFileAdded / onPendingFilesChange で親に通知する。
  *
  * mode='edit'（編集モード）またはデフォルト: バリデーション通過後に useUploadAttachment Hook
@@ -115,6 +119,15 @@ export default function AttachmentUploader({
   const [isDragOver, setIsDragOver] = useState(false);
   // 追加モードでのローカル保留ファイル一覧（mode='add' のみ使用）。
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  // 追加モードの保留ファイルに対するブラウザ内プレビュー URL のマップ（issue #129）。
+  // key: File オブジェクト、value: URL.createObjectURL で生成した Blob URL。
+  // Map で管理し、削除・unmount 時に URL.revokeObjectURL で確実に解放する。
+  //
+  // Map<File, string> は File オブジェクトの identity (===) に依存する。
+  // #129 の実装では pendingFiles state 内の File reference が変化しない
+  // （setPendingFiles で新規追加・削除のみで既存 File を置き換えない）ため、
+  // identity が stable に保たれる前提で動作する。
+  const pendingObjectUrlsRef = useRef<Map<File, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // 追加モード: isPending は常に false（即時アップロードしない）。
@@ -146,6 +159,31 @@ export default function AttachmentUploader({
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingFiles, mode]);
 
+  // コンポーネント unmount 時に全保留ファイルの Blob URL を解放してメモリリークを防ぐ（issue #129）。
+  // pendingObjectUrlsRef は ref のため依存配列には含めない（cleanup 時点の最新の Map を参照する）。
+  useEffect(() => {
+    const urlsRef = pendingObjectUrlsRef;
+    return () => {
+      urlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      urlsRef.current.clear();
+    };
+  }, []);
+
+  // W-1: 保存成功経路での明示的 revokeObjectURL（screens/report-detail.md §7 L478 対応）。
+  // ItemSlidePanel が保存成功後に pendingFiles を空配列に切り替えると、
+  // onPendingFilesChange([]) が呼ばれて pendingFiles が [] になる。
+  // このタイミングで pendingObjectUrlsRef に残っている全 Blob URL を revokeObjectURL で解放する。
+  // unmount 経由の間接解放に加えて保存成功経路でも明示的に解放することで、
+  // #115 local buffer cleanup と連動した確実なメモリ解放を実現する。
+  useEffect(() => {
+    if (mode === 'add' && pendingFiles.length === 0 && pendingObjectUrlsRef.current.size > 0) {
+      // pendingFiles が空になったが Map にまだ URL が残っている場合（保存成功後のクリア）に解放する。
+      pendingObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      pendingObjectUrlsRef.current.clear();
+    }
+  // pendingFiles.length の変化のみを監視する（mode は実行中に変わらない想定）。
+  }, [pendingFiles.length, mode]);
+
   // 追加モードでは isPending を使わない（常に false 扱い）。
   const isUploading = mode !== 'add' && isPending;
 
@@ -160,6 +198,9 @@ export default function AttachmentUploader({
 
     if (mode === 'add') {
       // 追加モード: ファイルをローカル state に保留（API は呼ばない）。
+      // URL.createObjectURL でブラウザ内プレビュー URL を生成し Map に登録する（issue #129）。
+      const objectUrl = URL.createObjectURL(file);
+      pendingObjectUrlsRef.current.set(file, objectUrl);
       setPendingFiles((prev) => [...prev, file]);
       onPendingFileAdded?.(file);
       return;
@@ -199,9 +240,34 @@ export default function AttachmentUploader({
   };
 
   // 追加モードの保留ファイルを削除するハンドラ（index 指定）。API は呼ばない・確認ダイアログなし。
+  // 削除対象ファイルの Blob URL を URL.revokeObjectURL で解放してメモリリークを防ぐ（issue #129）。
   const handlePendingFileRemove = (index: number) => {
-    setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    setPendingFiles((prev) => {
+      const fileToRemove = prev[index];
+      if (fileToRemove !== undefined) {
+        const objectUrl = pendingObjectUrlsRef.current.get(fileToRemove);
+        if (objectUrl !== undefined) {
+          URL.revokeObjectURL(objectUrl);
+          pendingObjectUrlsRef.current.delete(fileToRemove);
+        }
+      }
+      return prev.filter((_, i) => i !== index);
+    });
   };
+
+  // 追加モードの保留ファイルのプレビューを開くハンドラ（issue #129）。
+  // URL.createObjectURL で生成した Blob URL を新タブで開く。
+  // window.open を click イベントの同期タイミングで呼び出し、ポップアップブロックを回避する。
+  const handlePendingFilePreview = useCallback((file: File) => {
+    const objectUrl = pendingObjectUrlsRef.current.get(file);
+    if (!objectUrl) return;
+    // click 同期で新タブを開く（ポップアップブロック回避）。
+    const newWindow = window.open(objectUrl, '_blank');
+    if (!newWindow) {
+      // ポップアップブロックされた場合はフォールバック（コンソールのみ）。
+      console.warn('ポップアップがブロックされました。ブラウザ設定を確認してください');
+    }
+  }, []);
 
   // ファイル入力の change イベントハンドラ。
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -247,7 +313,10 @@ export default function AttachmentUploader({
       onDrop={handleDrop}
     >
       {/* 追加モードの保留ファイル一覧（mode='add' のみ表示）。
-          各ファイルに「保存後にアップロード予定」ラベルと削除ボタンを表示する（ATT-FE-073/075/077）。 */}
+          編集モードの添付一覧と同等の UI を提供する（issue #129）:
+          - ファイル名クリック = URL.createObjectURL で生成した Blob URL でプレビュー
+          - ダウンロードアイコンは非表示（pending file はサーバー未保存のためダウンロード不要）
+          - 「保存後にアップロード予定」ラベルは表示しない（ATT-FE-073/075/077 の UX 改善） */}
       {mode === 'add' && pendingFiles.length > 0 && (
         <List dense>
           {pendingFiles.map((file, index) => (
@@ -266,18 +335,18 @@ export default function AttachmentUploader({
                 </IconButton>
               }
             >
-              <Typography variant="body2" sx={{ mr: 1 }}>
-                {file.name}
-              </Typography>
-              <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>
-                ({(file.size / 1024).toFixed(0)} KB)
-              </Typography>
-              <Typography
-                variant="caption"
-                color="warning.main"
-                sx={{ fontStyle: 'italic' }}
+              {/* ファイル名ボタン: クリックで Blob URL を使ったブラウザ内プレビューを表示（issue #129）。 */}
+              <Button
+                variant="text"
+                size="small"
+                onClick={() => handlePendingFilePreview(file)}
+                data-testid={`pending-attachment-preview-${index}`}
+                sx={{ mr: 0.5, textTransform: 'none', textAlign: 'left', minWidth: 0 }}
               >
-                保存後にアップロード予定
+                {file.name}
+              </Button>
+              <Typography variant="caption" color="text.secondary">
+                {formatFileSize(file.size)}
               </Typography>
             </ListItem>
           ))}
@@ -331,13 +400,8 @@ export default function AttachmentUploader({
           {validationError}
         </Alert>
       )}
-      {/* 追加モードでのローカル保留案内（ATT-FE-073）。
+      {/* 追加モードのローカル保留案内文は表示しない（issue #129: 動作が自明なため削除）。
           バリデーション通過後にコールバック経由で親コンポーネントが保留一覧を表示する。 */}
-      {mode === 'add' && (
-        <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
-          ファイルを選択すると保存時にまとめてアップロードします。
-        </Typography>
-      )}
     </div>
   );
 }

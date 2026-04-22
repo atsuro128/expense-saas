@@ -227,7 +227,8 @@ function AttachmentAreaContent({
  * AttachmentAreaAddMode は追加モード（itemId=null）専用のコンテンツを描画する内部コンポーネント。
  * API を呼ばずに AttachmentUploader 内のローカル state でファイルを保留し、
  * 保存時にまとめてアップロードする。
- * 保留ファイルの一覧・削除ボタンは AttachmentUploader が担当する（issue #115）。
+ * 保留ファイルの一覧・プレビューボタン・削除ボタンは AttachmentUploader が担当する
+ * （issue #115 ローカル保持方式、issue #129 プレビュー対応）。
  */
 function AttachmentAreaAddMode({
   reportId,
@@ -241,8 +242,8 @@ function AttachmentAreaAddMode({
   return (
     <div data-testid="attachment-area">
       {/* ファイル選択 UI（canModify=true のときのみ表示）。
-          保留ファイルの一覧・削除ボタン・「保存後にアップロード予定」ラベルは
-          AttachmentUploader 内部で管理する（ATT-FE-073/075/077）。 */}
+          保留ファイルの一覧・プレビューボタン・削除ボタンは
+          AttachmentUploader 内部で管理する（ATT-FE-073/075/077, issue #129）。 */}
       {canModify && (
         <AttachmentUploader
           reportId={reportId}
