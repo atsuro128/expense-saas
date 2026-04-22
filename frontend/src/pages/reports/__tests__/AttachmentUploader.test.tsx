@@ -3,15 +3,14 @@
 // ATT-FE-016〜028 に対応する。
 // issue-100 修正対応: CircularProgress 表示・VisuallyHiddenInput・DnD 視覚フィードバックのテストを追加。
 // ATT-FE-073, 074, 078 に対応する（issue #115: 追加モードのローカル保持・バリデーション・編集モード不変）。
-// ATT-FE-073, 074 は機能実装前のため FAIL 前提。
-// FAIL 原因: AttachmentUploader に mode prop がなく、ローカル保持の分岐が未実装。
+// issue #129: 追加モードのプレビュー対応・ラベル削除・URL.createObjectURL/revokeObjectURL 検証を追加。
 // issue #134 回帰テスト: API エラー時に onUploadError 経由でマッピング済みの err.message が伝播すること。
 // issue #131 修正: バリデーションエラー文言を smoke_check.md SMK-033/035 に整合、MUI Alert 表示検証を追加。
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { vi, beforeEach, afterEach } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { type ComponentType } from 'react';
 import AttachmentUploader from '../AttachmentUploader';
 
 // テスト用ファイルオブジェクト生成ヘルパー。
@@ -592,8 +591,7 @@ describe('AttachmentUploader', () => {
   // ATT-FE-078: mode='edit' で即時アップロード挙動が不変であることを保証する（issue #115）。
   // 編集モードとの分岐が AttachmentUploader に波及しないことを確認する。
   // mode='edit' で JPEG を選択すると useUploadAttachment.mutate が即時呼ばれ、ローカル state に保留されない。
-  // mode prop は機能実装後に AttachmentUploader に追加予定のため @ts-expect-error を付与する。
-  // 機能実装で mode prop 型が追加されたら @ts-expect-error を外すこと。
+  // issue #129 対応後: mode prop は実装済みのため ComponentType<any> キャストは不要。
   it('ATT-FE-078: keeps_edit_mode_behavior_unchanged_immediate_upload', async () => {
     const onUploadSuccess = vi.fn();
     globalThis.fetch = vi.fn().mockResolvedValueOnce({
@@ -612,12 +610,8 @@ describe('AttachmentUploader', () => {
       }),
     } as unknown as Response);
 
-    // mode prop は機能実装後に AttachmentUploader に追加予定。現時点では型定義が存在しない。
-    // ComponentType<any> にキャストして mode prop を渡す（機能実装で mode 型が追加されたらキャストを外すこと）。
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AttachmentUploaderWithMode = AttachmentUploader as ComponentType<any>;
     renderWithQueryClient(
-      <AttachmentUploaderWithMode
+      <AttachmentUploader
         reportId="rpt-1"
         itemId="item-1"
         mode="edit"
@@ -828,18 +822,15 @@ describe('AttachmentUploader エラーハンドリング回帰テスト（issue 
 
 // =============================================================================
 // ATT-FE-073, 074: 追加モードのローカル保持・バリデーション（issue #115）
-// 機能実装前のため FAIL 前提。
-// FAIL 原因: AttachmentUploader に mode prop がなく、追加モードでのローカル保持分岐が未実装。
+// issue #129 対応済み: プレビュー UI・URL.createObjectURL・ラベル削除を追加検証。
 // =============================================================================
 
-describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', () => {
+describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115/#129）', () => {
   let originalFetch: typeof globalThis.fetch;
 
   beforeEach(() => {
     originalFetch = globalThis.fetch;
-    // setup.ts のグローバル fetch モックを revert（FIX 3）したため、
-    // ATT-FE-073/074 で「fetch が呼ばれないこと」を検証するには
-    // このブロックで明示的に vi.fn() でスパイ化する（FIX 3 対応）。
+    // 「fetch が呼ばれないこと」を検証するには明示的に vi.fn() でスパイ化する。
     globalThis.fetch = vi.fn();
   });
 
@@ -849,13 +840,13 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
   });
 
   // ATT-FE-073: 追加モードでファイル選択すると useUploadAttachment.mutate を呼ばず、
-  //             ローカル state に保留し「保存後にアップロード予定」ラベルが表示される。
-  // FAIL 原因（機能未実装）: mode prop が未実装のため、追加モードの分岐が存在せず即時アップロードされる。
-  // 機能実装後: mode="add" 時にファイル選択しても mutate は呼ばれず、ローカル state に保留される。
+  //             ローカル state に保留しプレビューボタンが表示される（issue #129: ラベル削除対応済み）。
   it('ATT-FE-073: buffers_selected_file_in_local_state_in_add_mode', async () => {
     const onUploadSuccess = vi.fn();
-    // fetch が呼ばれないことを確認するため、呼ばれた場合にエラーになるようにモックする。
+    // fetch が呼ばれた場合にエラーになるようにモックする。
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
+    // URL.createObjectURL が呼ばれることを検証する（issue #129）。
+    const createObjectUrlSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
 
     renderWithQueryClient(
       <AttachmentUploader
@@ -871,21 +862,109 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
     fireEvent.change(fileInput, { target: { files: [jpegFile] } });
 
     // useUploadAttachment.mutate は呼ばれないこと（fetch 未呼出で確認）。
-    // 追加モードではファイルをローカル state に保留する。
     expect(globalThis.fetch).not.toHaveBeenCalled();
 
-    // 「保存後にアップロード予定」ラベルが表示されること（FAIL 前提）。
-    expect(screen.getByText('保存後にアップロード予定')).toBeInTheDocument();
+    // ファイル名を表示するプレビューボタンが描画されること（issue #129）。
+    expect(screen.getByTestId('pending-attachment-preview-0')).toBeInTheDocument();
+    expect(screen.getByTestId('pending-attachment-preview-0')).toHaveTextContent('receipt.jpg');
+
+    // URL.createObjectURL がファイルに対して呼ばれること（issue #129 プレビュー URL 生成）。
+    expect(createObjectUrlSpy).toHaveBeenCalledWith(jpegFile);
+
+    // 「保存後にアップロード予定」ラベルは表示されないこと（issue #129: 完全削除）。
+    expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
 
     // バリデーションエラーは表示されないこと（JPEG は許可形式）。
     expect(screen.queryByTestId('attachment-validation-error')).not.toBeInTheDocument();
   });
 
+  // ATT-FE-073b: 追加モードでファイル名クリックすると window.open が Blob URL で呼ばれる（issue #129）。
+  it('ATT-FE-073b: pending_file_preview_opens_blob_url_on_click', async () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/preview-url');
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="rpt-1"
+        itemId={null}
+        mode="add"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // プレビューボタンが描画されること。
+    const previewButton = screen.getByTestId('pending-attachment-preview-0');
+    await userEvent.click(previewButton);
+
+    // window.open が Blob URL と '_blank' で呼ばれること（issue #129）。
+    expect(openSpy).toHaveBeenCalledWith('blob:http://localhost/preview-url', '_blank');
+  });
+
+  // ATT-FE-073c: 追加モードでダウンロードアイコンが表示されないこと（issue #129: pending file は DL 非表示）。
+  it('ATT-FE-073c: pending_file_has_no_download_icon', () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="rpt-1"
+        itemId={null}
+        mode="add"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // ダウンロードアイコン（aria-label="ダウンロード"）は表示されないこと（issue #129）。
+    expect(screen.queryByRole('button', { name: 'ダウンロード' })).not.toBeInTheDocument();
+    // 「保存後にアップロード予定」ラベルも表示されないこと（issue #129）。
+    expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+  });
+
+  // ATT-FE-073d: 保留ファイル削除時に URL.revokeObjectURL が呼ばれること（issue #129 メモリリーク対策）。
+  it('ATT-FE-073d: revokes_blob_url_when_pending_file_is_removed', async () => {
+    const onUploadSuccess = vi.fn();
+    globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
+    const blobUrl = 'blob:http://localhost/revoke-test';
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue(blobUrl);
+    const revokeObjectUrlSpy = vi.spyOn(URL, 'revokeObjectURL');
+
+    renderWithQueryClient(
+      <AttachmentUploader
+        reportId="rpt-1"
+        itemId={null}
+        mode="add"
+        onUploadSuccess={onUploadSuccess}
+      />,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    fireEvent.change(fileInput, { target: { files: [jpegFile] } });
+
+    // 削除ボタンをクリックする。
+    const deleteButton = screen.getByTestId('pending-attachment-delete-0');
+    await userEvent.click(deleteButton);
+
+    // URL.revokeObjectURL が生成した Blob URL で呼ばれること（issue #129 メモリリーク対策）。
+    expect(revokeObjectUrlSpy).toHaveBeenCalledWith(blobUrl);
+    // ファイル行が削除されること。
+    expect(screen.queryByTestId('pending-file-row-0')).not.toBeInTheDocument();
+  });
+
   // ATT-FE-074: クライアント側バリデーション（追加モード）。
   // (a) GIF 拒否 / (b) 5MB+1B 拒否 / (c) 5MB ちょうど許可。いずれも mutate 未呼出。
-  // FAIL 原因（機能未実装）: mode prop が未実装のため、追加モードの分岐が存在しない。
-  // 機能実装後: 追加モードでもクライアント側バリデーションが動作し、
-  //            エラー時はローカル state に保留されず、mutate は呼ばれない。
+  // issue #129 対応済み: プレビュー UI が表示されること・ラベルなしを確認。
   it('ATT-FE-074: rejects_invalid_mime_or_oversize_file_in_add_mode_without_buffering', async () => {
     const onUploadSuccess = vi.fn();
 
@@ -906,7 +985,9 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
 
       // バリデーションエラーが表示されること（MIME 違反）。
       expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
-      // 「保存後にアップロード予定」は表示されないこと（ローカル state に保留されない）。
+      // プレビューボタンは表示されないこと（ローカル state に保留されない）。
+      expect(screen.queryByTestId('pending-attachment-preview-0')).not.toBeInTheDocument();
+      // 「保存後にアップロード予定」ラベルも表示されないこと（issue #129）。
       expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
       // fetch は呼ばれないこと（mutate 未呼出）。
       expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -931,7 +1012,9 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
 
       // バリデーションエラーが表示されること（サイズ超過）。
       expect(screen.getByTestId('attachment-validation-error')).toBeInTheDocument();
-      // ローカル state に保留されないこと。
+      // プレビューボタンは表示されないこと（ローカル state に保留されない）。
+      expect(screen.queryByTestId('pending-attachment-preview-0')).not.toBeInTheDocument();
+      // 「保存後にアップロード予定」ラベルも表示されないこと（issue #129）。
       expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
       // fetch は呼ばれないこと。
       expect(globalThis.fetch).not.toHaveBeenCalled();
@@ -941,6 +1024,8 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
 
     // (c) ちょうど 5MB は許可。
     {
+      vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test');
+
       renderWithQueryClient(
         <AttachmentUploader
           reportId="rpt-1"
@@ -957,8 +1042,10 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115）', 
 
       // バリデーションエラーは表示されないこと（ちょうど 5MB は許可）。
       expect(screen.queryByTestId('attachment-validation-error')).not.toBeInTheDocument();
-      // 「保存後にアップロード予定」が表示されること（ローカル state に保留済み）。
-      expect(screen.getByText('保存後にアップロード予定')).toBeInTheDocument();
+      // プレビューボタンが表示されること（ローカル state に保留済み・issue #129）。
+      expect(screen.getByTestId('pending-attachment-preview-0')).toBeInTheDocument();
+      // 「保存後にアップロード予定」ラベルは表示されないこと（issue #129）。
+      expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
       // fetch は呼ばれないこと（追加モードでは即時アップロードしない）。
       expect(globalThis.fetch).not.toHaveBeenCalled();
     }
