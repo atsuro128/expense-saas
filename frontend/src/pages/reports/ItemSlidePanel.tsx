@@ -47,6 +47,12 @@ export interface ItemSlidePanelProps {
   onSaveSuccess: () => void;
   /** 「保存して続けて追加」成功時のコールバック */
   onSaveAndContinue: () => void;
+  /**
+   * Drawer のスライドアウトアニメーション完了後のコールバック（issue #130）。
+   * MUI Drawer の SlideProps.onExited に配線される。
+   * 親コンポーネントはこのコールバックで selectedItem / apiError 等をリセットする。
+   */
+  onTransitionExited?: () => void;
   /** カテゴリ選択肢（未指定の場合は空配列） */
   categories?: Array<{ value: string; label: string }>;
   /** API エラーメッセージ */
@@ -139,6 +145,7 @@ function ItemSlidePanelBody({
   onItemSaveAndContinue,
   reportPeriodStart,
   reportPeriodEnd,
+  onTransitionExited,
 }: ItemSlidePanelProps) {
   // ItemSlidePanelBody は必ず QueryClientProvider の配下で動作する。
   // main.tsx の QueryClientProvider 配下で使用することを前提とする。
@@ -527,6 +534,7 @@ function ItemSlidePanelBody({
           'data-testid': 'item-slide-panel',
           sx: { width: { xs: '100%', sm: 480 } },
         } as PaperProps}
+        SlideProps={onTransitionExited ? { onExited: onTransitionExited } : undefined}
       >
         {/* ヘッダー: タイトル左・閉じるボタン右の flex レイアウト */}
         <Box
