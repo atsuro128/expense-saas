@@ -3,6 +3,8 @@
 // SCR-RPT-004 §6 に対応する。
 // ATT-FE-057〜071: 並行操作整合性・破棄確認ダイアログ（issue #108）。
 // ATT-FE-079〜083: 追加モードの順次アップロード制御（issue #115）。
+// issue #132: 保存成功後の dirty state リセット漏れ修正（beforeunload リスナ残存バグ）。
+// issue #132 codex blocker: 保存成功後に AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする。
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
@@ -123,6 +125,17 @@ interface AttachmentApiResponse {
  * - 順次アップロード中は保存ボタン disabled + スピナー + 「アップロード中... (N/M 件完了)」
  * - 順次アップロード中のフォームフィールドは readonly（整合性崩れ防止）
  * - AbortController で中断制御（パネルクローズ時）
+ *
+ * 保存成功後の dirty state リセット（issue #132）:
+ * - 追加モード: handleAddModeSubmit 内で afterSubmit 前に resetDirtyState() を呼ぶ
+ * - 編集モード: open=false になったとき（useEffect）に resetDirtyState() を呼ぶ
+ * - 保存して続けて追加: handleAddModeSubmit の afterSubmit 前にリセット済み
+ * - これにより保存成功後は isDirty=false → beforeunload リスナが解除され F5 での誤警告がなくなる
+ *
+ * AttachmentAreaAddMode の内部 pendingFiles クリア（issue #132 codex blocker）:
+ * - resetDirtyState() に加え attachmentAddModeResetKey をインクリメントすることで
+ *   AttachmentAreaAddMode を再マウントし、AttachmentUploader 内部の pendingFiles をクリアする
+ * - AttachmentAreaContent（edit/view モード）には key を当てないため、クエリキャッシュに影響しない
  */
 function ItemSlidePanelBody({
   open,
@@ -203,6 +216,12 @@ function ItemSlidePanelBody({
 
   // 追加モード: 保留中のファイル一覧（ローカル state で管理、issue #115）。
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+
+  // AttachmentAreaAddMode 再マウントキー（issue #132 codex blocker）。
+  // resetDirtyState() でインクリメントし、AttachmentAreaAddMode を再マウントすることで
+  // AttachmentUploader 内部の pendingFiles state をクリアする。
+  // edit/view モードの AttachmentAreaContent には影響しない。
+  const [attachmentAddModeResetKey, setAttachmentAddModeResetKey] = useState(0);
 
   // dirty 判定:
   // - 追加モード: isFormDirty || pendingFiles.length > 0
@@ -288,6 +307,25 @@ function ItemSlidePanelBody({
   }, []);
 
   /**
+   * 保存成功後の dirty state リセット（issue #132）。
+   * 追加モード・編集モードいずれの保存成功経路でも呼び出し、
+   * isFormDirty / pendingFiles / formResetRef をクリアすることで
+   * beforeunload リスナが解除された状態でパネルが閉じられる。
+   * 破棄経路（handleDiscard）とは独立しており、そちらの挙動は変えない。
+   *
+   * codex blocker 対応: attachmentAddModeResetKey をインクリメントすることで
+   * AttachmentAreaAddMode を再マウントし、AttachmentUploader 内部の
+   * pendingFiles state（UI の保留ファイル行）もクリアする。
+   */
+  const resetDirtyState = useCallback(() => {
+    setIsFormDirty(false);
+    setPendingFiles([]);
+    formResetRef.current?.();
+    // AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする（issue #132 codex blocker）。
+    setAttachmentAddModeResetKey((prev) => prev + 1);
+  }, []);
+
+  /**
    * 追加モードの保存処理（順次アップロード）。
    * blocker 1 対応: afterSubmit 引数でコールバックを切り替え、「保存する」と「保存して続けて追加」の
    *   両経路からこの関数を共通で呼び出す。
@@ -350,6 +388,8 @@ function ItemSlidePanelBody({
       if (pendingFiles.length === 0) {
         setApiToast({ open: true, severity: 'success', message: '明細を追加しました' });
         void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+        // 保存成功時に dirty state をリセットして beforeunload リスナを解除する（issue #132）。
+        resetDirtyState();
         afterSubmit();
         return;
       }
@@ -403,7 +443,9 @@ function ItemSlidePanelBody({
         // 設計書 §6 「3b 部分失敗」: 警告トーストを先に表示してから afterSubmit と invalidate を呼ぶ。
         // pendingPostToastActionRef に後続処理を登録し、useEffect（レンダリング後）で実行することで
         // トーストが DOM に表示された後に afterSubmit → invalidate の順序を保証する（ATT-FE-080）。
+        // 保存成功時（部分失敗を含む）に dirty state をリセットして beforeunload リスナを解除する（issue #132）。
         pendingPostToastActionRef.current = () => {
+          resetDirtyState();
           afterSubmit();
           void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
         };
@@ -416,21 +458,25 @@ function ItemSlidePanelBody({
         // 全成功: 成功トースト + afterSubmit + 一覧 invalidate。
         setApiToast({ open: true, severity: 'success', message: '明細を追加しました' });
         void queryClient.invalidateQueries({ queryKey: ['reports', 'detail', reportId] });
+        // 保存成功時に dirty state をリセットして beforeunload リスナを解除する（issue #132）。
+        resetDirtyState();
         afterSubmit();
       }
     } finally {
       // 成功・中断・その他エラーのいずれの経路でも ref をリセットしてリソースを解放する（FIX 5）。
       sequentialAbortControllerRef.current = null;
     }
-  }, [reportId, pendingFiles, queryClient, createItemMutation]);
+  }, [reportId, pendingFiles, queryClient, createItemMutation, resetDirtyState]);
 
   // フォーム送信ハンドラ。
   const handleSubmit = (data: ItemFormValues) => {
     if (mode === 'add') {
       // 追加モード: 順次アップロード付きの保存処理を実行する。
-      // afterSubmit: パネルクローズ（onSaveSuccess）
+      // dirty state のリセットは handleAddModeSubmit 内部で afterSubmit 前に実行される（issue #132）。
       void handleAddModeSubmit(data, onSaveSuccess);
     } else if (onItemSubmit) {
+      // 編集モード: 親（ReportDetailPage）の onItemSubmit に委譲する。
+      // dirty state のリセットは open が false になったときの useEffect で行う（issue #132）。
       onItemSubmit(data);
     } else {
       onSaveSuccess();
@@ -477,6 +523,9 @@ function ItemSlidePanelBody({
     formResetRef.current?.();
     setIsFormDirty(false);
     setPendingFiles([]);
+    // AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする（issue #132 codex blocker）。
+    // 破棄経路でも UI 上の保留ファイル行が消えることを保証する。
+    setAttachmentAddModeResetKey((prev) => prev + 1);
     onClose();
   }, [onClose, abortSequentialUpload]);
 
@@ -508,6 +557,20 @@ function ItemSlidePanelBody({
       onClose();
     }
   }, [resolvedIsSequentialUploading, isDirty, onClose, abortSequentialUpload]);
+
+  // パネルが閉じたとき（open: true → false）に dirty state をリセットする（issue #132）。
+  // MUI Drawer は open=false でもコンテンツをアンマウントしないため、
+  // state が残存して beforeunload リスナが継続登録される問題を解消する。
+  // 編集モード経路: onItemSubmit → 親の mutation.onSuccess → open=false（setPanelState）→
+  //   この useEffect → resetDirtyState → isDirty=false → beforeunload リスナ解除
+  // 追加モード経路: handleAddModeSubmit 内で resetDirtyState を呼んでいるが、
+  //   こちらの useEffect も idempotent（二重呼び出し ok）。
+  // 破棄経路: handleDiscard で既にリセット済みだが、こちらも idempotent。
+  useEffect(() => {
+    if (!open) {
+      resetDirtyState();
+    }
+  }, [open, resetDirtyState]);
 
   // dirty 時のみ beforeunload イベントリスナを登録して F5 / タブ閉じ / ブラウザ閉じを抑止する。
   // カスタム文言は現代ブラウザで不可のため event.preventDefault() のみ呼ぶ（設計書 §6）。
@@ -576,7 +639,9 @@ function ItemSlidePanelBody({
         {/* 添付ファイル管理領域。
             追加モード（mode='add'）: itemId=null でも表示し、ローカル保持方式を使う（issue #115）。
             uploadCancelRef / deleteCancelRef でアップロード・削除キャンセル関数を受け取る（§7-1）。
-            onUploadAborted / onDeleteAborted でパネルレベルの中断トーストを表示する（§7-2）。 */}
+            onUploadAborted / onDeleteAborted でパネルレベルの中断トーストを表示する（§7-2）。
+            addModeResetKey: 保存成功・破棄時に AttachmentAreaAddMode を再マウントして
+              AttachmentUploader 内部の pendingFiles をクリアする（issue #132 codex blocker）。 */}
         <AttachmentArea
           reportId={reportId}
           itemId={item?.id ?? null}
@@ -589,6 +654,7 @@ function ItemSlidePanelBody({
           onUploadAborted={handleUploadAborted}
           onDeleteAborted={handleDeleteAborted}
           onPendingFilesChange={mode === 'add' ? handlePendingFilesChange : undefined}
+          addModeResetKey={attachmentAddModeResetKey}
         />
       </Drawer>
 

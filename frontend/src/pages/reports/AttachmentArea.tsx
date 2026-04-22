@@ -53,6 +53,13 @@ export interface AttachmentAreaProps {
    * ItemSlidePanel が保存時の順次アップロードで使う File 一覧を取得するために使用する。
    */
   onPendingFilesChange?: (files: File[]) => void;
+  /**
+   * 追加モード専用: AttachmentAreaAddMode の再マウントキー（issue #132 codex blocker）。
+   * 保存成功・破棄時に ItemSlidePanel がインクリメントし、AttachmentAreaAddMode を再マウントすることで
+   * AttachmentUploader 内部の pendingFiles state（UI 上の保留ファイル行）をクリアする。
+   * edit/view モードの AttachmentAreaContent には影響しない。
+   */
+  addModeResetKey?: number;
 }
 
 /**
@@ -283,11 +290,15 @@ export default function AttachmentArea({
   onUploadAborted,
   onDeleteAborted,
   onPendingFilesChange,
+  addModeResetKey,
 }: AttachmentAreaProps) {
   if (mode === 'add') {
     // 追加モード（明示的に mode="add" が渡された場合のみ）: itemId=null でも表示し、ローカル保持方式を使う。
+    // addModeResetKey が変化するたびに AttachmentAreaAddMode を再マウントして
+    // AttachmentUploader 内部の pendingFiles state をクリアする（issue #132 codex blocker）。
     return (
       <AttachmentAreaAddMode
+        key={addModeResetKey}
         reportId={reportId}
         canModify={canModify}
         onPendingFilesChange={onPendingFilesChange}
