@@ -5,6 +5,7 @@
 // ATT-FE-073/074: 追加モードでのローカル保持対応（issue #115）。
 
 import { useState, useRef, useEffect } from 'react';
+import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Typography from '@mui/material/Typography';
@@ -75,10 +76,10 @@ const VisuallyHiddenInput = styled('input')({
  */
 function validateFile(file: File): string | null {
   if (!ALLOWED_MIME_SET.has(file.type)) {
-    return '許可されていないファイル形式です（対応: JPEG, PNG, PDF）';
+    return 'JPEG, PNG, PDF のみアップロード可能です';
   }
   if (file.size > MAX_FILE_SIZE_BYTES) {
-    return `ファイルサイズが上限（5MB）を超えています（${(file.size / 1024 / 1024).toFixed(1)}MB）`;
+    return 'ファイルサイズは5MB以下にしてください';
   }
   return null;
 }
@@ -322,9 +323,13 @@ export default function AttachmentUploader({
         対応形式: JPEG, PNG, PDF（最大 {MAX_FILE_SIZE_BYTES / 1024 / 1024}MB）
       </div>
       {validationError && (
-        <div data-testid="attachment-validation-error" role="alert">
+        <Alert
+          severity="error"
+          data-testid="attachment-validation-error"
+          sx={{ mt: 1 }}
+        >
           {validationError}
-        </div>
+        </Alert>
       )}
       {/* 追加モードでのローカル保留案内（ATT-FE-073）。
           バリデーション通過後にコールバック経由で親コンポーネントが保留一覧を表示する。 */}
