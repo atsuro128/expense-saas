@@ -122,6 +122,11 @@ export default function AttachmentUploader({
   // 追加モードの保留ファイルに対するブラウザ内プレビュー URL のマップ（issue #129）。
   // key: File オブジェクト、value: URL.createObjectURL で生成した Blob URL。
   // Map で管理し、削除・unmount 時に URL.revokeObjectURL で確実に解放する。
+  //
+  // Map<File, string> は File オブジェクトの identity (===) に依存する。
+  // #129 の実装では pendingFiles state 内の File reference が変化しない
+  // （setPendingFiles で新規追加・削除のみで既存 File を置き換えない）ため、
+  // identity が stable に保たれる前提で動作する。
   const pendingObjectUrlsRef = useRef<Map<File, string>>(new Map());
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -163,6 +168,22 @@ export default function AttachmentUploader({
       urlsRef.current.clear();
     };
   }, []);
+
+  // W-1: 保存成功経路での明示的 revokeObjectURL（screens/report-detail.md §7 L478 対応）。
+  // ItemSlidePanel が保存成功後に pendingFiles を空配列に切り替えると、
+  // onPendingFilesChange([]) が呼ばれて pendingFiles が [] になる。
+  // このタイミングで pendingObjectUrlsRef に残っている全 Blob URL を revokeObjectURL で解放する。
+  // unmount 経由の間接解放に加えて保存成功経路でも明示的に解放することで、
+  // #115 local buffer cleanup と連動した確実なメモリ解放を実現する。
+  useEffect(() => {
+    if (mode === 'add' && pendingFiles.length === 0 && pendingObjectUrlsRef.current.size > 0) {
+      // pendingFiles が空になったが Map にまだ URL が残っている場合（保存成功後のクリア）に解放する。
+      pendingObjectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      pendingObjectUrlsRef.current.clear();
+    }
+  // pendingFiles.length の変化のみを監視する（mode は実行中に変わらない想定）。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingFiles.length, mode]);
 
   // 追加モードでは isPending を使わない（常に false 扱い）。
   const isUploading = mode !== 'add' && isPending;

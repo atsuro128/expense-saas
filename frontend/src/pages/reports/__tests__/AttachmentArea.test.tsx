@@ -469,11 +469,13 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
 
 
 
-  // ATT-FE-077: 保留中添付のダウンロード/プレビューは非表示、関連 hook 未呼出。
-  // FAIL 原因（機能未実装）: 追加モードが未実装のため保留中添付の UI 自体が存在しない。
-  // 機能実装後: 保留中の行には「保存後にアップロード予定」ラベルのみ表示され、
-  //            プレビューリンクとダウンロードアイコンは表示されない。
-  it('ATT-FE-077: hides_download_and_preview_for_pending_attachments', async () => {
+  // ATT-FE-077: 保留中添付のプレビューボタンが表示され、ダウンロードアイコンは非表示（#129 UI 変更後）。
+  // #129 変更内容:
+  //   - 「保存後にアップロード予定」ラベルは削除（UX 改善: 動作が自明なため不要）
+  //   - プレビューボタン（pending-attachment-preview-{index}）を新設し、編集モードと同等の UX を提供
+  //   - ダウンロードアイコンは引き続き非表示（pending file はサーバー未保存のため署名付き URL なし）
+  // 本テストは「新規追加モードでファイル選択時にプレビューボタンが表示される」回帰担保を目的とする。
+  it('ATT-FE-077: shows_preview_button_and_hides_download_for_pending_attachments', async () => {
     const user = userEvent.setup();
     const Wrapper = createWrapper();
     render(
@@ -487,7 +489,7 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
       </Wrapper>,
     );
 
-    // 添付エリアが描画されること（FAIL 前提）。
+    // 添付エリアが描画されること。
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
     // JPEG 1 件をローカル保留する。
@@ -495,15 +497,16 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
     await user.upload(fileInput, jpegFile);
 
-    // 保留中ファイル行が表示されること。
-    const pendingLabel = screen.getByText('保存後にアップロード予定');
-    expect(pendingLabel).toBeInTheDocument();
-
-    // プレビューリンクは表示されないこと（保留中は S3 URL がないためプレビュー不可）。
+    // ファイル名がプレビューボタンとして表示されること（#129: 編集モードと同等の UX）。
     // data-testid の命名規則: pending-attachment-preview-{index}。
-    expect(screen.queryByTestId('pending-attachment-preview-0')).not.toBeInTheDocument();
+    expect(screen.getByTestId('pending-attachment-preview-0')).toBeInTheDocument();
+    // プレビューボタン内にファイル名が表示されること。
+    expect(screen.getByText('receipt.jpg')).toBeInTheDocument();
 
-    // ダウンロードアイコンは表示されないこと（保留中は S3 URL がないためダウンロード不可）。
+    // 「保存後にアップロード予定」ラベルは表示されないこと（#129: 削除済み）。
+    expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+
+    // ダウンロードアイコンは表示されないこと（pending file はサーバー未保存のためダウンロード不要）。
     // data-testid の命名規則: pending-attachment-download-{index}。
     expect(screen.queryByTestId('pending-attachment-download-0')).not.toBeInTheDocument();
 
