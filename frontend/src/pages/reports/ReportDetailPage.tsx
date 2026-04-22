@@ -419,9 +419,8 @@ export default function ReportDetailPage() {
           setToast({ open: true, severity: 'success', message: '明細を削除しました' });
         },
         onError: (err) => {
-          // client.ts 層でマッピング済みの err.message をそのまま使う。
-          const message = err instanceof Error ? err.message : '明細の削除に失敗しました';
-          setItemApiError(message);
+          // 明細削除はパネルが閉じた状態での操作のため、itemApiError ではなく Toast で表示する（issue #135）。
+          handleActionError(err, '明細の削除に失敗しました');
         },
       },
     );
