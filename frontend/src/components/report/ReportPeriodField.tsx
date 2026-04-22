@@ -36,7 +36,7 @@ export default function ReportPeriodField({
     <Stack
       direction={{ xs: 'column', sm: 'row' }}
       alignItems={{ xs: 'stretch', sm: 'flex-start' }}
-      spacing={{ xs: 1, sm: 1 }}
+      spacing={1}
     >
       {/* 対象期間開始日 */}
       <Controller
