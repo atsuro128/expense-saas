@@ -302,31 +302,50 @@ describe('AttachmentArea', () => {
   it('ATT-FE-056: ダイアログで削除するを押すと削除 API が呼ばれる', async () => {
     const Wrapper = createWrapper();
     // 1回目: 一覧取得。2回目: 削除 API（204）。3回目以降: invalidate 後の再取得
-    globalThis.fetch = vi.fn()
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        headers: { get: () => null },
-        json: async () => ({
-          data: [
-            {
-              id: 'att-001',
-              item_id: 'item-1',
-              file_name: 'receipt.jpg',
-              file_size: 245760,
-              mime_type: 'image/jpeg',
-              created_at: '2026-03-01T00:00:00Z',
-            },
-          ],
-          pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
-        }),
-      } as unknown as Response)
-      .mockResolvedValue({
-        ok: true,
-        status: 204,
-        headers: { get: () => null },
-        json: async () => ({}),
-      } as unknown as Response);
+    const attachmentListResponse = {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [
+          {
+            id: 'att-001',
+            item_id: 'item-1',
+            file_name: 'receipt.jpg',
+            file_size: 245760,
+            mime_type: 'image/jpeg',
+            created_at: '2026-03-01T00:00:00Z',
+          },
+        ],
+        pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      }),
+    } as unknown as Response;
+    const emptyAttachmentListResponse = {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
+    } as unknown as Response;
+    const deleteResponse = {
+      ok: true,
+      status: 204,
+      headers: { get: () => null },
+      json: async () => ({}),
+    } as unknown as Response;
+    let getCallCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+      if ((opts?.method ?? 'GET').toUpperCase() === 'DELETE') {
+        return Promise.resolve(deleteResponse);
+      }
+      getCallCount += 1;
+      if (getCallCount === 1) {
+        return Promise.resolve(attachmentListResponse);
+      }
+      return Promise.resolve(emptyAttachmentListResponse);
+    });
 
     render(
       <Wrapper>

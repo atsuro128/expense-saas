@@ -883,7 +883,7 @@ describe('AttachmentUploader 追加モード（ATT-FE-073, 074, issue #115/#129�
     const onUploadSuccess = vi.fn();
     globalThis.fetch = vi.fn().mockRejectedValue(new Error('fetch should not be called in add mode'));
     vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/preview-url');
-    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null);
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue({} as Window);
 
     renderWithQueryClient(
       <AttachmentUploader
