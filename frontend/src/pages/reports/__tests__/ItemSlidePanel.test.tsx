@@ -11,6 +11,7 @@ import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { type ReactNode } from 'react';
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import ItemSlidePanel from '../ItemSlidePanel';
 
 // ITM-FE-098-1b テスト用: Drawer に渡された PaperProps を捕捉するための配列。
@@ -39,12 +40,24 @@ vi.mock('@mui/material/Drawer', async (importOriginal) => {
 
 // テスト用 QueryClientProvider ラッパー。
 // AttachmentArea が useQueryClient を使うため、item が存在するケースで必要。
+const testTheme = createTheme({
+  components: {
+    MuiButtonBase: {
+      defaultProps: {
+        disableRipple: true,
+      },
+    },
+  },
+});
+
 function createWrapper() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
   });
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <QueryClientProvider client={queryClient}>
+      <ThemeProvider theme={testTheme}>{children}</ThemeProvider>
+    </QueryClientProvider>
   );
 }
 
@@ -65,6 +78,7 @@ const defaultProps = {
   reportId: 'report-001',
   reportStatus: 'draft' as const,
   isOwner: true,
+  categories: [{ value: 'cat-001', label: '交通費' }],
   onClose: () => undefined,
   onSaveSuccess: () => undefined,
   onSaveAndContinue: () => undefined,
