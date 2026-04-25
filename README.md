@@ -87,6 +87,7 @@ seed サービスは `depends_on` で `migrate` と `minio-init` の完了を自
 | test-member@example.com | member | Test Company A |
 | test-accounting@example.com | accounting | Test Company A |
 | test-member-b@example.com | member | Test Company B |
+| test-member-empty@example.com | member | Test Company A |
 
 詳細は `dev-journal/deliverables/docs/60_test/test_strategy.md §4.2` を参照。
 
