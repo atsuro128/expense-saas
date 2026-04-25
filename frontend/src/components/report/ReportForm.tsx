@@ -82,6 +82,7 @@ export default function ReportForm({
     handleSubmit,
     reset,
     trigger,
+    getValues,
     formState: { errors },
   } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -123,10 +124,11 @@ export default function ReportForm({
       />
 
       {/* 対象期間入力 */}
-      {/* trigger を渡し、どちらのフィールドの onBlur でも両方の V5 バリデーションを再評価する（issue #141）*/}
+      {/* trigger と getValues を渡し、両フィールド入力済みの場合のみ V5 を相互再評価する（issue #141）*/}
       <ReportPeriodField
         control={control}
         trigger={trigger}
+        getValues={getValues}
         periodStartError={errors.periodStart?.message}
         periodEndError={errors.periodEnd?.message}
         disabled={isPending}

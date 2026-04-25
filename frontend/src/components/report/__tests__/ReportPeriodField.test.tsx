@@ -1,7 +1,9 @@
 // ReportPeriodField コンポーネントのユニットテスト。
-// RPT-FE-039〜042、RPT-FE-103〜104、RPT-FE-107 に対応する。
+// RPT-FE-039〜042、RPT-FE-103〜104、RPT-FE-107、RPT-FE-110 に対応する。
 // RPT-FE-103〜104: issue 119（onBlur 伝播）修正確認テスト。
 // RPT-FE-107: issue 141（開始日 onBlur でも V5 発火・フィールド別文言）追加テスト。
+// RPT-FE-110: issue 141 / PR #95 codex 指摘対応（trigger を両方入力済み時のみに限定し、
+//             未操作側に V3/V4 の必須エラーが先出しされないことを保証）。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -23,7 +25,7 @@ interface WrapperProps {
 }
 
 function Wrapper({ periodStartError, periodEndError, disabled, withFormErrors, defaultValues }: WrapperProps) {
-  const { control, trigger, formState: { errors } } = useForm<ReportFormValues>({
+  const { control, trigger, getValues, formState: { errors } } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
     defaultValues: { title: '', periodStart: '', periodEnd: '', ...defaultValues },
     mode: 'onBlur',
@@ -32,6 +34,7 @@ function Wrapper({ periodStartError, periodEndError, disabled, withFormErrors, d
     <ReportPeriodField
       control={control}
       trigger={trigger}
+      getValues={getValues}
       periodStartError={withFormErrors ? errors.periodStart?.message : periodStartError}
       periodEndError={withFormErrors ? errors.periodEnd?.message : periodEndError}
       disabled={disabled}
@@ -129,5 +132,34 @@ describe('ReportPeriodField', () => {
     });
     // 終了日フィールド直下: V5-E 文言が同時に表示される（trigger(['periodStart', 'periodEnd']) により両経路が評価される）。
     expect(screen.getByText('終了日は開始日以降を指定してください')).toBeInTheDocument();
+  });
+
+  // RPT-FE-110: 開始日のみ入力済み（終了日空）の状態で開始日 blur しても、未操作の終了日に
+  // V4 必須エラー「終了日を入力してください」が先出しされないこと（PR #95 codex 指摘対応）。
+  // 修正前は trigger(['periodStart', 'periodEnd']) を無条件に呼んでおり、未操作の終了日に
+  // V4 が即時表示されてしまい、設計書 §4 V4「終了日のフォーカスアウト / 送信時」の要件に
+  // 反していた。修正後は両フィールド入力済みの場合のみ trigger を呼ぶため、未操作側には
+  // V3/V4 が走らない。
+  it('RPT-FE-110: 開始日のみ入力済みで開始日 blur したとき未操作の終了日に必須エラーが先出しされない', async () => {
+    const user = userEvent.setup();
+    render(
+      <Wrapper
+        withFormErrors
+        defaultValues={{ title: 'テスト', periodStart: '2026-04-01', periodEnd: '' }}
+      />
+    );
+
+    const startInput = screen.getByLabelText('開始日');
+    // 開始日（既入力）にフォーカスを当ててからフォーカスアウトする。
+    await user.click(startInput);
+    await user.tab();
+
+    // 当該フィールド（開始日）の通常バリデーションは走るが、値が入っているため必須エラーは表示されない。
+    // 重要: 未操作の終了日に V4 必須エラーが先出しされないこと。
+    await waitFor(() => {
+      expect(screen.queryByText('終了日を入力してください')).not.toBeInTheDocument();
+    });
+    // 副次確認: 開始日にも必須エラーは表示されない（値が入力済みのため V3 不発火）。
+    expect(screen.queryByText('開始日を入力してください')).not.toBeInTheDocument();
   });
 });
