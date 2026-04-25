@@ -336,7 +336,7 @@ describe('AttachmentArea', () => {
       json: async () => ({}),
     } as unknown as Response;
     let getCallCount = 0;
-    globalThis.fetch = vi.fn().mockImplementation((url: string, opts?: RequestInit) => {
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
       if ((opts?.method ?? 'GET').toUpperCase() === 'DELETE') {
         return Promise.resolve(deleteResponse);
       }
