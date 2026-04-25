@@ -164,7 +164,7 @@ func TestGetTenant_Accounting_Forbidden(t *testing.T) {
 func TestListTenantMembers_Admin_OK(t *testing.T) {
 	srv := setupTenantTest(t)
 
-	// 前提: テナントAに Admin, Approver, Member, Accounting の 4 ユーザーが登録済み（SeedFixtures による）
+	// 前提: テナントAに Admin, Approver, Member, Accounting, Member Empty の 5 ユーザーが登録済み（SeedFixtures による）
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api/tenant/members", nil)
 	if err != nil {
 		t.Fatalf("リクエスト生成に失敗しました: %v", err)
@@ -177,7 +177,7 @@ func TestListTenantMembers_Admin_OK(t *testing.T) {
 	// 検証: 200 OK
 	testutil.AssertStatus(t, rec, http.StatusOK)
 
-	// 検証: data が配列で 4 件のメンバーが返ること
+	// 検証: data が配列で 5 件のメンバーが返ること
 	var resp struct {
 		Data []struct {
 			ID   string `json:"id"`
@@ -188,9 +188,9 @@ func TestListTenantMembers_Admin_OK(t *testing.T) {
 		t.Fatalf("レスポンスの JSON デコードに失敗しました: %v (body: %s)", err, rec.Body.String())
 	}
 
-	// data が配列であること（4 件）
-	if len(resp.Data) != 4 {
-		t.Errorf("data の件数: got %d, want 4 (body: %s)", len(resp.Data), rec.Body.String())
+	// data が配列であること（5 件）
+	if len(resp.Data) != 5 {
+		t.Errorf("data の件数: got %d, want 5 (body: %s)", len(resp.Data), rec.Body.String())
 	}
 
 	// 各要素に id（UUID）と name（文字列）が含まれること
@@ -272,12 +272,13 @@ func TestListTenantMembers_ReturnsOwnTenantOnly(t *testing.T) {
 		}
 	}
 
-	// テナントAのメンバーのみが含まれること（4 件）
+	// テナントAのメンバーのみが含まれること（5 件）
 	tenantAMemberIDs := map[string]bool{
 		testutil.UserAdminID:      true,
 		testutil.UserApproverID:   true,
 		testutil.UserMemberID:     true,
 		testutil.UserAccountingID: true,
+		testutil.UserMemberEmptyID: true,
 	}
 	for _, member := range resp.Data {
 		if !tenantAMemberIDs[member.ID] {

@@ -85,6 +85,7 @@ func main() {
 		"approver", "test-approver@example.com",
 		"member", "test-member@example.com",
 		"accounting", "test-accounting@example.com",
+		"member_empty", "test-member-empty@example.com",
 		"password", "TestPass1!",
 	)
 	slog.Info("投入済み添付ファイル（reportSubmitted）",
