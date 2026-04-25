@@ -30,9 +30,10 @@ const (
 	TenantBID        = "bbbbbbbb-0002-0002-0002-000000000002"
 	UserAdminID      = "aaaaaaaa-1111-1111-1111-000000000001"
 	UserApproverID   = "aaaaaaaa-2222-2222-2222-000000000002"
-	UserMemberID     = "aaaaaaaa-3333-3333-3333-000000000003"
-	UserAccountingID = "aaaaaaaa-4444-4444-4444-000000000004"
-	UserMemberBID    = "bbbbbbbb-3333-3333-3333-000000000003"
+	UserMemberID      = "aaaaaaaa-3333-3333-3333-000000000003"
+	UserAccountingID  = "aaaaaaaa-4444-4444-4444-000000000004"
+	UserMemberBID     = "bbbbbbbb-3333-3333-3333-000000000003"
+	UserMemberEmptyID = "aaaaaaaa-3333-3333-3333-000000000004"
 
 	// レポートフィクスチャ UUID（テナント A）。
 	ReportDraftID      = "cccccccc-0001-0001-0001-000000000001"
@@ -166,6 +167,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		{UserMemberID, "test-member@example.com", "Test Member"},
 		{UserAccountingID, "test-accounting@example.com", "Test Accounting"},
 		{UserMemberBID, "test-member-b@example.com", "Test Member B"},
+		{UserMemberEmptyID, "test-member-empty@example.com", "Test Member Empty"},
 	}
 	for _, u := range users {
 		if _, err := conn.Exec(ctx,
@@ -189,6 +191,7 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		{TenantAID, UserMemberID, domain.RoleMember},
 		{TenantAID, UserAccountingID, domain.RoleAccounting},
 		{TenantBID, UserMemberBID, domain.RoleMember},
+		{TenantAID, UserMemberEmptyID, domain.RoleMember},
 	}
 	for _, m := range memberships {
 		if _, err := conn.Exec(ctx,

@@ -507,7 +507,7 @@ func TestGetDashboard_Admin_TenantCounts(t *testing.T) {
 
 // TestGetDashboard_Admin_TenantMemberCount は Admin の tenant_member_count が正しく返ることを検証する。
 // DSH-015 に対応する。
-// フィクスチャ: テナントA に 4 名のメンバーが存在する。
+// フィクスチャ: テナントA に 5 名のメンバーが存在する。
 func TestGetDashboard_Admin_TenantMemberCount(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -525,7 +525,7 @@ func TestGetDashboard_Admin_TenantMemberCount(t *testing.T) {
 	if resp.Data.TenantMemberCount == nil {
 		t.Fatal("tenant_member_count が null です")
 	}
-	if got, want := *resp.Data.TenantMemberCount, 4; got != want {
+	if got, want := *resp.Data.TenantMemberCount, 5; got != want {
 		t.Errorf("tenant_member_count: got %d, want %d", got, want)
 	}
 }
