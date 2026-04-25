@@ -2,10 +2,7 @@
 // report-detail.md §AttachmentArea の Props 仕様に基づくテスト。
 // ATT-FE-001〜006、ATT-FE-054〜056 に対応する。
 // ATT-FE-072, 075, 077 に対応する（issue #115: 新規明細のローカル保持方式）。
-//
-// 注意: AttachmentArea はスタブ実装のため、ATT-FE-001・ATT-FE-003・ATT-FE-005・ATT-FE-006 の
-// 一部テストは機能実装後に通過する。スタブ段階での失敗は Step 9 の正しい姿。
-// ATT-FE-072, 075, 077 は issue #115 の機能実装前のため FAIL 前提。
+// ATT-FE-076, 084-087 に対応する（issue #143: add / edit モード UI 一貫性）。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -434,13 +431,13 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     expect(globalThis.fetch).not.toHaveBeenCalled();
   });
 
-  // ATT-FE-075: 保留中添付の「×」削除は API 未呼出・確認ダイアログなしでローカル state から除去のみ。
-  // FAIL 原因（機能未実装）: 追加モードが未実装のため保留中添付を保持できない。
-  // 機能実装後: ローカル state に保留した添付ファイルを「×」削除するとローカル state から除去され、
-  //            API は呼ばれず、確認ダイアログも表示されない。
+  // ATT-FE-075: 保留中添付の削除は API 未呼出・確認ダイアログなしでローカル state から除去のみ。
+  // 削除ボタンは <Button variant="text" color="error">削除</Button>（テキストボタン）で表示される（issue #143、案 A）。
   it('ATT-FE-075: removes_pending_attachment_from_local_state_without_api_call', async () => {
     const user = userEvent.setup();
     const Wrapper = createWrapper();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
     render(
       <Wrapper>
           <AttachmentArea
@@ -452,7 +449,7 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
       </Wrapper>,
     );
 
-    // 添付エリアが描画されること（FAIL 前提）。
+    // 添付エリアが描画されること。
     expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
 
     // JPEG 1 件目をローカル保留する。
@@ -464,15 +461,20 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     const jpegFile2 = createMockFile('receipt2.jpg', 2048, 'image/jpeg');
     await user.upload(fileInput, jpegFile2);
 
-    // 保留中添付が 2 件表示されること（行要素でカウント: preview/delete の 2 要素を持つため行単位で判定）。
+    // 保留中添付が 2 件表示されること（行要素でカウント）。
     expect(screen.getAllByTestId(/^pending-file-row-/)).toHaveLength(2);
+
+    // issue #143 UI 構造検証: 削除ボタンが <Button variant="text" color="error">削除</Button> であること。
+    // data-testid で特定し、ボタンテキストが「削除」であることを確認する（<IconButton>× ではない）。
+    const deleteBtnBeforeRemove = screen.getByTestId('pending-attachment-delete-0');
+    expect(deleteBtnBeforeRemove).toHaveTextContent('削除');
+    expect(deleteBtnBeforeRemove.tagName.toLowerCase()).toBe('button');
 
     // 保留件数の事前確認。
     const fetchCallsBefore = (globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length;
 
-    // 1 件目の「×」削除ボタンをクリックする。
-    const deleteBtn = screen.getByTestId('pending-attachment-delete-0');
-    await user.click(deleteBtn);
+    // 1 件目の「削除」ボタンをクリックする（テキストボタン: 編集モードと同一構造）。
+    await user.click(deleteBtnBeforeRemove);
 
     // 確認ダイアログは表示されないこと（保留中添付の削除は即時）。
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
@@ -486,17 +488,13 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls.length).toBe(fetchCallsBefore);
   });
 
-
-
-  // ATT-FE-077: 保留中添付のプレビューボタンが表示され、ダウンロードアイコンは非表示（#129 UI 変更後）。
-  // #129 変更内容:
-  //   - 「保存後にアップロード予定」ラベルは削除（UX 改善: 動作が自明なため不要）
-  //   - プレビューボタン（pending-attachment-preview-{index}）を新設し、編集モードと同等の UX を提供
-  //   - ダウンロードアイコンは引き続き非表示（pending file はサーバー未保存のため署名付き URL なし）
-  // 本テストは「新規追加モードでファイル選択時にプレビューボタンが表示される」回帰担保を目的とする。
-  it('ATT-FE-077: shows_preview_button_and_hides_download_for_pending_attachments', async () => {
+  // ATT-FE-077: 保留中添付のプレビューボタンが表示され、ダウンロードアイコンは非表示（#129 / #143 UI 変更後）。
+  // issue #143 追記: ファイル名・サイズ・削除ボタンは編集モードと同一構造。ダウンロードアイコンのみ非表示。
+  it('ATT-FE-077: hides_download_icon_for_pending_attachments_but_keeps_preview', async () => {
     const user = userEvent.setup();
     const Wrapper = createWrapper();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
     render(
       <Wrapper>
           <AttachmentArea
@@ -516,20 +514,345 @@ describe('AttachmentArea 追加モード（ATT-FE-072, 075, 077, issue #115）',
     const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
     await user.upload(fileInput, jpegFile);
 
-    // ファイル名がプレビューボタンとして表示されること（#129: 編集モードと同等の UX）。
-    // data-testid の命名規則: pending-attachment-preview-{index}。
+    // ファイル名がプレビューボタンとして表示されること（<Button variant="text">）。
     expect(screen.getByTestId('pending-attachment-preview-0')).toBeInTheDocument();
-    // プレビューボタン内にファイル名が表示されること。
     expect(screen.getByText('receipt.jpg')).toBeInTheDocument();
 
     // 「保存後にアップロード予定」ラベルは表示されないこと（#129: 削除済み）。
     expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+    // 「保留中」バッジも表示されないこと（issue #143、案 A）。
+    expect(screen.queryByText('保留中')).not.toBeInTheDocument();
 
-    // ダウンロードアイコンは表示されないこと（pending file はサーバー未保存のためダウンロード不要）。
-    // data-testid の命名規則: pending-attachment-download-{index}。
+    // ダウンロードアイコンは表示されないこと（add モードのみ非表示。pending file はサーバー未保存）。
     expect(screen.queryByTestId('pending-attachment-download-0')).not.toBeInTheDocument();
+    // aria-label="ダウンロード" のボタンも存在しないこと。
+    expect(screen.queryByRole('button', { name: 'ダウンロード' })).not.toBeInTheDocument();
+
+    // issue #143 UI 構造検証: 削除ボタン・サイズが存在し、編集モードと同一構造であること。
+    const deleteBtn = screen.getByTestId('pending-attachment-delete-0');
+    expect(deleteBtn).toHaveTextContent('削除');
+    expect(deleteBtn.tagName.toLowerCase()).toBe('button');
+
+    const sizeEl = screen.getByTestId('pending-attachment-size-0');
+    expect(sizeEl.tagName.toLowerCase()).toBe('span');
 
     // fetch は呼ばれていないこと（useAttachmentPreviewUrl / useAttachmentDownloadUrl 未呼出）。
     expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+});
+
+// =============================================================================
+// ATT-FE-076, 084-087: add / edit モード UI 一貫性テスト（issue #143、案 A）
+// 追加モードでもトースト文言・リスト UI 構造を編集モードと完全同一にする。
+// ダウンロードアイコンのみ add モードで非表示。
+// =============================================================================
+
+describe('AttachmentArea add/edit モード UI 一貫性（ATT-FE-076, 084-087, issue #143）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
+    } as unknown as Response);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // ATT-FE-076: 追加モードでファイル選択（保留完了）後に「ファイルをアップロードしました」トーストが表示される。
+  // 文言は編集モードと完全同一（add モード固有文言「保留しました」等は使わない）（issue #143、案 A）。
+  it('ATT-FE-076: shows_upload_success_toast_in_add_mode_with_same_wording_as_edit_mode', async () => {
+    const user = userEvent.setup();
+    const Wrapper = createWrapper();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // useUploadAttachment.mutate は呼ばれないこと（fetch 未呼出で確認）。
+    // getByTestId 前に fetch 呼び出し数が増えていないことを確認する。
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]: unknown[]) => typeof url === 'string' && url.includes('attachments'))).toBe(false);
+
+    // AppToast に severity="success" で「ファイルをアップロードしました」が表示されること。
+    // 編集モードと完全同一の文言であること（ATTACHMENT_UPLOAD_SUCCESS 定数）。
+    // AppToast は MUI Snackbar/Alert を使用するため role="alert" で検出する。
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('ファイルをアップロードしました');
+    });
+
+    // add モード固有の文言は使われないこと。
+    expect(screen.queryByText('保留しました')).not.toBeInTheDocument();
+    expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+  });
+
+  // ATT-FE-084: 追加モードで保留中ファイルの「削除」ボタン押下後に「添付ファイルを削除しました」トーストが表示される。
+  // 文言は編集モードと完全同一。確認ダイアログなし・API 呼び出しなし（issue #143、案 A）。
+  it('ATT-FE-084: shows_delete_success_toast_in_add_mode_with_same_wording_as_edit_mode', async () => {
+    const user = userEvent.setup();
+    const Wrapper = createWrapper();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => { /* no-op */ });
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // 保留ファイルが追加されること。
+    expect(screen.getByTestId('pending-file-row-0')).toBeInTheDocument();
+
+    // 「削除」ボタンをクリックする（テキストボタン、確認ダイアログなし）。
+    const deleteBtn = screen.getByTestId('pending-attachment-delete-0');
+    expect(deleteBtn).toHaveTextContent('削除');
+    await user.click(deleteBtn);
+
+    // 確認ダイアログは表示されないこと（add モードはローカル state からの除去のみ）。
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+
+    // useDeleteAttachment.mutate は呼ばれないこと（fetch 呼び出しが増えていない）。
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]: unknown[]) => typeof url === 'string' && url.includes('attachments'))).toBe(false);
+
+    // AppToast に severity="success" で「添付ファイルを削除しました」が表示されること。
+    // 編集モードと完全同一の文言であること（ATTACHMENT_DELETE_SUCCESS 定数）。
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent('添付ファイルを削除しました');
+    });
+  });
+
+  // ATT-FE-085: 追加モードの保留ファイル一覧が編集モードと同一 DOM 構造であること。
+  // <ul><li> 構造、<Button variant="text"> ファイル名、<span> サイズ、<Button variant="text" color="error">削除</Button>。
+  it('ATT-FE-085: renders_pending_list_with_same_dom_structure_as_edit_mode', async () => {
+    const user = userEvent.setup();
+    const Wrapper = createWrapper();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // receipt.jpg (245760 B = 240.0 KB) を 1 件保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 245760, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // (1) 保留ファイル一覧のルートが <ul> 要素で、各項目が <li> 要素であること。
+    const pendingRow = screen.getByTestId('pending-file-row-0');
+    expect(pendingRow.tagName.toLowerCase()).toBe('li');
+    expect(pendingRow.parentElement?.tagName.toLowerCase()).toBe('ul');
+
+    // (2) ファイル名は <button> 要素（MUI Button = <button> タグ）でレンダリングされていること。
+    const previewBtn = screen.getByTestId('pending-attachment-preview-0');
+    expect(previewBtn.tagName.toLowerCase()).toBe('button');
+    expect(previewBtn).toHaveTextContent('receipt.jpg');
+
+    // (3) ファイルサイズは <span> 要素で表示されること（<Typography variant="caption"> ではない）。
+    const sizeEl = screen.getByTestId('pending-attachment-size-0');
+    expect(sizeEl.tagName.toLowerCase()).toBe('span');
+    // サイズ表示形式（formatFileSize の出力が含まれること）。
+    expect(sizeEl.textContent).toMatch(/KB|MB/);
+
+    // (4) 削除ボタンは <Button variant="text" color="error">削除</Button> であること（<IconButton>× ではない）。
+    const deleteBtn = screen.getByTestId('pending-attachment-delete-0');
+    expect(deleteBtn.tagName.toLowerCase()).toBe('button');
+    expect(deleteBtn).toHaveTextContent('削除');
+    // MUI Button color="error" は Mui エラー色クラスを持つ。
+    expect(deleteBtn.classList.toString()).toMatch(/MuiButton/);
+
+    // 実装詳細ラベルは表示されないこと（issue #143、案 A）。
+    expect(screen.queryByText('保留中')).not.toBeInTheDocument();
+    expect(screen.queryByText('保存後にアップロード予定')).not.toBeInTheDocument();
+  });
+
+  // ATT-FE-086: 追加モードのダウンロードアイコンのみ非表示で、他の要素は描画されること。
+  // ファイル名（<Button variant="text">）・サイズ（<span>）・削除（<Button color="error">削除</Button>）は存在する（issue #143、案 A）。
+  it('ATT-FE-086: hides_download_icon_only_in_add_mode_and_keeps_other_elements', async () => {
+    const user = userEvent.setup();
+    const Wrapper = createWrapper();
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // ダウンロードアイコンが DOM 上に存在しないこと（add モードのみ非表示）。
+    // data-testid 命名: pending-attachment-download-{index} は存在しない。
+    expect(screen.queryByTestId('pending-attachment-download-0')).not.toBeInTheDocument();
+    // aria-label="ダウンロード" のボタンも存在しないこと。
+    expect(screen.queryByRole('button', { name: 'ダウンロード' })).not.toBeInTheDocument();
+
+    // 他の要素は描画されていること（ダウンロードアイコンのみが非表示）。
+    expect(screen.getByTestId('pending-attachment-preview-0')).toBeInTheDocument();
+    expect(screen.getByTestId('pending-attachment-size-0')).toBeInTheDocument();
+    const deleteBtn = screen.getByTestId('pending-attachment-delete-0');
+    expect(deleteBtn).toHaveTextContent('削除');
+
+    // useAttachmentDownloadUrl は呼ばれないこと（fetch 呼び出しなし）。
+    const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
+    expect(fetchMock.mock.calls.some(([url]: unknown[]) => typeof url === 'string' && url.includes('download'))).toBe(false);
+  });
+
+  // ATT-FE-087: add / edit リスト UI 構造の同型性検証。
+  // add モードの保留ファイル行と edit モードの添付ファイル行のマークアップ構造を比較し、
+  // 差分がダウンロードアイコンの有無のみであることを確認する（issue #143、案 A）。
+  it('ATT-FE-087: add_and_edit_mode_lists_share_same_markup_except_download_icon', async () => {
+    // (a) edit モード: 添付 1 件（receipt.jpg, 245760 B）を表示する。
+    const editModeFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [
+          {
+            id: 'att-001',
+            item_id: 'item-1',
+            file_name: 'receipt.jpg',
+            file_size: 245760,
+            mime_type: 'image/jpeg',
+            created_at: '2026-03-01T00:00:00Z',
+          },
+        ],
+        pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      }),
+    } as unknown as Response);
+    globalThis.fetch = editModeFetch;
+
+    const Wrapper = createWrapper();
+    const { unmount: unmountEdit } = render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          mode="edit"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // edit モードの添付行が描画されるまで待機する。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-item-att-001')).toBeInTheDocument();
+    });
+
+    // edit モードの行要素の構造を記録する。
+    const editRow = screen.getByTestId('attachment-item-att-001');
+    expect(editRow.tagName.toLowerCase()).toBe('li');
+    expect(editRow.parentElement?.tagName.toLowerCase()).toBe('ul');
+    // edit モードのファイル名ボタン（<button> 要素）。
+    const editPreviewBtn = screen.getByTestId('attachment-preview-att-001');
+    expect(editPreviewBtn.tagName.toLowerCase()).toBe('button');
+    // edit モードのサイズ（<span> 要素）。
+    const editSizeEl = screen.getByTestId('attachment-size-att-001');
+    expect(editSizeEl.tagName.toLowerCase()).toBe('span');
+    // edit モードの削除ボタン（<button> 要素、テキスト「削除」）。
+    const editDeleteBtn = screen.getByTestId('attachment-delete-att-001');
+    expect(editDeleteBtn.tagName.toLowerCase()).toBe('button');
+    expect(editDeleteBtn).toHaveTextContent('削除');
+    // edit モードにはダウンロードアイコンが存在すること。
+    const editDownloadBtn = screen.getByTestId('attachment-download-att-001');
+    expect(editDownloadBtn).toBeInTheDocument();
+
+    unmountEdit();
+
+    // (b) add モード: 同名・同サイズの JPEG を 1 件保留する。
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
+    } as unknown as Response);
+    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:http://localhost/test-url');
+
+    const user = userEvent.setup();
+    const Wrapper2 = createWrapper();
+    render(
+      <Wrapper2>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId={null}
+          mode="add"
+          canModify={true}
+        />
+      </Wrapper2>,
+    );
+
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 245760, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // add モードの行要素の構造を検証する。
+    const addRow = screen.getByTestId('pending-file-row-0');
+    expect(addRow.tagName.toLowerCase()).toBe('li');
+    expect(addRow.parentElement?.tagName.toLowerCase()).toBe('ul');
+    // add モードのファイル名ボタン（<button> 要素）。
+    const addPreviewBtn = screen.getByTestId('pending-attachment-preview-0');
+    expect(addPreviewBtn.tagName.toLowerCase()).toBe('button');
+    // add モードのサイズ（<span> 要素）。
+    const addSizeEl = screen.getByTestId('pending-attachment-size-0');
+    expect(addSizeEl.tagName.toLowerCase()).toBe('span');
+    // add モードの削除ボタン（<button> 要素、テキスト「削除」）。
+    const addDeleteBtn = screen.getByTestId('pending-attachment-delete-0');
+    expect(addDeleteBtn.tagName.toLowerCase()).toBe('button');
+    expect(addDeleteBtn).toHaveTextContent('削除');
+
+    // 唯一の差分: add モードにはダウンロードアイコンが存在しないこと。
+    expect(screen.queryByTestId('pending-attachment-download-0')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'ダウンロード' })).not.toBeInTheDocument();
+
+    // li のタグ名・ul 親・button タグのファイル名・span タグのサイズ・button タグの削除は
+    // edit / add 両モードで完全一致している（差分はダウンロードアイコンのみ）。
   });
 });
