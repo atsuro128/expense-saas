@@ -58,16 +58,16 @@ export default function ReportInfoCard({ report }: ReportInfoCardProps) {
         <span data-testid="status-chip">
           <StatusChip status={report.status} />
         </span>
-        {/* 期間: YYYY/MM/DD 〜 YYYY/MM/DD 形式で表示 */}
+        {/* 対象期間: YYYY/MM/DD 〜 YYYY/MM/DD 形式で表示 */}
         <p>
-          {formatDateSlash(report.period_start)} 〜 {formatDateSlash(report.period_end)}
+          対象期間: {formatDateSlash(report.period_start)} 〜 {formatDateSlash(report.period_end)}
         </p>
-        {/* 金額 */}
-        <p data-testid="total-amount">¥{report.total_amount.toLocaleString()}</p>
-        {/* 提出者名 */}
-        <p>{report.submitter?.name ?? ''}</p>
-        {/* 作成日（日本語形式） */}
-        <p>{formatDateTimeJa(report.created_at)}</p>
+        {/* 合計金額 */}
+        <p data-testid="total-amount">合計金額: ¥{report.total_amount.toLocaleString()}</p>
+        {/* 作成者名 */}
+        <p>作成者: {report.submitter?.name ?? ''}</p>
+        {/* 作成日（YYYY/MM/DD HH:mm 形式） */}
+        <p>作成日: {formatDateTimeJa(report.created_at)}</p>
       </div>
 
       {/* 再申請元リンク（reference_report_id が存在する場合のみ表示） */}

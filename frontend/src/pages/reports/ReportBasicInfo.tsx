@@ -42,12 +42,16 @@ export default function ReportBasicInfo({
       <span data-testid="status-chip">
         <StatusChip status={status} />
       </span>
+      {/* 対象期間: YYYY/MM/DD 〜 YYYY/MM/DD 形式で表示 */}
       <p>
-        {periodStart} 〜 {periodEnd}
+        対象期間: {periodStart} 〜 {periodEnd}
       </p>
-      <p data-testid="total-amount">¥{totalAmount.toLocaleString()}</p>
-      <p>{submitterName}</p>
-      <p>{formattedCreatedAt}</p>
+      {/* 合計金額 */}
+      <p data-testid="total-amount">合計金額: ¥{totalAmount.toLocaleString()}</p>
+      {/* 作成者名 */}
+      <p>作成者: {submitterName}</p>
+      {/* 作成日（YYYY/MM/DD HH:mm 形式） */}
+      <p>作成日: {formattedCreatedAt}</p>
     </div>
   );
 }
