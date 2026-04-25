@@ -9,10 +9,6 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Alert from '@mui/material/Alert';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
-import Typography from '@mui/material/Typography';
-import IconButton from '@mui/material/IconButton';
-import List from '@mui/material/List';
-import ListItem from '@mui/material/ListItem';
 import { styled } from '@mui/material/styles';
 import AddIcon from '@mui/icons-material/Add';
 import { useUploadAttachment } from '../../hooks/useUploadAttachment';
@@ -48,6 +44,17 @@ export interface AttachmentUploaderProps {
    * ItemSlidePanel が保存時の順次アップロードに使う File 一覧を取得するために使用する。
    */
   onPendingFilesChange?: (files: File[]) => void;
+  /**
+   * 追加モードで保留ファイルが正常に追加されたときのコールバック（issue #143）。
+   * AttachmentAreaAddMode がトーストを表示するために使用する。
+   * edit モードでは onUploadSuccess を直接使うため、このコールバックは add モード専用。
+   */
+  onPendingFileAdded_Success?: () => void;
+  /**
+   * 追加モードで保留ファイルが削除されたときのコールバック（issue #143）。
+   * AttachmentAreaAddMode がトーストを表示するために使用する（API 呼び出しなし）。
+   */
+  onPendingFileRemoved?: () => void;
 }
 
 // 許可された MIME タイプ（files.md §3）。
@@ -113,6 +120,8 @@ export default function AttachmentUploader({
   cancelRef,
   onPendingFileAdded,
   onPendingFilesChange,
+  onPendingFileAdded_Success,
+  onPendingFileRemoved,
 }: AttachmentUploaderProps) {
   const [validationError, setValidationError] = useState<string | null>(null);
   // ドラッグ中の視覚フィードバック用フラグ。
@@ -203,6 +212,9 @@ export default function AttachmentUploader({
       pendingObjectUrlsRef.current.set(file, objectUrl);
       setPendingFiles((prev) => [...prev, file]);
       onPendingFileAdded?.(file);
+      // 保留完了時のトーストをトリガする（issue #143、案 A）。
+      // 編集モードと同一文言「ファイルをアップロードしました」を発火させるために親に通知する。
+      onPendingFileAdded_Success?.();
       return;
     }
 
@@ -241,6 +253,7 @@ export default function AttachmentUploader({
 
   // 追加モードの保留ファイルを削除するハンドラ（index 指定）。API は呼ばない・確認ダイアログなし。
   // 削除対象ファイルの Blob URL を URL.revokeObjectURL で解放してメモリリークを防ぐ（issue #129）。
+  // 削除完了後に onPendingFileRemoved を呼び、親がトーストを表示する（issue #143、案 A）。
   const handlePendingFileRemove = (index: number) => {
     setPendingFiles((prev) => {
       const fileToRemove = prev[index];
@@ -253,6 +266,9 @@ export default function AttachmentUploader({
       }
       return prev.filter((_, i) => i !== index);
     });
+    // ローカル state からの除去完了を親に通知してトーストをトリガする（issue #143、案 A）。
+    // 編集モードと同一文言「添付ファイルを削除しました」を発火させるために呼ぶ。
+    onPendingFileRemoved?.();
   };
 
   // 追加モードの保留ファイルのプレビューを開くハンドラ（issue #129）。
@@ -313,44 +329,44 @@ export default function AttachmentUploader({
       onDrop={handleDrop}
     >
       {/* 追加モードの保留ファイル一覧（mode='add' のみ表示）。
-          編集モードの添付一覧と同等の UI を提供する（issue #129）:
-          - ファイル名クリック = URL.createObjectURL で生成した Blob URL でプレビュー
-          - ダウンロードアイコンは非表示（pending file はサーバー未保存のためダウンロード不要）
-          - 「保存後にアップロード予定」ラベルは表示しない（ATT-FE-073/075/077 の UX 改善） */}
+          UI 構造を編集モード（AttachmentList）と完全同一にする（issue #143、案 A）:
+          - <ul><li> 構造: AttachmentList と同型
+          - ファイル名クリック = URL.createObjectURL で生成した Blob URL でプレビュー（issue #129）
+          - <span> でサイズを表示（<Typography variant="caption"> ではなく <span>）
+          - 削除: <Button variant="text" color="error">削除</Button>（<IconButton>× ではない）
+          - ダウンロードアイコンは非表示（add モードのみ。pending file はサーバー未保存）
+          - 「保留中」「保存後にアップロード予定」等の実装詳細ラベルは表示しない（ATT-FE-073/075/077） */}
       {mode === 'add' && pendingFiles.length > 0 && (
-        <List dense>
+        <ul>
           {pendingFiles.map((file, index) => (
-            <ListItem
-              key={`pending-${index}-${file.name}`}
-              data-testid={`pending-file-row-${index}`}
-              secondaryAction={
-                <IconButton
-                  edge="end"
-                  size="small"
-                  aria-label={`削除-${index}`}
-                  onClick={() => handlePendingFileRemove(index)}
-                  data-testid={`pending-attachment-delete-${index}`}
-                >
-                  ×
-                </IconButton>
-              }
-            >
+            <li key={`pending-${index}-${file.name}`} data-testid={`pending-file-row-${index}`}>
               {/* ファイル名ボタン: クリックで Blob URL を使ったブラウザ内プレビューを表示（issue #129）。 */}
               <Button
                 variant="text"
                 size="small"
                 onClick={() => handlePendingFilePreview(file)}
                 data-testid={`pending-attachment-preview-${index}`}
-                sx={{ mr: 0.5, textTransform: 'none', textAlign: 'left', minWidth: 0 }}
               >
                 {file.name}
               </Button>
-              <Typography variant="caption" color="text.secondary">
+              {/* サイズ表示: 編集モードの <span> と同一要素を使用（<Typography> ではない）。 */}
+              <span data-testid={`pending-attachment-size-${index}`}>
                 {formatFileSize(file.size)}
-              </Typography>
-            </ListItem>
+              </span>
+              {/* 削除ボタン: 編集モードと同一の variant="text" color="error" テキストボタン。 */}
+              {/* 確認ダイアログなし・API 呼び出しなしでローカル state から即時除去する（issue #115）。 */}
+              <Button
+                variant="text"
+                size="small"
+                color="error"
+                onClick={() => handlePendingFileRemove(index)}
+                data-testid={`pending-attachment-delete-${index}`}
+              >
+                削除
+              </Button>
+            </li>
           ))}
-        </List>
+        </ul>
       )}
       {/* ドラッグ&ドロップゾーン: 点線ボーダーで視覚化し、dragover 時にボーダー色・背景色でフィードバックする */}
       <div
