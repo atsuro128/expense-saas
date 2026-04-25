@@ -22,7 +22,8 @@ const (
 	UserApproverID   = seed.UserApproverID
 	UserMemberID     = seed.UserMemberID
 	UserAccountingID = seed.UserAccountingID
-	UserMemberBID    = seed.UserMemberBID
+	UserMemberBID     = seed.UserMemberBID
+	UserMemberEmptyID = seed.UserMemberEmptyID
 
 	// レポートフィクスチャ UUID（テナント A）。
 	ReportDraftID      = seed.ReportDraftID
