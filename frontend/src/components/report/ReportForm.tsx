@@ -15,6 +15,7 @@ import ReportFormActions from './ReportFormActions';
 /**
  * レポートフォームの Zod バリデーションスキーマ。
  * report-create.md / report-edit.md の V1〜V5 に準拠。
+ * V5-S / V5-E は同一業務ルール（RPT-003）を 2 経路から検証する（issue #141）。
  */
 export const reportFormSchema = z
   .object({
@@ -29,9 +30,14 @@ export const reportFormSchema = z
     // V4: 終了日（サーバー側バリデーションを信頼境界とし、フロント側は補助）
     periodEnd: z.string().min(1, '終了日を入力してください'),
   })
-  // V5: 開始日 <= 終了日
+  // V5-S: 開始日 <= 終了日（開始日フィールド直下にフィールド主語の文言を表示）
   .refine((data) => !data.periodStart || !data.periodEnd || data.periodStart <= data.periodEnd, {
     message: '開始日は終了日以前を指定してください',
+    path: ['periodStart'],
+  })
+  // V5-E: 開始日 <= 終了日（終了日フィールド直下にフィールド主語の文言を表示）
+  .refine((data) => !data.periodStart || !data.periodEnd || data.periodStart <= data.periodEnd, {
+    message: '終了日は開始日以降を指定してください',
     path: ['periodEnd'],
   });
 
@@ -75,6 +81,8 @@ export default function ReportForm({
     control,
     handleSubmit,
     reset,
+    trigger,
+    getValues,
     formState: { errors },
   } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
@@ -116,8 +124,11 @@ export default function ReportForm({
       />
 
       {/* 対象期間入力 */}
+      {/* trigger と getValues を渡し、両フィールド入力済みの場合のみ V5 を相互再評価する（issue #141）*/}
       <ReportPeriodField
         control={control}
+        trigger={trigger}
+        getValues={getValues}
         periodStartError={errors.periodStart?.message}
         periodEndError={errors.periodEnd?.message}
         disabled={isPending}
