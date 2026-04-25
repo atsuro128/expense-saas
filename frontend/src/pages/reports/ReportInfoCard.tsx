@@ -14,7 +14,9 @@ export interface ReportInfoCardProps {
 }
 
 /**
- * ISO 日時文字列を日本語形式（YYYY年MM月DD日 HH:mm）にフォーマットする。
+ * ISO 日時文字列を日本語形式（YYYY/MM/DD HH:mm）の JST 表示にフォーマットする。
+ * timeZone: 'Asia/Tokyo' を明示することで実行環境の TZ に依存せず常に JST 表示を保つ
+ * （仕様: 設計書 60_test/test_cases/reports.md 注記「タイムゾーンは JST 表示」）。
  */
 function formatDateTimeJa(isoStr: string): string {
   return new Date(isoStr).toLocaleString('ja-JP', {
@@ -23,6 +25,7 @@ function formatDateTimeJa(isoStr: string): string {
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Tokyo',
   });
 }
 
@@ -58,16 +61,16 @@ export default function ReportInfoCard({ report }: ReportInfoCardProps) {
         <span data-testid="status-chip">
           <StatusChip status={report.status} />
         </span>
-        {/* 期間: YYYY/MM/DD 〜 YYYY/MM/DD 形式で表示 */}
+        {/* 対象期間: YYYY/MM/DD 〜 YYYY/MM/DD 形式で表示 */}
         <p>
-          {formatDateSlash(report.period_start)} 〜 {formatDateSlash(report.period_end)}
+          対象期間: {formatDateSlash(report.period_start)} 〜 {formatDateSlash(report.period_end)}
         </p>
-        {/* 金額 */}
-        <p data-testid="total-amount">¥{report.total_amount.toLocaleString()}</p>
-        {/* 提出者名 */}
-        <p>{report.submitter?.name ?? ''}</p>
-        {/* 作成日（日本語形式） */}
-        <p>{formatDateTimeJa(report.created_at)}</p>
+        {/* 合計金額 */}
+        <p data-testid="total-amount">合計金額: ¥{report.total_amount.toLocaleString()}</p>
+        {/* 作成者名 */}
+        <p>作成者: {report.submitter?.name ?? ''}</p>
+        {/* 作成日（YYYY/MM/DD HH:mm 形式） */}
+        <p>作成日: {formatDateTimeJa(report.created_at)}</p>
       </div>
 
       {/* 再申請元リンク（reference_report_id が存在する場合のみ表示） */}

@@ -27,13 +27,16 @@ export default function ReportBasicInfo({
   submitterName,
   createdAt,
 }: ReportBasicInfoProps) {
-  // createdAt を日本語形式でフォーマットする（ISO 文字列と重複しないように）。
+  // createdAt を YYYY/MM/DD HH:mm の JST 表示でフォーマットする。
+  // timeZone: 'Asia/Tokyo' を明示することで実行環境の TZ に依存せず常に JST 表示を保つ
+  // （仕様: 設計書 60_test/test_cases/reports.md 注記「タイムゾーンは JST 表示」）。
   const formattedCreatedAt = new Date(createdAt).toLocaleString('ja-JP', {
     year: 'numeric',
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'Asia/Tokyo',
   });
 
   return (
@@ -42,12 +45,16 @@ export default function ReportBasicInfo({
       <span data-testid="status-chip">
         <StatusChip status={status} />
       </span>
+      {/* 対象期間: YYYY/MM/DD 〜 YYYY/MM/DD 形式で表示 */}
       <p>
-        {periodStart} 〜 {periodEnd}
+        対象期間: {periodStart} 〜 {periodEnd}
       </p>
-      <p data-testid="total-amount">¥{totalAmount.toLocaleString()}</p>
-      <p>{submitterName}</p>
-      <p>{formattedCreatedAt}</p>
+      {/* 合計金額 */}
+      <p data-testid="total-amount">合計金額: ¥{totalAmount.toLocaleString()}</p>
+      {/* 作成者名 */}
+      <p>作成者: {submitterName}</p>
+      {/* 作成日（YYYY/MM/DD HH:mm 形式） */}
+      <p>作成日: {formattedCreatedAt}</p>
     </div>
   );
 }
