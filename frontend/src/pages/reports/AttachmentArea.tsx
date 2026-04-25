@@ -14,6 +14,7 @@ import AppToast from '../../components/ui/AppToast';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import { useAttachments } from '../../hooks/useAttachments';
 import { useDeleteAttachment } from '../../hooks/useDeleteAttachment';
+import { ATTACHMENT_UPLOAD_SUCCESS, ATTACHMENT_DELETE_SUCCESS } from '../../lib/constants';
 import type { Attachment } from '../../api/types';
 
 /** AttachmentArea のパネルモード（追加・編集・閲覧）。 */
@@ -127,9 +128,9 @@ function AttachmentAreaContent({
     setToast({ open: true, severity, message });
   };
 
-  // アップロード成功コールバック。
+  // アップロード成功コールバック（edit モード）。共通定数を使用する（issue #143）。
   const handleUploadSuccess = () => {
-    showToast('success', 'ファイルをアップロードしました');
+    showToast('success', ATTACHMENT_UPLOAD_SUCCESS);
   };
 
   // アップロード中断コールバック。
@@ -159,7 +160,8 @@ function AttachmentAreaContent({
         onSuccess: () => {
           setDeletingId(null);
           onDeletingChange?.(false);
-          showToast('success', '添付ファイルを削除しました');
+          // 共通定数を使用する（issue #143、add モードと文言を統一）。
+          showToast('success', ATTACHMENT_DELETE_SUCCESS);
         },
         onError: (err) => {
           setDeletingId(null);
@@ -236,6 +238,7 @@ function AttachmentAreaContent({
  * 保存時にまとめてアップロードする。
  * 保留ファイルの一覧・プレビューボタン・削除ボタンは AttachmentUploader が担当する
  * （issue #115 ローカル保持方式、issue #129 プレビュー対応）。
+ * issue #143: 保留完了時と削除完了時に編集モードと同一文言のトーストを発火する（案 A）。
  */
 function AttachmentAreaAddMode({
   reportId,
@@ -246,11 +249,38 @@ function AttachmentAreaAddMode({
   canModify: boolean;
   onPendingFilesChange?: (files: File[]) => void;
 }) {
+  // add モード用トースト state（issue #143: 編集モードと同一文言でトーストを発火する）。
+  const [toast, setToast] = useState<{
+    open: boolean;
+    severity: 'success' | 'error';
+    message: string;
+  }>({ open: false, severity: 'success', message: '' });
+
+  // トーストを表示するヘルパー。
+  const showToast = (severity: 'success' | 'error', message: string) => {
+    setToast({ open: true, severity, message });
+  };
+
+  // 保留ファイル追加完了時のコールバック（issue #143、案 A）。
+  // add モードのトリガは Hook の onSuccess ではなく、ここで直接トーストをトリガする。
+  // 編集モードと完全同一の文言「ファイルをアップロードしました」を使用する。
+  const handlePendingFileAddedSuccess = () => {
+    showToast('success', ATTACHMENT_UPLOAD_SUCCESS);
+  };
+
+  // 保留ファイル削除完了時のコールバック（issue #143、案 A）。
+  // 確認ダイアログなし・API 呼び出しなしのローカル state からの除去後にトーストを発火する。
+  // 編集モードと完全同一の文言「添付ファイルを削除しました」を使用する。
+  const handlePendingFileRemoved = () => {
+    showToast('success', ATTACHMENT_DELETE_SUCCESS);
+  };
+
   return (
     <div data-testid="attachment-area">
       {/* ファイル選択 UI（canModify=true のときのみ表示）。
           保留ファイルの一覧・プレビューボタン・削除ボタンは
-          AttachmentUploader 内部で管理する（ATT-FE-073/075/077, issue #129）。 */}
+          AttachmentUploader 内部で管理する（ATT-FE-073/075/077, issue #129）。
+          issue #143: 保留完了・削除完了時のトーストは onPendingFileAdded_Success / onPendingFileRemoved 経由で発火する。 */}
       {canModify && (
         <AttachmentUploader
           reportId={reportId}
@@ -260,8 +290,17 @@ function AttachmentAreaAddMode({
             // 追加モードでは即時アップロードしないため呼ばれないが、型互換のために空実装。
           }}
           onPendingFilesChange={onPendingFilesChange}
+          onPendingFileAdded_Success={handlePendingFileAddedSuccess}
+          onPendingFileRemoved={handlePendingFileRemoved}
         />
       )}
+      {/* add モード用トースト（issue #143: 編集モードと同一文言で発火する）。 */}
+      <AppToast
+        open={toast.open}
+        severity={toast.severity}
+        message={toast.message}
+        onClose={() => setToast((prev) => ({ ...prev, open: false }))}
+      />
     </div>
   );
 }
