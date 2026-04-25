@@ -1,3 +1,11 @@
+/**
+ * 添付ファイル操作の成功トースト文言（add / edit 両モード共通）。
+ * state-management.md §6.5.5「添付ファイル成功トーストの発火条件」に準拠する。
+ * add モード固有の文言は使用しない（案 A: UI 一貫性優先、issue #143）。
+ */
+export const ATTACHMENT_UPLOAD_SUCCESS = 'ファイルをアップロードしました';
+export const ATTACHMENT_DELETE_SUCCESS = '添付ファイルを削除しました';
+
 export const ERROR_CODES = {
   // 400 不正リクエスト
   BAD_REQUEST: 'BAD_REQUEST',
