@@ -593,7 +593,7 @@ describe('AttachmentArea add/edit モード UI 一貫性（ATT-FE-076, 084-087, 
     // useUploadAttachment.mutate は呼ばれないこと（fetch 未呼出で確認）。
     // getByTestId 前に fetch 呼び出し数が増えていないことを確認する。
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-    expect(fetchMock.mock.calls.some(([url]: [string]) => typeof url === 'string' && url.includes('attachments'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]: unknown[]) => typeof url === 'string' && url.includes('attachments'))).toBe(false);
 
     // AppToast に severity="success" で「ファイルをアップロードしました」が表示されること。
     // 編集モードと完全同一の文言であること（ATTACHMENT_UPLOAD_SUCCESS 定数）。
@@ -643,7 +643,7 @@ describe('AttachmentArea add/edit モード UI 一貫性（ATT-FE-076, 084-087, 
 
     // useDeleteAttachment.mutate は呼ばれないこと（fetch 呼び出しが増えていない）。
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-    expect(fetchMock.mock.calls.some(([url]: [string]) => typeof url === 'string' && url.includes('attachments'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]: unknown[]) => typeof url === 'string' && url.includes('attachments'))).toBe(false);
 
     // AppToast に severity="success" で「添付ファイルを削除しました」が表示されること。
     // 編集モードと完全同一の文言であること（ATTACHMENT_DELETE_SUCCESS 定数）。
@@ -739,7 +739,7 @@ describe('AttachmentArea add/edit モード UI 一貫性（ATT-FE-076, 084-087, 
 
     // useAttachmentDownloadUrl は呼ばれないこと（fetch 呼び出しなし）。
     const fetchMock = globalThis.fetch as ReturnType<typeof vi.fn>;
-    expect(fetchMock.mock.calls.some(([url]: [string]) => typeof url === 'string' && url.includes('download'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]: unknown[]) => typeof url === 'string' && url.includes('download'))).toBe(false);
   });
 
   // ATT-FE-087: add / edit リスト UI 構造の同型性検証。
