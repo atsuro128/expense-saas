@@ -1,6 +1,7 @@
 // ReportPeriodField コンポーネントのユニットテスト。
-// RPT-FE-039〜042、RPT-FE-103〜104 に対応する。
+// RPT-FE-039〜042、RPT-FE-103〜104、RPT-FE-107 に対応する。
 // RPT-FE-103〜104: issue 119（onBlur 伝播）修正確認テスト。
+// RPT-FE-107: issue 141（開始日 onBlur でも V5 発火・フィールド別文言）追加テスト。
 
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -17,17 +18,20 @@ interface WrapperProps {
   disabled?: boolean;
   /** onBlur 発火時の RHF バリデーション動作を確認するためにエラー表示を有効化する */
   withFormErrors?: boolean;
+  /** フォームの初期値（onBlur テスト時に既存値をプリフィルするために使用） */
+  defaultValues?: Partial<ReportFormValues>;
 }
 
-function Wrapper({ periodStartError, periodEndError, disabled, withFormErrors }: WrapperProps) {
-  const { control, formState: { errors } } = useForm<ReportFormValues>({
+function Wrapper({ periodStartError, periodEndError, disabled, withFormErrors, defaultValues }: WrapperProps) {
+  const { control, trigger, formState: { errors } } = useForm<ReportFormValues>({
     resolver: zodResolver(reportFormSchema),
-    defaultValues: { title: '', periodStart: '', periodEnd: '' },
+    defaultValues: { title: '', periodStart: '', periodEnd: '', ...defaultValues },
     mode: 'onBlur',
   });
   return (
     <ReportPeriodField
       control={control}
+      trigger={trigger}
       periodStartError={withFormErrors ? errors.periodStart?.message : periodStartError}
       periodEndError={withFormErrors ? errors.periodEnd?.message : periodEndError}
       disabled={disabled}
@@ -53,10 +57,11 @@ describe('ReportPeriodField', () => {
   });
 
   // RPT-FE-041: periodEndError を渡すと終了日の AppDatePicker にエラーメッセージが表示される。
+  // 文言を「終了日は開始日以降を指定してください」に統一（issue #141 対応）。
   it('RPT-FE-041: periodEndError があると終了日にエラーメッセージが表示される', () => {
-    render(<Wrapper periodEndError="終了日は開始日以降にしてください" />);
+    render(<Wrapper periodEndError="終了日は開始日以降を指定してください" />);
 
-    expect(screen.getByText('終了日は開始日以降にしてください')).toBeInTheDocument();
+    expect(screen.getByText('終了日は開始日以降を指定してください')).toBeInTheDocument();
   });
 
   // RPT-FE-042: disabled=true のとき両方の AppDatePicker が disabled になる。
@@ -97,5 +102,32 @@ describe('ReportPeriodField', () => {
     await waitFor(() => {
       expect(screen.getByText('終了日を入力してください')).toBeInTheDocument();
     });
+  });
+
+  // RPT-FE-107: 開始日 blur で V5-S が発火し開始日フィールド直下に「開始日は終了日以前を指定してください」が
+  // 表示され、終了日フィールド直下にも「終了日は開始日以降を指定してください」が同時表示される（issue #141）。
+  // trigger(['periodStart', 'periodEnd']) により両 refine 経路が再評価されることを保証する。
+  it('RPT-FE-107: 開始日 blur で periodStart > periodEnd のとき開始日・終了日両方にフィールド別文言が表示される', async () => {
+    const user = userEvent.setup();
+    // periodStart = "2026-04-30"（> periodEnd）の状態でコンポーネントをレンダリング。
+    // defaultValues でプリフィルし、開始日フィールドのみフォーカスアウトして trigger が発火することを確認する。
+    render(
+      <Wrapper
+        withFormErrors
+        defaultValues={{ title: 'テスト', periodStart: '2026-04-30', periodEnd: '2026-04-01' }}
+      />
+    );
+
+    const startInput = screen.getByLabelText('開始日');
+    // 開始日フィールドにフォーカスを当ててからフォーカスアウトする。
+    await user.click(startInput);
+    await user.tab();
+
+    // 開始日フィールド直下: V5-S 文言が表示される。
+    await waitFor(() => {
+      expect(screen.getByText('開始日は終了日以前を指定してください')).toBeInTheDocument();
+    });
+    // 終了日フィールド直下: V5-E 文言が同時に表示される（trigger(['periodStart', 'periodEnd']) により両経路が評価される）。
+    expect(screen.getByText('終了日は開始日以降を指定してください')).toBeInTheDocument();
   });
 });
