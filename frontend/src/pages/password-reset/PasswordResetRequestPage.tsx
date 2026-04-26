@@ -37,7 +37,7 @@ export default function PasswordResetRequestPage() {
       ) : (
         <PasswordResetRequestForm onSubmit={handleSubmit} apiError={apiError} isPending={isPending} />
       )}
-      <AuthNavLinks links={[{ prefix: 'ログイン画面へ戻る', label: 'ログイン', to: '/login' }]} />
+      <AuthNavLinks links={[{ label: 'ログイン画面に戻る', to: '/login' }]} />
     </AuthLayout>
   );
 }
