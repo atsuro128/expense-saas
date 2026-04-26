@@ -1094,3 +1094,85 @@ func TestSubmitReport_X4_RevertToDraft_Unprocessable(t *testing.T) {
 	// 422 INVALID_STATE_TRANSITION: submitted → draft は禁止（X4）（RPT-064）。機能未実装のため現在は失敗する。
 	testutil.AssertStatus(t, rec, http.StatusUnprocessableEntity)
 }
+
+// =============================================================================
+// per_page ページネーション統合テスト（issue #147）
+// =============================================================================
+
+// RPT-091: per_page=1 でページネーションが動作し、data 件数が 1、pagination.total_pages >= 2 になる。
+// Actor: Test Member（テナントA）。フィクスチャにより Test Member は 2 件以上のレポートを保有する。
+func TestListMyReports_Pagination(t *testing.T) {
+	srv, _ := setupReportTest(t)
+
+	// Test Member は SeedFixtures により draft / draft-empty / submitted / approved / rejected / paid の
+	// 6 件のレポートを保有するため、追加挿入不要（RPT-091）。
+	req := srv.AuthRequest(t, http.MethodGet, "/api/reports?per_page=1", nil,
+		testutil.UserMemberID, testutil.TenantAID, "member")
+	rec := srv.Execute(req)
+
+	// 200 OK: data が 1 件、pagination.total_pages >= 2、pagination.per_page == 1（RPT-091）。
+	// 機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
+
+	body := testutil.ParseJSON[struct {
+		Data []struct {
+			ReportID string `json:"report_id"`
+		} `json:"data"`
+		Pagination struct {
+			TotalPages int `json:"total_pages"`
+			PerPage    int `json:"per_page"`
+		} `json:"pagination"`
+	}](t, rec)
+
+	// data 件数が 1 であること。
+	if len(body.Data) != 1 {
+		t.Errorf("RPT-091: data 件数: got %d, want 1 (body: %s)", len(body.Data), rec.Body.String())
+	}
+	// pagination.total_pages >= 2 であること。
+	if body.Pagination.TotalPages < 2 {
+		t.Errorf("RPT-091: pagination.total_pages: got %d, want >= 2", body.Pagination.TotalPages)
+	}
+	// pagination.per_page == 1 であること。
+	if body.Pagination.PerPage != 1 {
+		t.Errorf("RPT-091: pagination.per_page: got %d, want 1", body.Pagination.PerPage)
+	}
+}
+
+// TNT-012: per_page=1 でページネーションが動作し、data 件数が 1、pagination.total_pages >= 2 になる。
+// Actor: Test Admin（テナントA）。テナントA に複数ユーザーのレポートが 2 件以上存在する。
+func TestListAllReports_Pagination(t *testing.T) {
+	srv, _ := setupReportTest(t)
+
+	// テナントA の Test Member が 6 件のレポートを保有するため、
+	// Admin による全レポート取得でも total_pages >= 2 になる（TNT-012）。
+	req := srv.AuthRequest(t, http.MethodGet, "/api/reports/all?per_page=1", nil,
+		testutil.UserAdminID, testutil.TenantAID, "admin")
+	rec := srv.Execute(req)
+
+	// 200 OK: data が 1 件、pagination.total_pages >= 2、pagination.per_page == 1（TNT-012）。
+	// 機能未実装のため現在は失敗する。
+	testutil.AssertStatus(t, rec, http.StatusOK)
+
+	body := testutil.ParseJSON[struct {
+		Data []struct {
+			ReportID string `json:"report_id"`
+		} `json:"data"`
+		Pagination struct {
+			TotalPages int `json:"total_pages"`
+			PerPage    int `json:"per_page"`
+		} `json:"pagination"`
+	}](t, rec)
+
+	// data 件数が 1 であること。
+	if len(body.Data) != 1 {
+		t.Errorf("TNT-012: data 件数: got %d, want 1 (body: %s)", len(body.Data), rec.Body.String())
+	}
+	// pagination.total_pages >= 2 であること。
+	if body.Pagination.TotalPages < 2 {
+		t.Errorf("TNT-012: pagination.total_pages: got %d, want >= 2", body.Pagination.TotalPages)
+	}
+	// pagination.per_page == 1 であること。
+	if body.Pagination.PerPage != 1 {
+		t.Errorf("TNT-012: pagination.per_page: got %d, want 1", body.Pagination.PerPage)
+	}
+}
