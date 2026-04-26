@@ -20,6 +20,8 @@ export interface AppPaginationProps {
 /**
  * AppPagination は MUI Pagination ラッパー。
  * 総ページ数が多い場合は省略表示する（例: 1 2 3 ... 8 9 10）。
+ * AppPaginationFooter 経由で利用する場合は呼び出し側で Math.max(totalPages, 1) を渡すこと
+ * （issue #147 Q3: 常時表示前提）。
  */
 export default function AppPagination({
   currentPage,
@@ -30,11 +32,6 @@ export default function AppPagination({
   const handleChange = (_event: ChangeEvent<unknown>, page: number) => {
     onPageChange(page);
   };
-
-  // 1 ページ以下の場合はページネーションを表示しない。
-  if (totalPages <= 1) {
-    return null;
-  }
 
   return (
     <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }} data-testid="app-pagination">

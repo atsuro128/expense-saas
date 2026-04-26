@@ -8,7 +8,7 @@ import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import TextField from '@mui/material/TextField';
 import AppDataGrid from '../../components/ui/AppDataGrid';
-import AppPagination from '../../components/ui/AppPagination';
+import AppPaginationFooter from '../../components/ui/AppPaginationFooter';
 import AppToast from '../../components/ui/AppToast';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import FilterResetButton from '../../components/ui/FilterResetButton';
@@ -78,6 +78,12 @@ export default function ApprovalListPage() {
   const page = parseInt(searchParams.get('page') ?? '1', 10);
   const applicantNameParam = searchParams.get('applicant_name') ?? '';
 
+  // per_page: NaN/負数の場合は 20 にフォールバックする（issue #147 Q4）。
+  // 範囲内不正値（0, 101 等）はそのまま BE に送り 422 エラーに委ねる。
+  const perPageParam = searchParams.get('per_page');
+  const perPageParsed = perPageParam !== null ? parseInt(perPageParam, 10) : NaN;
+  const per_page = Number.isFinite(perPageParsed) && perPageParsed >= 0 ? perPageParsed : 20;
+
   // 申請者名フィルタの入力値（デバウンス前）。
   const [applicantNameInput, setApplicantNameInput] = useState(applicantNameParam);
 
@@ -121,6 +127,14 @@ export default function ApprovalListPage() {
     setSearchParams(next);
   };
 
+  // per_page 変更時は page=1 にリセットし、setSearchParams を 1 コールに集約する（issue #147 重要リスク 5）。
+  const handlePerPageChange = (size: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('per_page', String(size));
+    next.set('page', '1');
+    setSearchParams(next);
+  };
+
   // フィルタリセットハンドラ。
   const handleFilterReset = () => {
     setApplicantNameInput('');
@@ -149,9 +163,10 @@ export default function ApprovalListPage() {
     }
   }, [currentUser, navigate]);
 
-  // 承認待ちレポート一覧データを取得する。
+  // 承認待ちレポート一覧データを取得する。per_page を URL から転送する。
   const { data, isLoading, isError, error } = usePendingReports({
     page,
+    per_page,
     applicant_name: applicantNameParam || undefined,
   });
 
@@ -241,11 +256,14 @@ export default function ApprovalListPage() {
             sx={{ cursor: 'pointer' }}
           />
 
-          {/* ページネーション（ローディング中は非表示） */}
-          <AppPagination
-            currentPage={page}
+          {/* ページネーションフッター: 常時表示（issue #147 Q3） */}
+          <AppPaginationFooter
+            currentPage={pagination?.current_page ?? page}
             totalPages={totalPages}
             onPageChange={handlePageChange}
+            perPage={pagination?.per_page ?? per_page}
+            onPerPageChange={handlePerPageChange}
+            disabled={false}
           />
         </>
       )}
