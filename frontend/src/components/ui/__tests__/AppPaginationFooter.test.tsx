@@ -62,7 +62,8 @@ describe('AppPaginationFooter', () => {
     expect(pagination).toBeInTheDocument();
 
     // PageSizeSelector の「表示件数:」ラベルが描画されること。
-    expect(screen.getByText(/表示件数/)).toBeInTheDocument();
+    // MUI は InputLabel と fieldset legend の両方にラベルテキストを描画するため getAllByText を使う。
+    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
 
     // PageSizeSelector の現在値が 20 であること。
     const selector = screen.getByRole('combobox');
@@ -93,7 +94,8 @@ describe('AppPaginationFooter', () => {
     expect(screen.getByRole('button', { name: /1/ })).toBeInTheDocument();
 
     // PageSizeSelector も描画されること。
-    expect(screen.getByText(/表示件数/)).toBeInTheDocument();
+    // MUI は InputLabel と fieldset legend の両方にラベルテキストを描画するため getAllByText を使う。
+    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
   });
 
   // APF-003: totalPages=1, currentPage=1, perPage=20
@@ -170,8 +172,9 @@ describe('AppPaginationFooter', () => {
     render(<AppPaginationFooter {...props} />);
 
     // PageSizeSelector（combobox）が disabled であること。
+    // MUI Select は <FormControl disabled> 配下で aria-disabled="true" を付与する（disabled 属性は付与しない）。
     const selector = screen.getByRole('combobox');
-    expect(selector).toBeDisabled();
+    expect(selector).toHaveAttribute('aria-disabled', 'true');
 
     // AppPagination 内のページボタンも disabled であること。
     // MUI Pagination の各ページボタンは button role を持つ。
@@ -228,8 +231,8 @@ describe('AppPaginationFooter', () => {
     const selector = screen.getByRole('combobox');
     await user.click(selector);
 
-    // 「50」の選択肢をクリックする。
-    const option50 = screen.getByRole('option', { name: '50' });
+    // 「50 件」の選択肢をクリックする（実装は "{size} 件" 形式で表示）。
+    const option50 = screen.getByRole('option', { name: '50 件' });
     await user.click(option50);
 
     // onPerPageChange が 50 で 1 回呼ばれること。

@@ -318,11 +318,14 @@ describe('AllReportsPage', () => {
       error: null,
     } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
 
+    // 実装は error.message をそのまま表示する。
+    // client.ts 層では SERVER_ERROR_MESSAGES によりマッピングされるため、
+    // テストでも日本語メッセージを持つ ApiClientError を渡す。
     vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
-      error: new ApiClientError('Internal Server Error', 500, 'INTERNAL_ERROR'),
+      error: new ApiClientError('サーバーエラーが発生しました', 500, 'INTERNAL_ERROR'),
     } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
 
     vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
@@ -593,8 +596,8 @@ describe('AllReportsPage', () => {
     const combobox = within(selector).getByRole('combobox');
     await user.click(combobox);
 
-    // 「50」の選択肢をクリックして per_page を変更する。
-    const option50 = await screen.findByRole('option', { name: '50' });
+    // 「50 件」の選択肢をクリックして per_page を変更する（実装は "{size} 件" 形式で表示）。
+    const option50 = await screen.findByRole('option', { name: '50 件' });
     await user.click(option50);
 
     // useAllReports に per_page: 50, page: 1 が渡されること（page=1 リセット）。
