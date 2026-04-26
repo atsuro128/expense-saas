@@ -20,6 +20,14 @@ describe('ReportForm', () => {
     vi.clearAllMocks();
   });
 
+  // issue #140: 必須フィールドに HTML5 required 属性が付与されていること（a11y 改善）。
+  it('issue-140: 必須フィールド（タイトル）に required 属性が付与されている', () => {
+    render(<ReportForm {...defaultProps} />);
+
+    // タイトルフィールドは AppTextField required 経由で input に required が付与される。
+    expect(screen.getByLabelText(/タイトル/)).toBeRequired();
+  });
+
   // RPT-FE-028: 有効な値でフォームを送信すると onSubmit が正しい値で呼び出される。
   it('RPT-FE-028: 有効な値でフォームを送信すると onSubmit が正しい値で呼び出される', async () => {
     const onSubmit = vi.fn();

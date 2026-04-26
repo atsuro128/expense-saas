@@ -44,12 +44,14 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
   return (
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
+      {/* required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <AppTextField
         {...register('company_name')}
         name="company_name"
         id="company_name"
         label="会社名"
         type="text"
+        required
         disabled={isPending}
         errorMessage={errors.company_name?.message}
         sx={{ mb: 2 }}
@@ -60,6 +62,7 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
         id="user_name"
         label="ユーザー名"
         type="text"
+        required
         disabled={isPending}
         errorMessage={errors.user_name?.message}
         sx={{ mb: 2 }}
@@ -70,6 +73,7 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
         id="email"
         label="メールアドレス"
         type="email"
+        required
         disabled={isPending}
         errorMessage={errors.email?.message}
         sx={{ mb: 2 }}
@@ -80,6 +84,7 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
         id="password"
         label="パスワード"
         type="password"
+        required
         disabled={isPending}
         errorMessage={errors.password?.message}
         sx={{ mb: 2 }}
