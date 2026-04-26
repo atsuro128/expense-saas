@@ -55,6 +55,19 @@ describe('ItemForm', () => {
     expect(screen.getByLabelText(/摘要/)).toBeRequired();
   });
 
+  // issue #140: AppSelect (カテゴリ) で <FormControl required> を削除した影響を回帰検証する。
+  // FormControl 経由の InputLabel aria-required 連携を外したため、Select.inputProps で
+  // required + aria-required を二重指定して a11y を担保している。
+  it('issue-140: 必須フィールド（カテゴリ）に required 属性と aria-required="true" が付与されている', () => {
+    render(
+      <ItemForm mode="add" {...defaultProps} />,
+    );
+
+    const categorySelect = screen.getByLabelText(/カテゴリ/);
+    expect(categorySelect).toBeRequired();
+    expect(categorySelect).toHaveAttribute('aria-required', 'true');
+  });
+
   // ITM-FE-027: mode='view', defaultValues=mockItem のとき全フィールドが readonly で表示される。
   it('ITM-FE-027: mode=view, defaultValues=mockItem のとき全フィールドが readonly で表示される', () => {
     render(
