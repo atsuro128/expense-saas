@@ -51,12 +51,14 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
   return (
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
+      {/* required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <AppTextField
         {...register('new_password')}
         name="new_password"
         id="new_password"
         label="新しいパスワード"
         type="password"
+        required
         disabled={isPending}
         errorMessage={errors.new_password?.message}
         sx={{ mb: 2 }}
@@ -67,6 +69,7 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
         id="confirm_password"
         label="確認用パスワード"
         type="password"
+        required
         disabled={isPending}
         errorMessage={errors.confirm_password?.message}
         sx={{ mb: 2 }}

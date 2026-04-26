@@ -20,6 +20,17 @@ describe('PasswordResetRequestForm', () => {
     expect(screen.getByRole('button', { name: '送信' })).toBeInTheDocument();
   });
 
+  // issue #140: 必須フィールドに HTML5 required 属性が付与されていること（a11y 改善）。
+  it('issue-140: 必須フィールド（メールアドレス）に required 属性が付与されている', () => {
+    render(
+      <MemoryRouter>
+        <PasswordResetRequestForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('メールアドレス')).toBeRequired();
+  });
+
   // AUTH-FE-049: 有効な入力で onSubmit が正しい値で呼ばれること。
   it('AUTH-FE-049: 有効な入力で onSubmit が正しい値で呼ばれる', async () => {
     const mockOnSubmit = vi.fn();

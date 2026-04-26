@@ -44,12 +44,14 @@ export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormPr
   return (
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
+      {/* required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <AppTextField
         {...register('email')}
         name="email"
         id="email"
         label="メールアドレス"
         type="email"
+        required
         disabled={isPending}
         errorMessage={errors.email?.message}
         sx={{ mb: 2 }}
@@ -60,6 +62,7 @@ export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormPr
         id="password"
         label="パスワード"
         type="password"
+        required
         disabled={isPending}
         errorMessage={errors.password?.message}
         sx={{ mb: 2 }}

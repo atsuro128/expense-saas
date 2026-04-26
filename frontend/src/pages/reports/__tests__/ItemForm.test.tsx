@@ -43,6 +43,18 @@ describe('ItemForm', () => {
     expect(screen.getByTestId('item-form')).toBeInTheDocument();
   });
 
+  // issue #140: 必須フィールドに HTML5 required 属性が付与されていること（a11y 改善）。
+  it('issue-140: 必須フィールド（日付・金額・摘要）に required 属性が付与されている', () => {
+    render(
+      <ItemForm mode="add" {...defaultProps} />,
+    );
+
+    // 日付・金額・摘要は AppTextField 経由で required が付与されている。
+    expect(screen.getByLabelText(/日付/)).toBeRequired();
+    expect(screen.getByLabelText(/金額/)).toBeRequired();
+    expect(screen.getByLabelText(/摘要/)).toBeRequired();
+  });
+
   // ITM-FE-027: mode='view', defaultValues=mockItem のとき全フィールドが readonly で表示される。
   it('ITM-FE-027: mode=view, defaultValues=mockItem のとき全フィールドが readonly で表示される', () => {
     render(

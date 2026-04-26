@@ -22,6 +22,18 @@ describe('PasswordResetForm', () => {
     expect(screen.getByRole('button', { name: 'パスワードを変更する' })).toBeInTheDocument();
   });
 
+  // issue #140: 必須フィールドに HTML5 required 属性が付与されていること（a11y 改善）。
+  it('issue-140: 必須フィールド（新しいパスワード・確認用パスワード）に required 属性が付与されている', () => {
+    render(
+      <MemoryRouter>
+        <PasswordResetForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('新しいパスワード')).toBeRequired();
+    expect(screen.getByLabelText('確認用パスワード')).toBeRequired();
+  });
+
   // AUTH-FE-065: 有効な入力で onSubmit が { new_password } で呼ばれること（confirm_password は除外）。
   it('AUTH-FE-065: 有効な入力で onSubmit が new_password のみで呼ばれる', async () => {
     const mockOnSubmit = vi.fn();
