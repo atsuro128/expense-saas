@@ -9,8 +9,11 @@ import { Link as RouterLink } from 'react-router-dom';
 
 /** ナビゲーションリンクの定義。 */
 export interface AuthNavLink {
-  /** リンクの前に表示するテキスト（例: "アカウントをお持ちでない方は"）。 */
-  prefix: string;
+  /**
+   * リンクの前に表示するテキスト（例: "アカウントをお持ちでない方は"）。
+   * 省略した場合は label のみを表示する（例: "ログイン画面に戻る"）。
+   */
+  prefix?: string;
   /** リンクテキスト（例: "新規登録"）。 */
   label: string;
   /** リンク先のパス（例: "/signup"）。 */
@@ -35,7 +38,8 @@ export default function AuthNavLinks({ links }: AuthNavLinksProps) {
     >
       {links.map((link) => (
         <Typography key={link.to} variant="body2" sx={{ mb: 1 }}>
-          {link.prefix}
+          {/* prefix が truthy のときのみ prefix テキストを描画する（空文字も非表示）。 */}
+          {link.prefix && link.prefix}
           <MuiLink component={RouterLink} to={link.to} underline="hover">
             {link.label}
           </MuiLink>
