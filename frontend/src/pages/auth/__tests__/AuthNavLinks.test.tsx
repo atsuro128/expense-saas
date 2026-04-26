@@ -51,4 +51,21 @@ describe('AuthNavLinks', () => {
     // 他のリンクは存在しないこと。
     expect(screen.queryAllByRole('link')).toHaveLength(1);
   });
+
+  // AUTH-FE-007-A: prefix 省略時に label のみがリンクとして描画され、prefix テキストが表示されないこと。
+  it('AUTH-FE-007-A: prefix を省略した場合 label のみが描画される（test_AuthNavLinks_renders_link_without_prefix）', () => {
+    render(
+      <MemoryRouter>
+        <AuthNavLinks links={[{ label: 'ログイン画面に戻る', to: '/login' }]} />
+      </MemoryRouter>,
+    );
+
+    // label がリンクとして描画されること。
+    const link = screen.getByRole('link', { name: 'ログイン画面に戻る' });
+    expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('href', '/login');
+
+    // prefix テキストが描画されないこと。
+    expect(screen.queryByText('ログイン画面へ戻る')).not.toBeInTheDocument();
+  });
 });
