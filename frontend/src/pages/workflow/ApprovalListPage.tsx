@@ -263,7 +263,7 @@ export default function ApprovalListPage() {
             onPageChange={handlePageChange}
             perPage={pagination?.per_page ?? per_page}
             onPerPageChange={handlePerPageChange}
-            disabled={false}
+            disabled={isLoading}
           />
         </>
       )}
