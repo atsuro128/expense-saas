@@ -262,22 +262,26 @@ export default function ItemForm({
       <FormAlert message={apiError} />
 
       {/* 支出日。閲覧モード（isReadOnly）では inputProps.readOnly で読み取り専用にする（案 A）。
-          disabled は送信中（isPending）かつ読み取り専用でない場合のみ適用する。 */}
+          disabled は送信中（isPending）かつ読み取り専用でない場合のみ適用する。
+          required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <AppTextField
         {...register('expenseDate')}
         label="日付"
         type="date"
+        required
         InputLabelProps={{ shrink: true }}
         inputProps={{ readOnly: isReadOnly, 'aria-label': '日付' }}
         disabled={isPending && !isReadOnly}
         errorMessage={errors.expenseDate?.message}
       />
 
-      {/* 金額。読み取り専用モードでは readOnly、送信中は disabled。 */}
+      {/* 金額。読み取り専用モードでは readOnly、送信中は disabled。
+          required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <AppTextField
         {...register('amount', { valueAsNumber: true })}
         label="金額"
         type="number"
+        required
         inputProps={{ readOnly: isReadOnly, 'aria-label': '金額' }}
         disabled={isPending && !isReadOnly}
         errorMessage={errors.amount?.message}
@@ -286,7 +290,8 @@ export default function ItemForm({
       {/* カテゴリ。読み取り専用モードでは AppSelect の readOnly prop でドロップダウンを開かせない（案 A ①）。
           disabled は送信中かつ読み取り専用でない場合のみ適用し、グレーアウトしない。
           V5（カテゴリ）は設計書上「保存時のみ」バリデーションのため、field.onBlur を渡さない。
-          （screens/report-detail.md §バリデーション V5: 保存時） */}
+          （screens/report-detail.md §バリデーション V5: 保存時）
+          required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <Controller
         name="categoryId"
         control={control}
@@ -301,16 +306,19 @@ export default function ItemForm({
             errorMessage={errors.categoryId?.message}
             disabled={isPending && !isReadOnly}
             readOnly={isReadOnly}
+            required
           />
         )}
       />
 
-      {/* 摘要。読み取り専用モードでは readOnly、送信中は disabled。 */}
+      {/* 摘要。読み取り専用モードでは readOnly、送信中は disabled。
+          required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
       <AppTextField
         {...register('description')}
         label="摘要"
         multiline
         rows={3}
+        required
         inputProps={{ readOnly: isReadOnly, 'aria-label': '摘要' }}
         disabled={isPending && !isReadOnly}
         errorMessage={errors.description?.message}

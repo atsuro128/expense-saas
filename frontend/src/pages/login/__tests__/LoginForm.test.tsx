@@ -21,6 +21,18 @@ describe('LoginForm', () => {
     expect(screen.getByRole('button', { name: 'ログイン' })).toBeInTheDocument();
   });
 
+  // issue #140: 必須フィールドに HTML5 required 属性が付与されていること（a11y 改善）。
+  it('issue-140: 必須フィールド（メールアドレス・パスワード）に required 属性が付与されている', () => {
+    render(
+      <MemoryRouter>
+        <LoginForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('メールアドレス')).toBeRequired();
+    expect(screen.getByLabelText('パスワード')).toBeRequired();
+  });
+
   // AUTH-FE-015: 有効な入力で onSubmit が呼ばれること。
   it('AUTH-FE-015: 有効な入力で onSubmit が正しい値で呼ばれる', async () => {
     const mockOnSubmit = vi.fn();

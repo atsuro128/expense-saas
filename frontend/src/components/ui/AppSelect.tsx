@@ -72,6 +72,10 @@ export interface AppSelectProps {
  * MUI SelectInput.js L134/L296/L456 が readOnly をトップレベル prop から直接参照するため、
  * inputProps.readOnly のみでは SelectInput の開閉制御に効かない場合がある。
  * トップレベル readOnly を明示的に渡すことで確実に開閉制御を行う。
+ *
+ * issue #140 案 A: required は FormControl ではなく Select の inputProps にのみ付与する。
+ * FormControl required を削除することで InputLabel への「*」自動付与を抑止し、
+ * inputProps.required + inputProps['aria-required'] で input 要素にのみ a11y 属性を設定する。
  */
 export default function AppSelect({
   name,
@@ -110,12 +114,20 @@ export default function AppSelect({
   // 値が選択済み（value !== ""）の場合は MUI のデフォルト挙動に委ねる。
   const shouldShrink = shouldDisplayEmpty && value === '' ? true : undefined;
 
+  // required と readOnly を input 要素にのみ設定する（issue #140 案 A）。
+  // FormControl の required を削除して InputLabel の「*」自動付与を抑止する。
+  // aria-required を明示的に付与し、FormControl required 削除後も a11y を確保する。
+  // aria-required は Booleanish 型（true | false）のため boolean 値で渡す。
+  const selectInputProps = {
+    ...(readOnly ? { readOnly: true } : {}),
+    ...(required ? { required: true, 'aria-required': true as const } : {}),
+  };
+
   return (
     <FormControl
       size="small"
       fullWidth={fullWidth}
       error={!!errorMessage}
-      required={required}
       disabled={disabled}
     >
       <InputLabel id={labelId} shrink={shouldShrink}>
@@ -132,7 +144,7 @@ export default function AppSelect({
         displayEmpty={shouldDisplayEmpty}
         SelectDisplayProps={selectDisplayProps}
         readOnly={readOnly}
-        inputProps={readOnly ? { readOnly: true } : undefined}
+        inputProps={Object.keys(selectInputProps).length > 0 ? selectInputProps : undefined}
       >
         {/* 未選択時のプレースホルダー */}
         {placeholder && (

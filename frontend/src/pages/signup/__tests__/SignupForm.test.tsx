@@ -23,6 +23,20 @@ describe('SignupForm', () => {
     expect(screen.getByRole('button', { name: '新規登録' })).toBeInTheDocument();
   });
 
+  // issue #140: 全フィールドに HTML5 required 属性が付与されていること（a11y 改善）。
+  it('issue-140: 全必須フィールドに required 属性が付与されている', () => {
+    render(
+      <MemoryRouter>
+        <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('会社名')).toBeRequired();
+    expect(screen.getByLabelText('ユーザー名')).toBeRequired();
+    expect(screen.getByLabelText('メールアドレス')).toBeRequired();
+    expect(screen.getByLabelText('パスワード')).toBeRequired();
+  });
+
   // AUTH-FE-031: 有効な入力で onSubmit が正しい値で呼ばれること。
   it('AUTH-FE-031: 有効な入力で onSubmit が正しい SignupInput で呼ばれる', async () => {
     const mockOnSubmit = vi.fn();
