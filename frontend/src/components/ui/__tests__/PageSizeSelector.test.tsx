@@ -47,7 +47,8 @@ describe('PageSizeSelector', () => {
     render(<PageSizeSelector {...props} />);
 
     // 「表示件数:」ラベルが描画されること。
-    expect(screen.getByText(/表示件数/)).toBeInTheDocument();
+    // MUI は InputLabel と fieldset legend の両方にラベルテキストを描画するため getAllByText を使う。
+    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
 
     // Select（combobox または listbox）が存在すること。
     const select = screen.getByRole('combobox');
@@ -81,11 +82,13 @@ describe('PageSizeSelector', () => {
     expect(options).toHaveLength(5);
 
     // 選択肢が昇順 [1, 10, 20, 50, 100] であること。
-    const values = options.map((o) => Number(o.textContent));
+    // MUI MenuItem は "{size} 件" 形式で表示するため parseInt で数値を抽出する。
+    const values = options.map((o) => parseInt(o.textContent ?? '', 10));
     expect(values).toEqual([1, 10, 20, 50, 100]);
 
     // 現在値として 1 が選択されていること。
-    expect(screen.getByRole('combobox')).toHaveTextContent('1');
+    // ドロップダウン開放中は combobox が aria-hidden に入るため hidden input の value で確認する。
+    expect(screen.getByTestId('page-size-selector-input')).toHaveValue('1');
   });
 
   // PSS-003: perPage=20、standardOptions=[10,20,50,100]（perPage が標準選択肢に含まれるケース）
@@ -111,7 +114,8 @@ describe('PageSizeSelector', () => {
     expect(options).toHaveLength(4);
 
     // 選択肢が [10, 20, 50, 100] であること（20 が重複追加されていないこと）。
-    const values = options.map((o) => Number(o.textContent));
+    // MUI MenuItem は "{size} 件" 形式で表示するため parseInt で数値を抽出する。
+    const values = options.map((o) => parseInt(o.textContent ?? '', 10));
     expect(values).toEqual([10, 20, 50, 100]);
   });
 
@@ -133,8 +137,8 @@ describe('PageSizeSelector', () => {
     const select = screen.getByRole('combobox');
     await user.click(select);
 
-    // 「50」の選択肢をクリックする。
-    const option50 = screen.getByRole('option', { name: '50' });
+    // 「50 件」の選択肢をクリックする（実装は "{size} 件" 形式で表示）。
+    const option50 = screen.getByRole('option', { name: '50 件' });
     await user.click(option50);
 
     // onPerPageChange が数値 50 で 1 回呼ばれること（文字列 "50" ではない）。
@@ -158,8 +162,9 @@ describe('PageSizeSelector', () => {
     render(<PageSizeSelector {...props} />);
 
     // Select（combobox）が disabled であること。
+    // MUI Select は <FormControl disabled> 配下で aria-disabled="true" を付与する（disabled 属性は付与しない）。
     const select = screen.getByRole('combobox');
-    expect(select).toBeDisabled();
+    expect(select).toHaveAttribute('aria-disabled', 'true');
 
     // クリックしても onPerPageChange が呼ばれないこと。
     await user.click(select);

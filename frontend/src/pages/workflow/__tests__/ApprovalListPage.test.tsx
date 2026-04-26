@@ -762,8 +762,8 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     const combobox = within(selector).getByRole('combobox');
     await user.click(combobox);
 
-    // 「50」の選択肢をクリックして per_page を変更する。
-    const option50 = await screen.findByRole('option', { name: '50' });
+    // 「50 件」の選択肢をクリックして per_page を変更する（実装は "{size} 件" 形式で表示）。
+    const option50 = await screen.findByRole('option', { name: '50 件' });
     await user.click(option50);
 
     // usePendingReports に per_page: 50, page: 1 が渡されること（page=1 リセット）。
@@ -817,8 +817,9 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     await user.click(combobox);
 
     // 選択肢が [1, 10, 20, 50, 100] の 5 件に動的拡張されること。
+    // MUI MenuItem は "{size} 件" 形式で表示するため parseInt で数値を抽出する。
     const options = screen.getAllByRole('option');
-    const values = options.map((o) => Number(o.textContent));
+    const values = options.map((o) => parseInt(o.textContent ?? '', 10));
     expect(values).toEqual([1, 10, 20, 50, 100]);
 
     // 現在値として「1」が選択されていること。
