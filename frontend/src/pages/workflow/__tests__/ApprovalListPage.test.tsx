@@ -33,7 +33,7 @@
 // APR-FE-003 → 'APR-FE-003: sync_role_check_approver_renders' — issue-106 同期ロールチェック
 // APR-FE-004 → 'APR-FE-004: Admin ロールは即ダッシュボードへリダイレクトされる' — issue-106 同期ロールチェック（authz.md 正本: Approver のみ許可）
 
-import { render, screen, waitFor, act } from '@testing-library/react';
+import { render, screen, waitFor, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -759,7 +759,8 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     // PageSizeSelector が描画されるまで待機する。
     // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
     const selector = await screen.findByTestId('page-size-selector');
-    await user.click(selector);
+    const combobox = within(selector).getByRole('combobox');
+    await user.click(combobox);
 
     // 「50」の選択肢をクリックして per_page を変更する。
     const option50 = await screen.findByRole('option', { name: '50' });
@@ -812,7 +813,8 @@ describe('ApprovalListPage（PendingApprovalsPage）', () => {
     // PageSizeSelector を開いて選択肢を確認する。
     // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
     const selector = screen.getByTestId('page-size-selector');
-    await user.click(selector);
+    const combobox = within(selector).getByRole('combobox');
+    await user.click(combobox);
 
     // 選択肢が [1, 10, 20, 50, 100] の 5 件に動的拡張されること。
     const options = screen.getAllByRole('option');
