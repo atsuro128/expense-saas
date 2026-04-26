@@ -33,7 +33,6 @@ export default function AppTextField({
   label,
   errorMessage,
   required,
-  // eslint-disable-next-line @typescript-eslint/no-deprecated
   inputProps: legacyInputProps,
   slotProps,
   ...rest
