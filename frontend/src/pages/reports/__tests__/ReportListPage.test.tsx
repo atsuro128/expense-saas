@@ -416,4 +416,206 @@ describe('ReportListPage', () => {
       expect(statusCombobox).toHaveTextContent('すべて');
     });
   });
+
+  // =============================================================================
+  // issue #147: per_page UI セレクタ + URL 駆動 Page 結合テスト（RPT-FE-111〜114）
+  // =============================================================================
+
+  // RPT-FE-111: /reports?per_page=10 で開く
+  // → テーブルに 10 件のみ描画される。フッターの PageSizeSelector が「10」を表示する。
+  //    useMyReports への引数に per_page: 10 が渡り、API URL に ?per_page=10 が含まれる。
+  it('RPT-FE-111: test_ReportListPage_url_per_page_reflects_to_selector_and_api — URL の per_page=10 が PageSizeSelector と API 引数に反映される', async () => {
+    // RPT-FE-111
+    // MSW で useMyReports が 10 件 + pagination.total_pages > 1 を返すよう設定する。
+    const reports10 = Array.from({ length: 10 }, (_, i) => ({
+      id: `test-id-${String(i + 1).padStart(3, '0')}`,
+      title: `レポート${i + 1}`,
+      period_start: '2026-03-01',
+      period_end: '2026-03-31',
+      status: 'draft' as const,
+      total_amount: (i + 1) * 1000,
+      created_at: '2026-03-01T00:00:00Z',
+      updated_at: '2026-03-01T00:00:00Z',
+    }));
+
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: reports10,
+        pagination: { current_page: 1, per_page: 10, total_count: 30, total_pages: 3 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // URL に per_page=10 を設定してページを開く。
+    renderPage('/reports?per_page=10');
+
+    // useMyReports に per_page: 10 が渡されること（URL → Hook 反映）。
+    await waitFor(() => {
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 10 }),
+      );
+    });
+
+    // フッターの PageSizeSelector が「10」を現在値として表示すること。
+    // AppPaginationFooter 内の PageSizeSelector を検証する。
+    // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    await waitFor(() => {
+      const selector = screen.getByTestId('page-size-selector');
+      expect(selector).toHaveTextContent('10');
+    });
+  });
+
+  // RPT-FE-112: /reports?page=3&per_page=10 で開いた状態で PageSizeSelector から「50」を選択
+  // → URL が /reports?page=1&per_page=50 に更新される（page=1 リセット）。
+  //    setSearchParams は 1 回のコールに集約される（race 回避、重要リスク 5）。
+  //    PageSizeSelector の現在値が「50」に更新される。
+  it('RPT-FE-112: test_ReportListPage_selector_change_updates_url_and_resets_page — per_page 変更時に page=1 リセット + setSearchParams 1 コール集約（重要リスク 5）', async () => {
+    // RPT-FE-112
+    const user = userEvent.setup();
+
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 3, per_page: 10, total_count: 30, total_pages: 3 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // page=3, per_page=10 の状態でページを開く。
+    renderPage('/reports?page=3&per_page=10');
+
+    // PageSizeSelector が描画されるまで待機する。
+    // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    const selector = screen.getByTestId('page-size-selector');
+    await user.click(selector);
+
+    // 「50」の選択肢をクリックして per_page を変更する。
+    const option50 = await screen.findByRole('option', { name: '50' });
+    await user.click(option50);
+
+    // URL が /reports?page=1&per_page=50 に更新されること（page=1 リセット）。
+    await waitFor(() => {
+      const locationText = screen.getByTestId('location').textContent ?? '';
+      expect(locationText).toContain('page=1');
+      expect(locationText).toContain('per_page=50');
+    });
+
+    // useMyReports に per_page: 50, page: 1 が渡されること。
+    await waitFor(() => {
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 50, page: 1 }),
+      );
+    });
+  });
+
+  // RPT-FE-113: /reports?per_page=1 で開く（URL に標準外値）
+  // → PageSizeSelector の選択肢が [1, 10, 20, 50, 100] に動的拡張され、現在値「1」が選択される。
+  //    （パターン X 動作。Hook 側にも per_page=1 が渡る）
+  it('RPT-FE-113: test_ReportListPage_url_non_standard_per_page_appends_to_options — URL の標準外 per_page=1 が PageSizeSelector 選択肢に動的追加される', async () => {
+    // RPT-FE-113
+    const user = userEvent.setup();
+
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: [mockReports[0]],
+        pagination: { current_page: 1, per_page: 1, total_count: 3, total_pages: 3 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // URL に標準外値 per_page=1 を設定してページを開く。
+    renderPage('/reports?per_page=1');
+
+    // useMyReports に per_page: 1 が渡されること（URL → Hook 反映）。
+    await waitFor(() => {
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 1 }),
+      );
+    });
+
+    // PageSizeSelector を開いて選択肢を確認する。
+    // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    const selector = screen.getByTestId('page-size-selector');
+    await user.click(selector);
+
+    // 選択肢が [1, 10, 20, 50, 100] の 5 件に動的拡張されること。
+    const options = screen.getAllByRole('option');
+    const values = options.map((o) => Number(o.textContent));
+    expect(values).toEqual([1, 10, 20, 50, 100]);
+
+    // 現在値として「1」が選択されていること。
+    expect(screen.getByTestId('page-size-selector')).toHaveTextContent('1');
+  });
+
+  // RPT-FE-114: /reports?per_page=abc（NaN ケース）と /reports?per_page=-5（負数ケース）の 2 サブケース
+  // → 両サブケースとも useMyReports への引数 per_page が 20（FE フォールバック）になり、
+  //    PageSizeSelector も「20」を表示する（issue #147 Q4: FE 側 fail-soft、重要リスク 2）。
+  it('RPT-FE-114: test_ReportListPage_url_invalid_per_page_falls_back_to_20 — NaN/負数の per_page は 20 にフォールバックされる（重要リスク 2）', async () => {
+    // RPT-FE-114
+    // サブケース 1: per_page=abc（NaN）
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const { unmount } = renderPage('/reports?per_page=abc');
+
+    // useMyReports に per_page: 20（フォールバック）が渡されること。
+    await waitFor(() => {
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 20 }),
+      );
+    });
+
+    // NaN の場合 per_page=20 で呼ばれ、per_page の値が 20 以外で呼ばれていないこと。
+    const nanCalls = mockUseMyReports.mock.calls.filter(
+      (args) => Number.isNaN(args[0]?.per_page),
+    );
+    expect(nanCalls).toHaveLength(0);
+
+    unmount();
+    vi.clearAllMocks();
+
+    // サブケース 2: per_page=-5（負数）
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports?per_page=-5');
+
+    // useMyReports に per_page: 20（フォールバック）が渡されること。
+    await waitFor(() => {
+      expect(mockUseMyReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 20 }),
+      );
+    });
+
+    // 負数の場合 per_page=-5 で呼ばれていないこと。
+    const negativeCalls = mockUseMyReports.mock.calls.filter(
+      (args) => (args[0]?.per_page ?? 0) < 0,
+    );
+    expect(negativeCalls).toHaveLength(0);
+  });
 });

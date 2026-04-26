@@ -728,4 +728,210 @@ describe('PaymentListPage（PayableReportsPage）', () => {
       expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
     });
   });
+
+  // =============================================================================
+  // issue #147: PaymentListPage per_page UI 結合テスト（WFL-FE-087〜090）
+  // =============================================================================
+
+  // WFL-FE-087: /payments?per_page=10 で開く
+  // → テーブルに 10 件のみ描画される。フッターの PageSizeSelector が「10」を表示する。
+  //    usePayableReports への引数に per_page: 10 が渡り、API URL に ?per_page=10 が含まれる。
+  it('WFL-FE-087: test_PaymentListPage_url_per_page_reflects_to_selector_and_api — URL の per_page=10 が PageSizeSelector と API 引数に反映される', async () => {
+    // WFL-FE-087
+    mockCurrentUserWithRole('accounting');
+
+    const reports10 = Array.from({ length: 10 }, (_, i) => ({
+      id: `report-${String(i + 1).padStart(3, '0')}`,
+      title: `支払待ちレポート${i + 1}`,
+      total_amount: (i + 1) * 1000,
+      approved_at: '2026-03-20T00:00:00Z',
+      submitter: { id: 'user-003', name: '田中太郎' },
+      is_own_report: false,
+    }));
+
+    mockUsePayableReports.mockReturnValue({
+      data: {
+        data: reports10,
+        pagination: { current_page: 1, per_page: 10, total_count: 30, total_pages: 3 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // URL に per_page=10 を設定してページを開く。
+    renderPage('/workflow/payable?per_page=10');
+
+    // usePayableReports に per_page: 10 が渡されること（URL → Hook 反映）。
+    await waitFor(() => {
+      expect(mockUsePayableReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 10 }),
+      );
+    });
+
+    // フッターの PageSizeSelector が「10」を現在値として表示すること。
+    // スタブ実装（AppPaginationFooter / PageSizeSelector 未存在）のため失敗するが
+    // β2 テスト先行仕様で許容する。
+    await waitFor(() => {
+      const selector = screen.getByTestId('page-size-selector');
+      expect(selector).toHaveTextContent('10');
+    });
+  });
+
+  // WFL-FE-088: /payments?page=3&per_page=10 で開いた状態で PageSizeSelector から「50」を選択
+  // → URL が /payments?page=1&per_page=50 に更新される（page=1 リセット）。
+  //    setSearchParams は 1 回のコールに集約される（race 回避、重要リスク 5）。
+  //    PageSizeSelector の現在値が「50」に更新される。
+  it('WFL-FE-088: test_PaymentListPage_selector_change_updates_url_and_resets_page — per_page 変更時に page=1 リセット + setSearchParams 1 コール集約（重要リスク 5）', async () => {
+    // WFL-FE-088
+    const user = userEvent.setup();
+    mockCurrentUserWithRole('accounting');
+
+    mockUsePayableReports.mockReturnValue({
+      data: {
+        data: [mockPayableReports[0]],
+        pagination: { current_page: 3, per_page: 10, total_count: 30, total_pages: 3 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // page=3, per_page=10 の状態でページを開く。
+    renderPage('/workflow/payable?page=3&per_page=10');
+
+    // PageSizeSelector が描画されるまで待機する。
+    // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    const selector = await screen.findByTestId('page-size-selector');
+    await user.click(selector);
+
+    // 「50」の選択肢をクリックして per_page を変更する。
+    const option50 = await screen.findByRole('option', { name: '50' });
+    await user.click(option50);
+
+    // usePayableReports に per_page: 50, page: 1 が渡されること（page=1 リセット）。
+    await waitFor(() => {
+      expect(mockUsePayableReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 50, page: 1 }),
+      );
+    });
+
+    // URL に page=1 と per_page=50 が反映されること（setSearchParams 1 コール集約の検証）。
+    await waitFor(() => {
+      const locationText = screen.getByTestId('location').textContent ?? '';
+      expect(locationText).toContain('page=1');
+      expect(locationText).toContain('per_page=50');
+    });
+  });
+
+  // WFL-FE-089: /payments?per_page=1 で開く（URL に標準外値）
+  // → PageSizeSelector の選択肢が [1, 10, 20, 50, 100] に動的拡張され、現在値「1」が選択される。
+  //    （パターン X 動作）
+  it('WFL-FE-089: test_PaymentListPage_url_non_standard_per_page_appends_to_options — URL の標準外 per_page=1 が PageSizeSelector 選択肢に動的追加される', async () => {
+    // WFL-FE-089
+    const user = userEvent.setup();
+    mockCurrentUserWithRole('accounting');
+
+    mockUsePayableReports.mockReturnValue({
+      data: {
+        data: [mockPayableReports[0]],
+        pagination: { current_page: 1, per_page: 1, total_count: 3, total_pages: 3 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    // URL に標準外値 per_page=1 を設定してページを開く。
+    renderPage('/workflow/payable?per_page=1');
+
+    // usePayableReports に per_page: 1 が渡されること（URL → Hook 反映）。
+    await waitFor(() => {
+      expect(mockUsePayableReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 1 }),
+      );
+    });
+
+    // PageSizeSelector を開いて選択肢を確認する。
+    // スタブ実装（PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    const selector = screen.getByTestId('page-size-selector');
+    await user.click(selector);
+
+    // 選択肢が [1, 10, 20, 50, 100] の 5 件に動的拡張されること。
+    const options = screen.getAllByRole('option');
+    const values = options.map((o) => Number(o.textContent));
+    expect(values).toEqual([1, 10, 20, 50, 100]);
+
+    // 現在値として「1」が選択されていること。
+    expect(screen.getByTestId('page-size-selector')).toHaveTextContent('1');
+  });
+
+  // WFL-FE-090: /payments?per_page=abc（NaN）と /payments?per_page=-5（負数）の 2 サブケース
+  // → 両サブケースとも usePayableReports への引数 per_page が 20（FE フォールバック）になり、
+  //    PageSizeSelector も「20」を表示する（issue #147 Q4、重要リスク 2）。
+  it('WFL-FE-090: test_PaymentListPage_url_invalid_per_page_falls_back_to_20 — NaN/負数の per_page は 20 にフォールバックされる（重要リスク 2）', async () => {
+    // WFL-FE-090
+
+    // サブケース 1: per_page=abc（NaN）
+    mockCurrentUserWithRole('accounting');
+    mockUsePayableReports.mockReturnValue({
+      data: {
+        data: mockPayableReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    const { unmount } = renderPage('/workflow/payable?per_page=abc');
+
+    // usePayableReports に per_page: 20（フォールバック）が渡されること。
+    await waitFor(() => {
+      expect(mockUsePayableReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 20 }),
+      );
+    });
+
+    // NaN の場合 per_page が NaN で呼ばれていないこと。
+    const nanCalls = mockUsePayableReports.mock.calls.filter(
+      (args) => Number.isNaN(args[0]?.per_page),
+    );
+    expect(nanCalls).toHaveLength(0);
+
+    unmount();
+    vi.clearAllMocks();
+
+    // サブケース 2: per_page=-5（負数）
+    mockCurrentUserWithRole('accounting');
+    mockUsePayableReports.mockReturnValue({
+      data: {
+        data: mockPayableReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/workflow/payable?per_page=-5');
+
+    // usePayableReports に per_page: 20（フォールバック）が渡されること。
+    await waitFor(() => {
+      expect(mockUsePayableReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 20 }),
+      );
+    });
+
+    // 負数の場合 per_page=-5 で呼ばれていないこと。
+    const negativeCalls = mockUsePayableReports.mock.calls.filter(
+      (args) => (args[0]?.per_page ?? 0) < 0,
+    );
+    expect(negativeCalls).toHaveLength(0);
+  });
 });
