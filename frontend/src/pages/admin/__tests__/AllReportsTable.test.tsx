@@ -1,34 +1,45 @@
 // AllReportsTable のユニットテスト。
-// TNT-FE-030〜034 に対応する。
+// TNT-FE-030〜034, TNT-FE-147-01 に対応する。
 
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi, describe, it, beforeEach, afterEach } from 'vitest';
 
 // MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
 // onRowClick は GridRowParams 互換で { row: rowData } 形式で呼び出す。
+// slots.footer を受け取り DataGrid フッターコンテナ相当の div 内で描画する（issue #147 再オープン D-1 検証用）。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
     rows: unknown[];
     columns: unknown[];
     onRowClick?: (params: { row: unknown }) => void;
     loading?: boolean;
+    slots?: { footer?: () => React.ReactNode };
   }) => {
     if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
-      <table data-testid="app-data-grid">
-        <tbody>
-          {(props.rows as Array<{ id: string; title: string; submitter_name: string; total_amount: number; status: string; submitted_at: string | null }>).map((row) => (
-            <tr key={row.id} onClick={() => props.onRowClick?.({ row })} data-testid={`row-${row.id}`}>
-              <td>{row.submitter_name}</td>
-              <td>{row.title}</td>
-              <td>{`¥${row.total_amount.toLocaleString()}`}</td>
-              <td>{row.status}</td>
-              <td>{row.submitted_at ? new Date(row.submitted_at).toLocaleDateString('ja-JP') : '-'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div>
+        <table data-testid="app-data-grid">
+          <tbody>
+            {(props.rows as Array<{ id: string; title: string; submitter_name: string; total_amount: number; status: string; submitted_at: string | null }>).map((row) => (
+              <tr key={row.id} onClick={() => props.onRowClick?.({ row })} data-testid={`row-${row.id}`}>
+                <td>{row.submitter_name}</td>
+                <td>{row.title}</td>
+                <td>{`¥${row.total_amount.toLocaleString()}`}</td>
+                <td>{row.status}</td>
+                <td>{row.submitted_at ? new Date(row.submitted_at).toLocaleDateString('ja-JP') : '-'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
+        {props.slots?.footer && (
+          <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
+            {props.slots.footer()}
+          </div>
+        )}
+      </div>
     );
   },
 }));
@@ -162,5 +173,30 @@ describe('AllReportsTable', () => {
     await user.click(screen.getByText('出張費'));
 
     expect(mockOnRowClick).toHaveBeenCalledWith('rpt-1');
+  });
+
+  // TNT-FE-147-01: paginationFooter prop を渡すと DataGrid フッターコンテナ内に描画される（issue #147 再オープン D-1 ②a）。
+  it('TNT-FE-147-01: paginationFooter を渡すと DataGrid フッターコンテナ内に描画される', () => {
+    const paginationContent = (
+      <div data-testid="mock-pagination-footer">ページネーションフッター</div>
+    );
+
+    render(
+      <AllReportsTable
+        reports={[mockReport]}
+        loading={false}
+        hasActiveFilters={false}
+        onRowClick={mockOnRowClick}
+        paginationFooter={paginationContent}
+      />
+    );
+
+    // DataGrid フッターコンテナ（モック内の MuiDataGrid-footerContainer 相当）が描画されること。
+    const footerContainer = screen.getByTestId('datagrid-footer-container');
+    expect(footerContainer).toBeInTheDocument();
+
+    // フッターコンテナ内に paginationFooter の内容が描画されること。
+    expect(screen.getByTestId('mock-pagination-footer')).toBeInTheDocument();
+    expect(screen.getByText('ページネーションフッター')).toBeInTheDocument();
   });
 });

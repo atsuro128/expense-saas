@@ -246,6 +246,7 @@ export default function PaymentListPage() {
           )}
 
           {/* データグリッド（emptyMessage で空状態も表示） */}
+          {/* slots.footer 経由で AppPaginationFooter を DataGrid フッターコンテナに統合する（issue #147 再オープン D-1 直接利用パターン） */}
           <AppDataGrid
             columns={COLUMNS}
             rows={rows}
@@ -254,16 +255,18 @@ export default function PaymentListPage() {
             emptyMessage={emptyMessage}
             onRowClick={(params: GridRowParams) => void navigate(`/reports/${(params.row as { id: string }).id}`)}
             sx={{ cursor: 'pointer' }}
-          />
-
-          {/* ページネーションフッター: 常時表示（issue #147 Q3） */}
-          <AppPaginationFooter
-            currentPage={pagination?.current_page ?? page}
-            totalPages={totalPages}
-            onPageChange={handlePageChange}
-            perPage={pagination?.per_page ?? per_page}
-            onPerPageChange={handlePerPageChange}
-            disabled={isLoading}
+            slots={{
+              footer: () => (
+                <AppPaginationFooter
+                  currentPage={pagination?.current_page ?? page}
+                  totalPages={totalPages}
+                  onPageChange={handlePageChange}
+                  perPage={pagination?.per_page ?? per_page}
+                  onPerPageChange={handlePerPageChange}
+                  disabled={isLoading}
+                />
+              ),
+            }}
           />
         </>
       )}
