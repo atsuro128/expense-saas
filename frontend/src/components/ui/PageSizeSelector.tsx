@@ -18,6 +18,13 @@ import type { SelectChangeEvent } from '@mui/material/Select';
 /** PageSizeSelector のデフォルト標準選択肢 */
 const DEFAULT_STANDARD_OPTIONS = [10, 20, 50, 100];
 
+/**
+ * FormControl に適用する sx 定数（A2 案確定値）。
+ * テストから直接参照できるよう named export する（APF-011 スタイル回帰防止）。
+ * margin="none" と組み合わせて Select 枠線が AppPaginationFooter の minHeight を支配しないよう余白を排除する。
+ */
+export const PAGE_SIZE_SELECTOR_FORM_CONTROL_SX = { my: 0 } as const;
+
 export interface PageSizeSelectorProps {
   /** 現在の表示件数（URL クエリ `per_page` に対応する整数） */
   perPage: number;

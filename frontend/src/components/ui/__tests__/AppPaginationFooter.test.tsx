@@ -21,7 +21,8 @@ import { vi, describe, it, expect } from 'vitest';
 
 // AppPaginationFooter が実装される予定のパス。
 // 実装コード未存在のため import エラーが発生するが、テスト先行（β2）仕様のため許容する。
-import AppPaginationFooter from '../AppPaginationFooter';
+import AppPaginationFooter, { APP_PAGINATION_FOOTER_ROOT_SX } from '../AppPaginationFooter';
+import { PAGE_SIZE_SELECTOR_FORM_CONTROL_SX } from '../PageSizeSelector';
 
 // 設計書（55_ui_component/common-components.md §AppPaginationFooter）に基づく Props 型定義。
 // 実装コードを参照せず、設計書を唯一の正本として定義する。
@@ -249,8 +250,10 @@ describe('AppPaginationFooter', () => {
 
   // APF-008: ルート Box に borderTop sx が設定されていること（視覚回帰防止）。
   // issue #147 再々オープン A2 案: DataGrid 標準フッターとの境界線を揃えるための実装。
-  // jsdom 上では viewport 切替不可のため、data-testid 経由でルート要素の存在を確認する。
-  it('APF-008: test_AppPaginationFooter_has_border_top_sx — ルート要素に data-testid="app-pagination-footer" が付与され境界線 sx が適用されている（視覚回帰防止）', () => {
+  // jsdom では emotion による sx → CSS 変換が完全に再現されないため、
+  // APP_PAGINATION_FOOTER_ROOT_SX 定数を named export で直接検証する方式を採用する（代替案 C）。
+  // この方式により borderTop / borderColor の設計書値が実装コードに正しく宣言されているかを保証する。
+  it('APF-008: test_AppPaginationFooter_has_border_top_sx — borderTop/borderColor sx 設計書値が実装定数に宣言されている（境界線視覚回帰防止）', () => {
     // APF-008
     const props: AppPaginationFooterProps = {
       currentPage: 1,
@@ -266,10 +269,18 @@ describe('AppPaginationFooter', () => {
     const footer = screen.getByTestId('app-pagination-footer');
     expect(footer).toBeInTheDocument();
 
-    // MUI Box に sx を渡すと MUI の CSS-in-JS 経由でスタイルクラスが付与される。
-    // jsdom では実際の CSS 値は確認不可だが、className が付与されていることで sx 適用を間接確認する。
-    // 少なくとも何らかのクラスが付与されていること（MUI Box の sx が有効であること）を検証する。
-    expect(footer.className).toBeTruthy();
+    // APF-008: 境界線視覚回帰防止。
+    // APP_PAGINATION_FOOTER_ROOT_SX 定数（named export）を直接検証することで、
+    // 別の MUI クラスが付いていても素通りする className truthy 判定の弱点を排除する。
+    // 設計書値: borderTop: '1px solid' / borderColor: 'divider'
+    expect(APP_PAGINATION_FOOTER_ROOT_SX).toMatchObject({
+      borderTop: '1px solid',
+      borderColor: 'divider',
+    });
+    // 再発防止: borderTop と borderColor が同時に存在することを個別にアサートする。
+    // どちらか一方が欠落しても CI で検知できる。
+    expect(APP_PAGINATION_FOOTER_ROOT_SX.borderTop).toBe('1px solid');
+    expect(APP_PAGINATION_FOOTER_ROOT_SX.borderColor).toBe('divider');
   });
 
   // APF-009: totalCount 指定時の件数表示算出を検証する（通常 / 端数 / 0 件）。
@@ -354,9 +365,13 @@ describe('AppPaginationFooter', () => {
     expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
   });
 
-  // APF-011: sx 設定と PageSizeSelector FormControl の margin/sy 設定の検証（高さ支配回帰防止）。
+  // APF-011: sx 設定と PageSizeSelector FormControl の margin/sx 設定の検証（高さ支配回帰防止）。
   // issue #147 再々オープン A2 案の主目的: Select 枠線がフッター高さを支配しないための構造を保証する。
-  it('APF-011: test_AppPaginationFooter_layout_and_pss_margin_constraints — minHeight/px/py sx + PageSizeSelector margin/sy 設定が存在する（高さ支配回帰防止）', () => {
+  // jsdom では emotion による sx → CSS 変換が完全に再現されないため、
+  // APP_PAGINATION_FOOTER_ROOT_SX / PAGE_SIZE_SELECTOR_FORM_CONTROL_SX 定数を named export で直接検証する（代替案 C）。
+  // また PageSizeSelector の FormControl に margin="none" が適用されていることを
+  // data-testid 要素の DOM 属性から確認する。
+  it('APF-011: test_AppPaginationFooter_layout_and_pss_margin_constraints — minHeight/px/py sx 設計書値と PageSizeSelector margin=none/my:0 が実装定数に宣言されている（高さ支配回帰防止）', () => {
     // APF-011
     const props: AppPaginationFooterProps = {
       currentPage: 1,
@@ -372,14 +387,28 @@ describe('AppPaginationFooter', () => {
     const footer = screen.getByTestId('app-pagination-footer');
     expect(footer).toBeInTheDocument();
 
+    // APF-011-A: ルート Box の minHeight / px / py 設計書値を直接検証する。
+    // className truthy 判定では別クラスが 1 つでも付いていれば通過してしまうため、
+    // 定数オブジェクトの値を個別にアサートして欠落を CI で検知できるようにする。
+    // 設計書値: minHeight: 52 / px: 2 / py: 0.5
+    expect(APP_PAGINATION_FOOTER_ROOT_SX).toMatchObject({
+      minHeight: 52,
+      px: 2,
+      py: 0.5,
+    });
+    expect(APP_PAGINATION_FOOTER_ROOT_SX.minHeight).toBe(52);
+    expect(APP_PAGINATION_FOOTER_ROOT_SX.px).toBe(2);
+    expect(APP_PAGINATION_FOOTER_ROOT_SX.py).toBe(0.5);
+
+    // APF-011-B: PageSizeSelector FormControl の margin="none" / sx={{ my: 0 }} を検証する。
     // PageSizeSelector（data-testid="page-size-selector"）が描画されること。
     const pageSizeSelector = screen.getByTestId('page-size-selector');
     expect(pageSizeSelector).toBeInTheDocument();
 
-    // MUI Box/FormControl に sx/margin を渡すと className が付与される（間接確認）。
-    // jsdom では実 CSS 値検証不可のため、要素の存在と className 付与を確認する。
-    expect(footer.className).toBeTruthy();
-    expect(pageSizeSelector.className).toBeTruthy();
+    // PAGE_SIZE_SELECTOR_FORM_CONTROL_SX 定数を直接検証する（my: 0 の再発防止）。
+    // 設計書値: sx={{ my: 0 }}（margin="none" と組み合わせて余白完全排除）
+    expect(PAGE_SIZE_SELECTOR_FORM_CONTROL_SX).toMatchObject({ my: 0 });
+    expect(PAGE_SIZE_SELECTOR_FORM_CONTROL_SX.my).toBe(0);
 
     // Select コンポーネント（combobox）が存在すること。
     const selector = screen.getByRole('combobox');

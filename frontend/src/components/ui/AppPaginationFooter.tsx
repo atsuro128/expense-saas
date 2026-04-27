@@ -10,6 +10,20 @@ import Typography from '@mui/material/Typography';
 import AppPagination from './AppPagination';
 import PageSizeSelector from './PageSizeSelector';
 
+/**
+ * ルート Box の sx 定数（A2 案確定値）。
+ * テストから直接参照できるよう named export する（APF-008 / APF-011 スタイル回帰防止）。
+ * - borderTop / borderColor: DataGrid 標準フッターとの境界線（APF-008）
+ * - minHeight / px / py: Select 枠線によるフッター高さ支配を防ぐ余白調整（APF-011）
+ */
+export const APP_PAGINATION_FOOTER_ROOT_SX = {
+  borderTop: '1px solid',
+  borderColor: 'divider',
+  minHeight: 52,
+  px: 2,
+  py: 0.5,
+} as const;
+
 export interface AppPaginationFooterProps {
   /** 現在のページ番号 */
   currentPage: number;
@@ -69,17 +83,8 @@ export default function AppPaginationFooter({
     countText = `${start} - ${end} / 全 ${totalCount} 件`;
   }
 
-  // ルート Box の sx（A2 案確定値）。
-  // borderTop / borderColor: DataGrid 標準フッターと境界線を揃える。
-  // minHeight: MUI 標準 TablePagination の高さ 52px 相当。
-  // px / py: Select 枠線によるフッター高さ支配を防ぐ余白調整。
-  const rootSx = {
-    borderTop: '1px solid',
-    borderColor: 'divider',
-    minHeight: 52,
-    px: 2,
-    py: 0.5,
-  };
+  // モジュールレベルの定数を使用する（named export でテストから直接参照可能）。
+  const rootSx = APP_PAGINATION_FOOTER_ROOT_SX;
 
   if (totalCount !== undefined) {
     // totalCount 指定時: 両端 flex={1} ラッパーで AppPagination を中央寄せ（A2 案確定構造）。
