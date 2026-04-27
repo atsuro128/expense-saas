@@ -9,7 +9,7 @@ import Button from '@mui/material/Button';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import AppToast from '../../components/ui/AppToast';
-import AppPagination from '../../components/ui/AppPagination';
+import AppPaginationFooter from '../../components/ui/AppPaginationFooter';
 import AppSelect from '../../components/ui/AppSelect';
 import PageSkeleton from '../../components/ui/PageSkeleton';
 import { useMyReports } from '../../hooks/useReports';
@@ -40,6 +40,12 @@ export default function ReportListPage() {
   const from = searchParams.get('from') ?? '';
   const to = searchParams.get('to') ?? '';
 
+  // per_page: NaN/負数の場合は 20 にフォールバックする（issue #147 Q4）。
+  // 範囲内不正値（0, 101 等）はそのまま BE に送り 422 エラーに委ねる。
+  const perPageParam = searchParams.get('per_page');
+  const perPageParsed = perPageParam !== null ? parseInt(perPageParam, 10) : NaN;
+  const per_page = Number.isFinite(perPageParsed) && perPageParsed >= 0 ? perPageParsed : 20;
+
   // トースト表示状態（エラー用）。
   const [toastOpen, setToastOpen] = useState(false);
 
@@ -50,9 +56,10 @@ export default function ReportListPage() {
     message: '',
   });
 
-  // レポート一覧データを取得する。
+  // レポート一覧データを取得する。per_page を URL から転送する。
   const { data, isLoading, isError, error } = useMyReports({
     page,
+    per_page,
     status: status || undefined,
     from: from || undefined,
     to: to || undefined,
@@ -121,6 +128,14 @@ export default function ReportListPage() {
   const handlePageChange = (newPage: number) => {
     const next = new URLSearchParams(searchParams.toString());
     next.set('page', String(newPage));
+    setSearchParams(next);
+  };
+
+  // per_page 変更時は page=1 にリセットし、setSearchParams を 1 コールに集約する（issue #147 重要リスク 5）。
+  const handlePerPageChange = (size: number) => {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set('per_page', String(size));
+    next.set('page', '1');
     setSearchParams(next);
   };
 
@@ -227,14 +242,15 @@ export default function ReportListPage() {
         </Box>
       )}
 
-      {/* ページネーション（ローディング中は非表示） */}
-      {!isLoading && pagination && (
-        <AppPagination
-          currentPage={pagination.current_page}
-          totalPages={pagination.total_pages}
-          onPageChange={handlePageChange}
-        />
-      )}
+      {/* ページネーションフッター: 常時表示（issue #147 Q3）。ローディング中は disabled */}
+      <AppPaginationFooter
+        currentPage={pagination?.current_page ?? page}
+        totalPages={pagination?.total_pages ?? 1}
+        onPageChange={handlePageChange}
+        perPage={pagination?.per_page ?? per_page}
+        onPerPageChange={handlePerPageChange}
+        disabled={isLoading}
+      />
     </Box>
   );
 }

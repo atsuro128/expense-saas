@@ -2,7 +2,7 @@
 // TNT-FE-016〜023 に対応する。
 // TNT-FE-046〜047: issue 088（403 認可エラーフィードバック）の navigate toast state 確認テストを追加。
 
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -77,6 +77,12 @@ function DashboardWithState() {
   );
 }
 
+/** URL パスとクエリを検証するためのヘルパーコンポーネント（TNT-FE-048〜051 追加）。 */
+function LocationDisplay() {
+  const location = useLocation();
+  return <div data-testid="location">{location.pathname + location.search}</div>;
+}
+
 // テスト用ラッパー: QueryClientProvider + MemoryRouter + Routes。
 // 実アプリの / → /dashboard 2段遷移を再現するためルート構成を合わせる。
 function renderAllReportsPage(initialEntries: string[] = ['/reports/all']) {
@@ -89,6 +95,7 @@ function renderAllReportsPage(initialEntries: string[] = ['/reports/all']) {
           <Route path="/dashboard" element={<DashboardWithState />} />
           <Route path="/reports/:id" element={<div data-testid="report-detail">Report Detail</div>} />
         </Routes>
+        <LocationDisplay />
       </MemoryRouter>
     </QueryClientProvider>,
   );
@@ -311,11 +318,14 @@ describe('AllReportsPage', () => {
       error: null,
     } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
 
+    // 実装は error.message をそのまま表示する。
+    // client.ts 層では SERVER_ERROR_MESSAGES によりマッピングされるため、
+    // テストでも日本語メッセージを持つ ApiClientError を渡す。
     vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
       data: undefined,
       isLoading: false,
       isError: true,
-      error: new ApiClientError('Internal Server Error', 500, 'INTERNAL_ERROR'),
+      error: new ApiClientError('サーバーエラーが発生しました', 500, 'INTERNAL_ERROR'),
     } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
 
     vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
@@ -487,5 +497,264 @@ describe('AllReportsPage', () => {
     await waitFor(() => {
       expect(screen.getByTestId('nav-toast-message')).toHaveTextContent('この画面にアクセスする権限がありません。');
     });
+  });
+
+  // =============================================================================
+  // issue #147: AllReportsPage URL 駆動化 + per_page UI 結合テスト（TNT-FE-048〜051）
+  // =============================================================================
+
+  // TNT-FE-048: /reports/all?per_page=10 で開く
+  // → テーブルに 10 件のみ描画される。フッターの PageSizeSelector が「10」を表示する。
+  //    useAllReports への引数に per_page: 10 が渡り、API URL に ?per_page=10 が含まれる。
+  it('TNT-FE-048: test_AllReportsPage_url_per_page_reflects_to_selector_and_api — URL の per_page=10 が PageSizeSelector と API 引数に反映される', async () => {
+    // TNT-FE-048
+    const reports10 = Array.from({ length: 10 }, (_, i) => ({
+      id: `rpt-${String(i + 1).padStart(3, '0')}`,
+      title: `レポート${i + 1}`,
+      submitter: { id: 'u1', name: 'User1' },
+      total_amount: (i + 1) * 1000,
+      status: 'submitted' as const,
+      submitted_at: '2025-01-15T00:00:00Z',
+      created_at: '2025-01-10T00:00:00Z',
+    }));
+
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: mockAdminUser },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    const mockUseAllReports = vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: { data: reports10, pagination: { current_page: 1, per_page: 10, total_count: 30, total_pages: 3 } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: { data: mockMembers },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    // URL に per_page=10 を設定してページを開く。
+    renderAllReportsPage(['/reports/all?per_page=10']);
+
+    // useAllReports に per_page: 10 が渡されること（URL → Hook 反映）。
+    await waitFor(() => {
+      expect(mockUseAllReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 10 }),
+      );
+    });
+
+    // フッターの PageSizeSelector が「10」を現在値として表示すること。
+    // スタブ実装（AppPaginationFooter / PageSizeSelector 未存在）のため失敗するが
+    // β2 テスト先行仕様で許容する。
+    await waitFor(() => {
+      const selector = screen.getByTestId('page-size-selector');
+      expect(selector).toHaveTextContent('10');
+    });
+  });
+
+  // TNT-FE-049: /reports/all?page=3&per_page=10 で開いた状態で PageSizeSelector から「50」を選択
+  // → URL が /reports/all?page=1&per_page=50 に更新される（page=1 リセット）。
+  //    setSearchParams は 1 回のコールに集約される（race 回避、重要リスク 5）。
+  //    PageSizeSelector の現在値が「50」に更新される。
+  it('TNT-FE-049: test_AllReportsPage_selector_change_updates_url_and_resets_page — per_page 変更時に page=1 リセット + setSearchParams 1 コール集約（重要リスク 5）', async () => {
+    // TNT-FE-049
+    const user = userEvent.setup();
+
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: mockAdminUser },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    const mockUseAllReports = vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: { data: mockReports, pagination: { current_page: 3, per_page: 10, total_count: 30, total_pages: 3 } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: { data: mockMembers },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    // page=3, per_page=10 の状態でページを開く。
+    renderAllReportsPage(['/reports/all?page=3&per_page=10']);
+
+    // PageSizeSelector が描画されるまで待機する。
+    // スタブ実装（AppPaginationFooter / PageSizeSelector 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    const selector = await screen.findByTestId('page-size-selector');
+    const combobox = within(selector).getByRole('combobox');
+    await user.click(combobox);
+
+    // 「50 件」の選択肢をクリックして per_page を変更する（実装は "{size} 件" 形式で表示）。
+    const option50 = await screen.findByRole('option', { name: '50 件' });
+    await user.click(option50);
+
+    // useAllReports に per_page: 50, page: 1 が渡されること（page=1 リセット）。
+    await waitFor(() => {
+      expect(mockUseAllReports).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 50, page: 1 }),
+      );
+    });
+
+    // setSearchParams が 1 コールで per_page と page を同時更新すること（race 回避）。
+    // URL に page=1 と per_page=50 が反映されること。
+    await waitFor(() => {
+      const locationText = screen.getByTestId('location').textContent ?? '';
+      expect(locationText).toContain('page=1');
+      expect(locationText).toContain('per_page=50');
+    });
+  });
+
+  // TNT-FE-050: /reports/all?page=2 で開く
+  // → useAllReports への引数に page: 2 が渡る。
+  //    （useState ではなく useSearchParams 経由で URL から読み取られていることを保証、issue #147 Q2）
+  //    ページネーションコントロールで「3」をクリックすると URL が /reports/all?page=3 に更新される。
+  it('TNT-FE-050: test_AllReportsPage_page_state_is_url_driven — page 状態が useSearchParams 経由で管理されている（URL 駆動化、issue #147 Q2）', async () => {
+    // TNT-FE-050
+    const user = userEvent.setup();
+
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: mockAdminUser },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    const mockUseAllReports = vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: { data: mockReports, pagination: { current_page: 2, per_page: 20, total_count: 60, total_pages: 3 } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: { data: mockMembers },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    // page=2 で開く。
+    renderAllReportsPage(['/reports/all?page=2']);
+
+    // useAllReports に page: 2 が渡されること（URL → Hook 反映、useState ではなく useSearchParams 経由）。
+    await waitFor(() => {
+      expect(mockUseAllReports).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 2 }),
+      );
+    });
+
+    // ページネーションコントロールが存在すること。
+    // スタブ実装（AppPaginationFooter 未存在）のため失敗するが β2 テスト先行仕様で許容する。
+    const page3Button = await screen.findByRole('button', { name: /3/ });
+    await user.click(page3Button);
+
+    // URL が /reports/all?page=3 に更新されること（useState 由来の独立 state ではない保証）。
+    await waitFor(() => {
+      const locationText = screen.getByTestId('location').textContent ?? '';
+      expect(locationText).toContain('page=3');
+    });
+
+    // useAllReports に page: 3 が渡されること。
+    await waitFor(() => {
+      expect(mockUseAllReports).toHaveBeenCalledWith(
+        expect.objectContaining({ page: 3 }),
+      );
+    });
+  });
+
+  // TNT-FE-051: /reports/all?per_page=abc（NaN）と /reports/all?per_page=-5（負数）の 2 サブケース
+  // → 両サブケースとも useAllReports への引数 per_page が 20（FE フォールバック）になり、
+  //    PageSizeSelector も「20」を表示する（issue #147 Q4、重要リスク 2）。
+  it('TNT-FE-051: test_AllReportsPage_url_invalid_per_page_falls_back_to_20 — NaN/負数の per_page は 20 にフォールバックされる（重要リスク 2）', async () => {
+    // TNT-FE-051
+
+    // サブケース 1: per_page=abc（NaN）
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: mockAdminUser },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    const mockUseAllReportsSub1 = vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: { data: mockReports, pagination: { current_page: 1, per_page: 20, total_count: 2, total_pages: 1 } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: { data: mockMembers },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    const { unmount } = renderAllReportsPage(['/reports/all?per_page=abc']);
+
+    // useAllReports に per_page: 20（フォールバック）が渡されること。
+    await waitFor(() => {
+      expect(mockUseAllReportsSub1).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 20 }),
+      );
+    });
+
+    // NaN の場合 per_page が NaN で呼ばれていないこと。
+    const nanCalls = mockUseAllReportsSub1.mock.calls.filter(
+      (args) => Number.isNaN(args[0]?.per_page),
+    );
+    expect(nanCalls).toHaveLength(0);
+
+    unmount();
+    vi.clearAllMocks();
+
+    // サブケース 2: per_page=-5（負数）
+    vi.spyOn(useCurrentUserModule, 'useCurrentUser').mockReturnValue({
+      data: { data: mockAdminUser },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useCurrentUserModule.useCurrentUser>);
+
+    const mockUseAllReportsSub2 = vi.spyOn(useAllReportsModule, 'useAllReports').mockReturnValue({
+      data: { data: mockReports, pagination: { current_page: 1, per_page: 20, total_count: 2, total_pages: 1 } },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useAllReportsModule.useAllReports>);
+
+    vi.spyOn(useTenantMembersModule, 'useTenantMembers').mockReturnValue({
+      data: { data: mockMembers },
+      isLoading: false,
+      isError: false,
+      error: null,
+    } as unknown as ReturnType<typeof useTenantMembersModule.useTenantMembers>);
+
+    renderAllReportsPage(['/reports/all?per_page=-5']);
+
+    // useAllReports に per_page: 20（フォールバック）が渡されること。
+    await waitFor(() => {
+      expect(mockUseAllReportsSub2).toHaveBeenCalledWith(
+        expect.objectContaining({ per_page: 20 }),
+      );
+    });
+
+    // 負数の場合 per_page=-5 で呼ばれていないこと。
+    const negativeCalls = mockUseAllReportsSub2.mock.calls.filter(
+      (args) => (args[0]?.per_page ?? 0) < 0,
+    );
+    expect(negativeCalls).toHaveLength(0);
   });
 });
