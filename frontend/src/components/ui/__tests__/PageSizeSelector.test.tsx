@@ -144,7 +144,7 @@ describe('PageSizeSelector', () => {
     // onPerPageChange が数値 50 で 1 回呼ばれること（文字列 "50" ではない）。
     expect(onPerPageChange).toHaveBeenCalledTimes(1);
     expect(onPerPageChange).toHaveBeenCalledWith(50);
-    expect(typeof onPerPageChange.mock.calls[0][0]).toBe('number');
+    expect(typeof onPerPageChange.mock.lastCall?.[0]).toBe('number');
   });
 
   // PSS-005: disabled={true} を渡す

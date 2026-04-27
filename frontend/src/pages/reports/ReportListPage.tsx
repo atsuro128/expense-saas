@@ -244,7 +244,7 @@ export default function ReportListPage() {
 
       {/* ページネーションフッター: 常時表示（issue #147 Q3）。ローディング中は disabled */}
       <AppPaginationFooter
-        currentPage={pagination?.current_page ?? 1}
+        currentPage={pagination?.current_page ?? page}
         totalPages={pagination?.total_pages ?? 1}
         onPageChange={handlePageChange}
         perPage={pagination?.per_page ?? per_page}
