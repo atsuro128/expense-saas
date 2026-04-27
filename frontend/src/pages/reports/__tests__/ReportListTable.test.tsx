@@ -1,5 +1,5 @@
 // ReportListTable コンポーネントのユニットテスト。
-// RPT-FE-015〜020, RPT-FE-147-01, RPT-FE-147-02 に対応する。
+// RPT-FE-015〜020, RPT-FE-115, RPT-FE-116 に対応する。
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -171,8 +171,8 @@ describe('ReportListTable', () => {
     expect(screen.getByTestId('app-data-grid-loading')).toBeInTheDocument();
   });
 
-  // RPT-FE-147-01: paginationFooter prop を渡すと DataGrid フッターコンテナ内に描画される（issue #147 再オープン D-1 ②a）。
-  it('RPT-FE-147-01: paginationFooter を渡すと DataGrid フッターコンテナ内に描画される', () => {
+  // RPT-FE-115: paginationFooter prop を渡すと DataGrid フッターコンテナ内に描画される（issue #147 再オープン D-1 ②a）。
+  it('RPT-FE-115: paginationFooter を渡すと DataGrid フッターコンテナ内に描画される', () => {
     const paginationContent = (
       <div data-testid="mock-pagination-footer">ページネーションフッター</div>
     );
@@ -193,9 +193,9 @@ describe('ReportListTable', () => {
     expect(screen.getByText('ページネーションフッター')).toBeInTheDocument();
   });
 
-  // RPT-FE-147-02: 空状態（reports=[]）でも paginationFooter が描画される（issue #147 Q3 リグレッション防止）。
+  // RPT-FE-116: 空状態（reports=[]）でも paginationFooter が描画される（issue #147 Q3 リグレッション防止）。
   // 早期 return を撤去したため、空状態でも AppDataGrid が描画され slots.footer（paginationFooter）が常時表示される。
-  it('RPT-FE-147-02: reports=[] かつ paginationFooter を渡すと EmptyState とフッターが同時に描画される', () => {
+  it('RPT-FE-116: reports=[] かつ paginationFooter を渡すと EmptyState とフッターが同時に描画される', () => {
     const onCreateReport = vi.fn();
     const paginationContent = (
       <div data-testid="mock-pagination-footer">ページネーションフッター</div>

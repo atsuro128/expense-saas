@@ -1,5 +1,5 @@
 // AllReportsTable のユニットテスト。
-// TNT-FE-030〜034, TNT-FE-147-01, TNT-FE-147-02 に対応する。
+// TNT-FE-030〜034, TNT-FE-052, TNT-FE-053 に対応する。
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -191,8 +191,8 @@ describe('AllReportsTable', () => {
     expect(mockOnRowClick).toHaveBeenCalledWith('rpt-1');
   });
 
-  // TNT-FE-147-01: paginationFooter prop を渡すと DataGrid フッターコンテナ内に描画される（issue #147 再オープン D-1 ②a）。
-  it('TNT-FE-147-01: paginationFooter を渡すと DataGrid フッターコンテナ内に描画される', () => {
+  // TNT-FE-052: paginationFooter prop を渡すと DataGrid フッターコンテナ内に描画される（issue #147 再オープン D-1 ②a）。
+  it('TNT-FE-052: paginationFooter を渡すと DataGrid フッターコンテナ内に描画される', () => {
     const paginationContent = (
       <div data-testid="mock-pagination-footer">ページネーションフッター</div>
     );
@@ -216,9 +216,9 @@ describe('AllReportsTable', () => {
     expect(screen.getByText('ページネーションフッター')).toBeInTheDocument();
   });
 
-  // TNT-FE-147-02: 空状態（reports=[]）でも paginationFooter が描画される（issue #147 Q3 リグレッション防止）。
+  // TNT-FE-053: 空状態（reports=[]）でも paginationFooter が描画される（issue #147 Q3 リグレッション防止）。
   // 早期 return を撤去したため、空状態でも AppDataGrid が描画され slots.footer（paginationFooter）が常時表示される。
-  it('TNT-FE-147-02: reports=[] かつ paginationFooter を渡すと EmptyState とフッターが同時に描画される', () => {
+  it('TNT-FE-053: reports=[] かつ paginationFooter を渡すと EmptyState とフッターが同時に描画される', () => {
     const paginationContent = (
       <div data-testid="mock-pagination-footer">ページネーションフッター</div>
     );
