@@ -65,7 +65,7 @@ export default function PageSizeSelector({
       size="small"
       disabled={disabled}
       margin="none"
-      sx={{ my: 0 }}
+      sx={PAGE_SIZE_SELECTOR_FORM_CONTROL_SX}
       data-testid="page-size-selector"
     >
       <InputLabel id={labelId}>表示件数:</InputLabel>
