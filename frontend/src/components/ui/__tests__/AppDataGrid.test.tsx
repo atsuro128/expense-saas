@@ -83,12 +83,6 @@ const TEST_COLUMNS: GridColDef[] = [
   { field: 'name', headerName: '名前' },
 ];
 
-/** テスト用の行データ */
-const TEST_ROWS: readonly Record<string, unknown>[] = [
-  { id: 'row-001', name: 'テスト行1' },
-  { id: 'row-002', name: 'テスト行2' },
-];
-
 describe('AppDataGrid', () => {
   beforeEach(() => {
     // 各テスト前のセットアップは不要。vi.mock はファイルレベルで適用済み。
