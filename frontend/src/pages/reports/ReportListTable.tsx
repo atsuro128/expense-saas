@@ -72,7 +72,8 @@ const COLUMNS: GridColDef[] = [
 
 /**
  * ReportListTable はレポート一覧を AppDataGrid で表示する。
- * 0 件のとき EmptyState を表示する。
+ * 0 件のときは AppDataGrid の noRowsOverlay に EmptyState を渡して表示する（issue #147 Q3 対応）。
+ * 空状態でも AppDataGrid は常に描画され、slots.footer（paginationFooter）が常時表示される。
  * paginationFooter を渡すと DataGrid フッターコンテナ内に AppPaginationFooter 等を統合できる（issue #147 再オープン D-1）。
  */
 export default function ReportListTable({
@@ -82,9 +83,15 @@ export default function ReportListTable({
   onCreateReport,
   paginationFooter,
 }: ReportListTableProps) {
-  // データが 0 件の場合は EmptyState を表示する。
-  if (!loading && reports.length === 0) {
-    return (
+  // AppDataGrid の rows に型変換する。
+  const rows = reports as unknown as readonly Record<string, unknown>[];
+
+  // 空状態時は noRowsOverlay で EmptyState を描画する（issue #147 Q3: フッター非表示仕様の撤廃）。
+  // paginationFooter が渡された場合は slots.footer 経由で DataGrid フッターコンテナに統合する（issue #147 再オープン D-1 ②a）。
+  // slots.footer を上書きすると DataGrid 標準ページネーション UI が完全に置換されるため hideFooterPagination は不要になるが、
+  // 二重表示防止の安全策として維持する。
+  const slots = {
+    noRowsOverlay: () => (
       <EmptyState
         message="経費レポートはまだありません。レポートを作成して経費精算を始めましょう。"
         action={
@@ -93,18 +100,9 @@ export default function ReportListTable({
             : undefined
         }
       />
-    );
-  }
-
-  // AppDataGrid の rows に型変換する。
-  const rows = reports as unknown as readonly Record<string, unknown>[];
-
-  // paginationFooter が渡された場合は slots.footer 経由で DataGrid フッターコンテナに統合する（issue #147 再オープン D-1 ②a）。
-  // slots.footer を上書きすると DataGrid 標準ページネーション UI が完全に置換されるため hideFooterPagination は不要になるが、
-  // 二重表示防止の安全策として維持する。
-  const footerSlots = paginationFooter
-    ? { footer: () => paginationFooter }
-    : undefined;
+    ),
+    ...(paginationFooter ? { footer: () => paginationFooter } : {}),
+  };
 
   return (
     <AppDataGrid
@@ -112,7 +110,7 @@ export default function ReportListTable({
       rows={rows}
       loading={loading}
       hideFooterPagination
-      slots={footerSlots}
+      slots={slots}
       onRowClick={
         onRowClick
           ? (params: GridRowParams) => onRowClick((params.row as { id: string }).id)

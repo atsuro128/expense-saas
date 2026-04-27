@@ -1,5 +1,5 @@
 // AllReportsTable のユニットテスト。
-// TNT-FE-030〜034, TNT-FE-147-01 に対応する。
+// TNT-FE-030〜034, TNT-FE-147-01, TNT-FE-147-02 に対応する。
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
@@ -8,6 +8,7 @@ import { vi, describe, it, beforeEach, afterEach } from 'vitest';
 
 // MUI X の ESM import 解決問題を回避するため、共通コンポーネントをモックする。
 // onRowClick は GridRowParams 互換で { row: rowData } 形式で呼び出す。
+// slots.noRowsOverlay を rows が空のとき描画する（issue #147 Q3: フッター非表示仕様撤廃 + noRowsOverlay 対応）。
 // slots.footer を受け取り DataGrid フッターコンテナ相当の div 内で描画する（issue #147 再オープン D-1 検証用）。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
@@ -15,7 +16,7 @@ vi.mock('../../../components/ui/AppDataGrid', () => ({
     columns: unknown[];
     onRowClick?: (params: { row: unknown }) => void;
     loading?: boolean;
-    slots?: { footer?: () => React.ReactNode };
+    slots?: { footer?: () => React.ReactNode; noRowsOverlay?: () => React.ReactNode };
   }) => {
     if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
@@ -33,6 +34,12 @@ vi.mock('../../../components/ui/AppDataGrid', () => ({
             ))}
           </tbody>
         </table>
+        {/* rows が 0 件のとき noRowsOverlay を描画する（MuiDataGrid-overlayWrapper 相当） */}
+        {props.rows.length === 0 && props.slots?.noRowsOverlay && (
+          <div data-testid="datagrid-no-rows-overlay">
+            {props.slots.noRowsOverlay()}
+          </div>
+        )}
         {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
         {props.slots?.footer && (
           <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
@@ -127,8 +134,9 @@ describe('AllReportsTable', () => {
     expect(screen.queryByTestId('app-data-grid')).not.toBeInTheDocument();
   });
 
-  // TNT-FE-032: データ 0 件・フィルタなしの場合、「レポートはまだ作成されていません。」が表示されること。
-  it('TNT-FE-032: データ 0 件・フィルタなし（hasActiveFilters=false）のとき EmptyState が「レポートはまだ作成されていません。」で表示される', () => {
+  // TNT-FE-032: データ 0 件・フィルタなしの場合、AppDataGrid の noRowsOverlay として EmptyState が表示される（issue #147 Q3 対応）。
+  // 早期 return を撤去したため AppDataGrid は常に描画され、noRowsOverlay 経由で EmptyState が表示される。
+  it('TNT-FE-032: データ 0 件・フィルタなし（hasActiveFilters=false）のとき EmptyState が AppDataGrid の noRowsOverlay として「レポートはまだ作成されていません。」で表示される', () => {
     render(
       <AllReportsTable
         reports={[]}
@@ -138,11 +146,15 @@ describe('AllReportsTable', () => {
       />
     );
 
+    // AppDataGrid が描画されること（早期 return が撤去されたため）。
+    expect(screen.getByTestId('app-data-grid')).toBeInTheDocument();
+
+    // noRowsOverlay 経由で EmptyState が表示されること。
     expect(screen.getByText('レポートはまだ作成されていません。')).toBeInTheDocument();
   });
 
-  // TNT-FE-033: データ 0 件・フィルタありの場合、「条件に一致するレポートはありません。フィルタを変更してお試しください。」が表示されること。
-  it('TNT-FE-033: データ 0 件・フィルタあり（hasActiveFilters=true）のとき EmptyState が「条件に一致するレポートはありません。フィルタを変更してお試しください。」で表示される', () => {
+  // TNT-FE-033: データ 0 件・フィルタありの場合、AppDataGrid の noRowsOverlay として EmptyState が表示される（issue #147 Q3 対応）。
+  it('TNT-FE-033: データ 0 件・フィルタあり（hasActiveFilters=true）のとき EmptyState が AppDataGrid の noRowsOverlay として「条件に一致するレポートはありません。フィルタを変更してお試しください。」で表示される', () => {
     render(
       <AllReportsTable
         reports={[]}
@@ -152,6 +164,10 @@ describe('AllReportsTable', () => {
       />
     );
 
+    // AppDataGrid が描画されること（早期 return が撤去されたため）。
+    expect(screen.getByTestId('app-data-grid')).toBeInTheDocument();
+
+    // noRowsOverlay 経由でフィルタあり時のメッセージが表示されること。
     expect(screen.getByText('条件に一致するレポートはありません。フィルタを変更してお試しください。')).toBeInTheDocument();
   });
 
@@ -198,5 +214,33 @@ describe('AllReportsTable', () => {
     // フッターコンテナ内に paginationFooter の内容が描画されること。
     expect(screen.getByTestId('mock-pagination-footer')).toBeInTheDocument();
     expect(screen.getByText('ページネーションフッター')).toBeInTheDocument();
+  });
+
+  // TNT-FE-147-02: 空状態（reports=[]）でも paginationFooter が描画される（issue #147 Q3 リグレッション防止）。
+  // 早期 return を撤去したため、空状態でも AppDataGrid が描画され slots.footer（paginationFooter）が常時表示される。
+  it('TNT-FE-147-02: reports=[] かつ paginationFooter を渡すと EmptyState とフッターが同時に描画される', () => {
+    const paginationContent = (
+      <div data-testid="mock-pagination-footer">ページネーションフッター</div>
+    );
+
+    render(
+      <AllReportsTable
+        reports={[]}
+        loading={false}
+        hasActiveFilters={false}
+        onRowClick={mockOnRowClick}
+        paginationFooter={paginationContent}
+      />
+    );
+
+    // AppDataGrid が描画されること（空状態でも早期 return しない）。
+    expect(screen.getByTestId('app-data-grid')).toBeInTheDocument();
+
+    // noRowsOverlay 経由で EmptyState が表示されること。
+    expect(screen.getByText('レポートはまだ作成されていません。')).toBeInTheDocument();
+
+    // 空状態でも DataGrid フッターコンテナ（paginationFooter）が描画されること（Q3 要件）。
+    expect(screen.getByTestId('datagrid-footer-container')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-pagination-footer')).toBeInTheDocument();
   });
 });

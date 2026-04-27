@@ -69,6 +69,8 @@ const COLUMNS: GridColDef[] = [
 /**
  * AllReportsTable はテナント全レポートのテーブル表示を担うコンポーネント。
  * AppDataGrid / StatusChip / EmptyState / PageSkeleton 共通コンポーネントを使用する。
+ * 0 件のときは AppDataGrid の noRowsOverlay に EmptyState を渡して表示する（issue #147 Q3 対応）。
+ * 空状態でも AppDataGrid は常に描画され、slots.footer（paginationFooter）が常時表示される。
  * paginationFooter を渡すと DataGrid フッターコンテナ内に AppPaginationFooter 等を統合できる（issue #147 再オープン D-1）。
  */
 export default function AllReportsTable({
@@ -83,33 +85,32 @@ export default function AllReportsTable({
     return <PageSkeleton variant="table" />;
   }
 
-  // データが 0 件の場合は EmptyState を表示する。フィルタ有無でメッセージを切り替える。
-  if (reports.length === 0) {
-    const message = hasActiveFilters
-      ? '条件に一致するレポートはありません。フィルタを変更してお試しください。'
-      : 'レポートはまだ作成されていません。';
-    return <EmptyState message={message} />;
-  }
-
   // AppDataGrid の rows に変換する。申請者名は submitter.name をフラットにする。
   const rows = reports.map((report) => ({
     ...report,
     submitter_name: report.submitter.name,
   })) as readonly Record<string, unknown>[];
 
+  // 空状態時は noRowsOverlay で EmptyState を描画する（issue #147 Q3: フッター非表示仕様の撤廃）。
+  // フィルタ有無でメッセージを切り替える。
+  const emptyMessage = hasActiveFilters
+    ? '条件に一致するレポートはありません。フィルタを変更してお試しください。'
+    : 'レポートはまだ作成されていません。';
+
   // paginationFooter が渡された場合は slots.footer 経由で DataGrid フッターコンテナに統合する（issue #147 再オープン D-1 ②a）。
   // slots.footer を上書きすると DataGrid 標準ページネーション UI が完全に置換されるため hideFooterPagination は不要になるが、
   // 二重表示防止の安全策として維持する。
-  const footerSlots = paginationFooter
-    ? { footer: () => paginationFooter }
-    : undefined;
+  const slots = {
+    noRowsOverlay: () => <EmptyState message={emptyMessage} />,
+    ...(paginationFooter ? { footer: () => paginationFooter } : {}),
+  };
 
   return (
     <AppDataGrid
       columns={COLUMNS}
       rows={rows}
       hideFooterPagination
-      slots={footerSlots}
+      slots={slots}
       onRowClick={(params: GridRowParams) => onRowClick(params.row.id as string)}
       sx={{ cursor: 'pointer' }}
     />
