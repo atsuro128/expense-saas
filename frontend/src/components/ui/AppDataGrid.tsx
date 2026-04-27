@@ -33,6 +33,7 @@ export default function AppDataGrid({
   return (
     <Box sx={{ width: '100%' }}>
       <DataGrid
+        {...rest}
         columns={columns}
         rows={rows}
         loading={loading}
@@ -41,6 +42,9 @@ export default function AppDataGrid({
         hideFooterPagination={rest.hideFooterPagination ?? false}
         disableRowSelectionOnClick
         slots={{
+          // デフォルトの noRowsOverlay（emptyMessage を表示）を先に定義し、
+          // 呼び出し側の slots（rest.slots）を後から展開して上書きを許可する。
+          // これにより呼び出し側は noRowsOverlay を自前実装で差し替えられる。
           noRowsOverlay: () => (
             <Box
               sx={{
@@ -55,6 +59,9 @@ export default function AppDataGrid({
               </Typography>
             </Box>
           ),
+          // 呼び出し側の slots を後から展開して合成する。
+          // footer 等の追加スロットはここで引き継がれる。
+          // noRowsOverlay を呼び出し側で渡した場合は上記デフォルトを上書きする。
           ...rest.slots,
         }}
         sx={{
@@ -62,9 +69,9 @@ export default function AppDataGrid({
           '& .MuiDataGrid-columnHeaderTitle': {
             fontWeight: 'bold',
           },
+          // 呼び出し側の sx を後から展開して合成する。
           ...rest.sx,
         }}
-        {...rest}
       />
     </Box>
   );
