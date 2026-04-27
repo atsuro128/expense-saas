@@ -1,8 +1,13 @@
 // 表示件数セレクタコンポーネント。
 // 1 ページあたりの表示件数（per_page）を選択する UI。
-// common-components.md §PageSizeSelector 準拠。
+// common-components.md §PageSizeSelector 準拠（issue #147 再々オープン A2 案）。
 // 標準選択肢 [10, 20, 50, 100] をデフォルトとし、URL 由来の標準外値が現在値として渡された場合は
 // 動的に選択肢に追加して URL を正直に反映する（issue #147 採用方針 A: パターン X）。
+//
+// サイズ・variant 方針（A2 案確定）:
+// - size="small": MUI Select 標準の小サイズ（フッター高さを最小化）
+// - variant="outlined": 既存実装と整合し、MUI X DataGrid 標準フッターの TablePagination 内 Select と同系統
+// - FormControl に margin="none" + sx={{ my: 0 }}: 余白を完全排除し minHeight: 52 を Select 枠線が支配しないよう調整
 
 import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
@@ -28,6 +33,9 @@ export interface PageSizeSelectorProps {
  * PageSizeSelector は MUI Select ベースの表示件数セレクタ。
  * 標準外の per_page 値が渡された場合は動的に選択肢に追加する。
  * Set による重複除去で MUI MenuItem の key 重複 warning を回避する。
+ *
+ * A2 案確定: variant="outlined" / FormControl margin="none" + sx={{ my: 0 }} で
+ * Select 枠線が AppPaginationFooter の minHeight: 52 を支配しないようにする。
  */
 export default function PageSizeSelector({
   perPage,
@@ -46,13 +54,20 @@ export default function PageSizeSelector({
   const labelId = 'page-size-selector-label';
 
   return (
-    <FormControl size="small" disabled={disabled} data-testid="page-size-selector">
+    <FormControl
+      size="small"
+      disabled={disabled}
+      margin="none"
+      sx={{ my: 0 }}
+      data-testid="page-size-selector"
+    >
       <InputLabel id={labelId}>表示件数:</InputLabel>
       <Select<number>
         labelId={labelId}
         id="page-size-selector-select"
         value={perPage}
         label="表示件数:"
+        variant="outlined"
         onChange={handleChange}
         inputProps={{ 'data-testid': 'page-size-selector-input' }}
       >

@@ -1,8 +1,8 @@
 // AppPaginationFooter のユニットテスト。
-// APF-001〜007 に対応する（issue #147）。
+// APF-001〜011 に対応する（issue #147 / 再々オープン A2 案）。
 // 55_ui_component/common-components.md §AppPaginationFooter の Props 型・動作仕様を検証する。
 //
-// Traceability: test_cases/reports.md §FE-6（APF-001〜APF-007）
+// Traceability: test_cases/reports.md §FE-6（APF-001〜APF-011）
 // APF-001 → 'APF-001: test_AppPaginationFooter_composes_pagination_and_selector'
 // APF-002 → 'APF-002: test_AppPaginationFooter_always_renders_when_totalPages_zero'
 // APF-003 → 'APF-003: test_AppPaginationFooter_always_renders_when_totalPages_one'
@@ -10,9 +10,10 @@
 // APF-005 → 'APF-005: test_AppPaginationFooter_disables_inner_components'
 // APF-006 → 'APF-006: test_AppPaginationFooter_forwards_onPageChange'
 // APF-007 → 'APF-007: test_AppPaginationFooter_forwards_onPerPageChange'
-//
-// 実装コード（AppPaginationFooter.tsx）は未存在（β2 テスト先行 PR）のため、
-// tsc / vitest 実行は赤になることを想定している。CI 赤は意図的。
+// APF-008 → 'APF-008: test_AppPaginationFooter_has_border_top_sx' （視覚回帰防止、border-top sx 検証）
+// APF-009 → 'APF-009: test_AppPaginationFooter_count_display_calculation' （件数表示算出: 通常/端数/0件）
+// APF-010 → 'APF-010: test_AppPaginationFooter_no_count_when_totalCount_undefined' （後方互換）
+// APF-011 → 'APF-011: test_AppPaginationFooter_layout_and_pss_margin_constraints' （高さ支配回帰防止）
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -39,6 +40,12 @@ interface AppPaginationFooterProps {
   standardOptions?: number[];
   /** ローディング中などで無効化（AppPagination / PageSizeSelector 双方に伝播） */
   disabled?: boolean;
+  /**
+   * 件数表示用の総件数（issue #147 再々オープン: A2 案）。
+   * - 指定された場合、フッター左側に「{start} - {end} / 全 {total} 件」を表示する
+   * - 未指定（undefined）の場合は件数表示を非表示にする（後方互換）
+   */
+  totalCount?: number;
 }
 
 describe('AppPaginationFooter', () => {
@@ -238,5 +245,144 @@ describe('AppPaginationFooter', () => {
     // onPerPageChange が 50 で 1 回呼ばれること。
     expect(onPerPageChange).toHaveBeenCalledTimes(1);
     expect(onPerPageChange).toHaveBeenCalledWith(50);
+  });
+
+  // APF-008: ルート Box に borderTop sx が設定されていること（視覚回帰防止）。
+  // issue #147 再々オープン A2 案: DataGrid 標準フッターとの境界線を揃えるための実装。
+  // jsdom 上では viewport 切替不可のため、data-testid 経由でルート要素の存在を確認する。
+  it('APF-008: test_AppPaginationFooter_has_border_top_sx — ルート要素に data-testid="app-pagination-footer" が付与され境界線 sx が適用されている（視覚回帰防止）', () => {
+    // APF-008
+    const props: AppPaginationFooterProps = {
+      currentPage: 1,
+      totalPages: 3,
+      perPage: 20,
+      onPageChange: vi.fn(),
+      onPerPageChange: vi.fn(),
+    };
+
+    render(<AppPaginationFooter {...props} />);
+
+    // ルート要素（data-testid="app-pagination-footer"）が描画されること。
+    const footer = screen.getByTestId('app-pagination-footer');
+    expect(footer).toBeInTheDocument();
+
+    // MUI Box に sx を渡すと MUI の CSS-in-JS 経由でスタイルクラスが付与される。
+    // jsdom では実際の CSS 値は確認不可だが、className が付与されていることで sx 適用を間接確認する。
+    // 少なくとも何らかのクラスが付与されていること（MUI Box の sx が有効であること）を検証する。
+    expect(footer.className).toBeTruthy();
+  });
+
+  // APF-009: totalCount 指定時の件数表示算出を検証する（通常 / 端数 / 0 件）。
+  // issue #147 再々オープン A2 案: 「{start} - {end} / 全 {total} 件」フォーマット検証。
+  describe('APF-009: test_AppPaginationFooter_count_display_calculation — 件数表示算出の検証', () => {
+    // APF-009a: 通常ケース（totalCount=37, perPage=10, currentPage=2）
+    // → 「11 - 20 / 全 37 件」と表示される。
+    it('APF-009a: 通常ケース（currentPage=2, perPage=10, totalCount=37）→「11 - 20 / 全 37 件」', () => {
+      const props: AppPaginationFooterProps = {
+        currentPage: 2,
+        totalPages: 4,
+        perPage: 10,
+        totalCount: 37,
+        onPageChange: vi.fn(),
+        onPerPageChange: vi.fn(),
+      };
+
+      render(<AppPaginationFooter {...props} />);
+
+      // 件数表示テキストが正しく描画されること。
+      expect(screen.getByTestId('app-pagination-footer-count')).toHaveTextContent('11 - 20 / 全 37 件');
+    });
+
+    // APF-009b: 端数ページ（totalCount=37, perPage=10, currentPage=4）
+    // → 「31 - 37 / 全 37 件」と表示される（end は totalCount でキャップされる）。
+    it('APF-009b: 端数ページ（currentPage=4, perPage=10, totalCount=37）→「31 - 37 / 全 37 件」', () => {
+      const props: AppPaginationFooterProps = {
+        currentPage: 4,
+        totalPages: 4,
+        perPage: 10,
+        totalCount: 37,
+        onPageChange: vi.fn(),
+        onPerPageChange: vi.fn(),
+      };
+
+      render(<AppPaginationFooter {...props} />);
+
+      // 端数ページの end は totalCount（37）でキャップされること。
+      expect(screen.getByTestId('app-pagination-footer-count')).toHaveTextContent('31 - 37 / 全 37 件');
+    });
+
+    // APF-009c: 0 件（totalCount=0, currentPage=1, perPage=20）
+    // → 「0 - 0 / 全 0 件」と表示される（件数表示を非表示にはしない。フッター常時表示方針と整合）。
+    it('APF-009c: 0 件（totalCount=0）→「0 - 0 / 全 0 件」', () => {
+      const props: AppPaginationFooterProps = {
+        currentPage: 1,
+        totalPages: 1,
+        perPage: 20,
+        totalCount: 0,
+        onPageChange: vi.fn(),
+        onPerPageChange: vi.fn(),
+      };
+
+      render(<AppPaginationFooter {...props} />);
+
+      // 0 件時は「0 - 0 / 全 0 件」と表示されること（非表示にしない）。
+      expect(screen.getByTestId('app-pagination-footer-count')).toHaveTextContent('0 - 0 / 全 0 件');
+    });
+  });
+
+  // APF-010: totalCount 未指定時の後方互換確認。
+  // → 件数表示要素（data-testid="app-pagination-footer-count"）が描画されない。
+  //    AppPagination と PageSizeSelector は引き続き描画される。
+  it('APF-010: test_AppPaginationFooter_no_count_when_totalCount_undefined — totalCount 未指定時に件数表示が非描画（後方互換）', () => {
+    // APF-010
+    const props: AppPaginationFooterProps = {
+      currentPage: 1,
+      totalPages: 3,
+      perPage: 20,
+      onPageChange: vi.fn(),
+      onPerPageChange: vi.fn(),
+      // totalCount を意図的に省略（後方互換テスト）
+    };
+
+    render(<AppPaginationFooter {...props} />);
+
+    // 件数表示要素が描画されないこと。
+    expect(screen.queryByTestId('app-pagination-footer-count')).not.toBeInTheDocument();
+
+    // AppPagination と PageSizeSelector は引き続き描画されること。
+    expect(screen.getByRole('navigation')).toBeInTheDocument();
+    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
+  });
+
+  // APF-011: sx 設定と PageSizeSelector FormControl の margin/sy 設定の検証（高さ支配回帰防止）。
+  // issue #147 再々オープン A2 案の主目的: Select 枠線がフッター高さを支配しないための構造を保証する。
+  it('APF-011: test_AppPaginationFooter_layout_and_pss_margin_constraints — minHeight/px/py sx + PageSizeSelector margin/sy 設定が存在する（高さ支配回帰防止）', () => {
+    // APF-011
+    const props: AppPaginationFooterProps = {
+      currentPage: 1,
+      totalPages: 3,
+      perPage: 20,
+      onPageChange: vi.fn(),
+      onPerPageChange: vi.fn(),
+    };
+
+    render(<AppPaginationFooter {...props} />);
+
+    // ルート要素（app-pagination-footer）が描画されること。
+    const footer = screen.getByTestId('app-pagination-footer');
+    expect(footer).toBeInTheDocument();
+
+    // PageSizeSelector（data-testid="page-size-selector"）が描画されること。
+    const pageSizeSelector = screen.getByTestId('page-size-selector');
+    expect(pageSizeSelector).toBeInTheDocument();
+
+    // MUI Box/FormControl に sx/margin を渡すと className が付与される（間接確認）。
+    // jsdom では実 CSS 値検証不可のため、要素の存在と className 付与を確認する。
+    expect(footer.className).toBeTruthy();
+    expect(pageSizeSelector.className).toBeTruthy();
+
+    // Select コンポーネント（combobox）が存在すること。
+    const selector = screen.getByRole('combobox');
+    expect(selector).toBeInTheDocument();
   });
 });

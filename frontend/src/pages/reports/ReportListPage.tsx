@@ -247,6 +247,7 @@ export default function ReportListPage() {
                 perPage={pagination?.per_page ?? per_page}
                 onPerPageChange={handlePerPageChange}
                 disabled={isLoading}
+                totalCount={pagination?.total_count}
               />
             }
           />
