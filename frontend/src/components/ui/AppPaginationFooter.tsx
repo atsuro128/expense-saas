@@ -2,6 +2,8 @@
 // 一覧画面のフッター 1 行に「中央: ページ番号（AppPagination）／右: 表示件数セレクタ（PageSizeSelector）」を並置する。
 // common-components.md §AppPaginationFooter 準拠。
 // レスポンシブ対応として 375px 等のスマホ幅では縦並びにフォールバックする。
+// 配置: AppDataGrid の slots.footer 経由で DataGrid フッターコンテナに統合する（issue #147 再オープン D-1）。
+// テーブル外の独立 Box として配置しないため、外側マージン mt={2} は不要（DataGrid フッターコンテナが余白を管理する）。
 
 import Box from '@mui/material/Box';
 import AppPagination from './AppPagination';
@@ -50,7 +52,6 @@ export default function AppPaginationFooter({
       alignItems="center"
       flexDirection={{ xs: 'column', sm: 'row' }}
       gap={{ xs: 1, sm: 0 }}
-      mt={2}
     >
       {/*
        * sm 以上で AppPagination を中央寄せするためのスペーサー。

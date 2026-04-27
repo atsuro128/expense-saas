@@ -1,47 +1,65 @@
 // ReportListTable コンポーネントのユニットテスト。
-// RPT-FE-015〜020 に対応する。
+// RPT-FE-015〜020, RPT-FE-115, RPT-FE-116 に対応する。
 
+import React from 'react';
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { vi } from 'vitest';
 
 // MUI X の ESM import 解決問題を回避するため AppDataGrid をモックする。
 // onRowClick は { row: rowData } 形式で呼び出す。
+// slots.noRowsOverlay を rows が空のとき描画する（issue #147 Q3: フッター非表示仕様撤廃 + noRowsOverlay 対応）。
+// slots.footer を受け取り DataGrid フッターコンテナ相当の div 内で描画する（issue #147 再オープン D-1 検証用）。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
     rows: Array<{ id: string; title: string; period: string; totalAmount: number; status: string; createdAt: string; periodStart: string; periodEnd: string }>;
     columns: unknown[];
     onRowClick?: (params: { row: unknown }) => void;
     loading?: boolean;
+    slots?: { footer?: () => React.ReactNode; noRowsOverlay?: () => React.ReactNode };
   }) => {
     if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
-      <table data-testid="app-data-grid">
-        <thead>
-          <tr>
-            <th>タイトル</th>
-            <th>対象期間</th>
-            <th>合計金額</th>
-            <th>ステータス</th>
-            <th>作成日</th>
-          </tr>
-        </thead>
-        <tbody>
-          {props.rows.map((row) => (
-            <tr
-              key={row.id}
-              onClick={() => props.onRowClick?.({ row })}
-              data-testid={`row-${row.id}`}
-            >
-              <td>{row.title}</td>
-              <td>{`${row.periodStart} 〜 ${row.periodEnd}`}</td>
-              <td>{row.totalAmount.toLocaleString()}</td>
-              <td>{row.status}</td>
-              <td>{row.createdAt}</td>
+      <div>
+        <table data-testid="app-data-grid">
+          <thead>
+            <tr>
+              <th>タイトル</th>
+              <th>対象期間</th>
+              <th>合計金額</th>
+              <th>ステータス</th>
+              <th>作成日</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {props.rows.map((row) => (
+              <tr
+                key={row.id}
+                onClick={() => props.onRowClick?.({ row })}
+                data-testid={`row-${row.id}`}
+              >
+                <td>{row.title}</td>
+                <td>{`${row.periodStart} 〜 ${row.periodEnd}`}</td>
+                <td>{row.totalAmount.toLocaleString()}</td>
+                <td>{row.status}</td>
+                <td>{row.createdAt}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* rows が 0 件のとき noRowsOverlay を描画する（MuiDataGrid-overlayWrapper 相当） */}
+        {props.rows.length === 0 && props.slots?.noRowsOverlay && (
+          <div data-testid="datagrid-no-rows-overlay">
+            {props.slots.noRowsOverlay()}
+          </div>
+        )}
+        {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
+        {props.slots?.footer && (
+          <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
+            {props.slots.footer()}
+          </div>
+        )}
+      </div>
     );
   },
 }));
@@ -128,11 +146,16 @@ describe('ReportListTable', () => {
     expect(onRowClick).toHaveBeenCalledWith('report-001');
   });
 
-  // RPT-FE-019: reports=[] のとき EmptyState が表示される。
-  it('RPT-FE-019: reports=[] のとき EmptyState が表示される', () => {
+  // RPT-FE-019: reports=[] のとき AppDataGrid の noRowsOverlay として EmptyState が表示される（issue #147 Q3 対応）。
+  // 早期 return を撤去したため AppDataGrid は常に描画され、noRowsOverlay 経由で EmptyState が表示される。
+  it('RPT-FE-019: reports=[] のとき EmptyState が AppDataGrid の noRowsOverlay として表示される', () => {
     const onCreateReport = vi.fn();
     render(<ReportListTable reports={[]} onCreateReport={onCreateReport} />);
 
+    // AppDataGrid が描画されること（早期 return が撤去されたため）。
+    expect(screen.getByTestId('app-data-grid')).toBeInTheDocument();
+
+    // noRowsOverlay 経由で EmptyState が表示されること。
     expect(
       screen.getByText(
         '経費レポートはまだありません。レポートを作成して経費精算を始めましょう。',
@@ -146,5 +169,58 @@ describe('ReportListTable', () => {
 
     // AppDataGrid モックが loading=true のとき app-data-grid-loading を描画すること。
     expect(screen.getByTestId('app-data-grid-loading')).toBeInTheDocument();
+  });
+
+  // RPT-FE-115: paginationFooter prop を渡すと DataGrid フッターコンテナ内に描画される（issue #147 再オープン D-1 ②a）。
+  it('RPT-FE-115: paginationFooter を渡すと DataGrid フッターコンテナ内に描画される', () => {
+    const paginationContent = (
+      <div data-testid="mock-pagination-footer">ページネーションフッター</div>
+    );
+
+    render(
+      <ReportListTable
+        reports={sampleReports}
+        paginationFooter={paginationContent}
+      />
+    );
+
+    // DataGrid フッターコンテナ（モック内の MuiDataGrid-footerContainer 相当）が描画されること。
+    const footerContainer = screen.getByTestId('datagrid-footer-container');
+    expect(footerContainer).toBeInTheDocument();
+
+    // フッターコンテナ内に paginationFooter の内容が描画されること。
+    expect(screen.getByTestId('mock-pagination-footer')).toBeInTheDocument();
+    expect(screen.getByText('ページネーションフッター')).toBeInTheDocument();
+  });
+
+  // RPT-FE-116: 空状態（reports=[]）でも paginationFooter が描画される（issue #147 Q3 リグレッション防止）。
+  // 早期 return を撤去したため、空状態でも AppDataGrid が描画され slots.footer（paginationFooter）が常時表示される。
+  it('RPT-FE-116: reports=[] かつ paginationFooter を渡すと EmptyState とフッターが同時に描画される', () => {
+    const onCreateReport = vi.fn();
+    const paginationContent = (
+      <div data-testid="mock-pagination-footer">ページネーションフッター</div>
+    );
+
+    render(
+      <ReportListTable
+        reports={[]}
+        onCreateReport={onCreateReport}
+        paginationFooter={paginationContent}
+      />
+    );
+
+    // AppDataGrid が描画されること（空状態でも早期 return しない）。
+    expect(screen.getByTestId('app-data-grid')).toBeInTheDocument();
+
+    // noRowsOverlay 経由で EmptyState が表示されること。
+    expect(
+      screen.getByText(
+        '経費レポートはまだありません。レポートを作成して経費精算を始めましょう。',
+      ),
+    ).toBeInTheDocument();
+
+    // 空状態でも DataGrid フッターコンテナ（paginationFooter）が描画されること（Q3 要件）。
+    expect(screen.getByTestId('datagrid-footer-container')).toBeInTheDocument();
+    expect(screen.getByTestId('mock-pagination-footer')).toBeInTheDocument();
   });
 });

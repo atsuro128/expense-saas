@@ -32,6 +32,7 @@
 // PAY-FE-003 → 'PAY-FE-003: sync_role_check_accounting_renders' — issue-106 同期ロールチェック
 // PAY-FE-004 → 'PAY-FE-004: Admin/Approver/Member ロールは即ダッシュボードへリダイレクトされる' — issue-106 同期ロールチェック（authz.md 正本: Accounting のみ許可）
 
+import React from 'react';
 import { render, screen, waitFor, act, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes, Navigate, useLocation } from 'react-router-dom';
@@ -41,6 +42,7 @@ import { vi, describe, it, beforeEach, afterEach, expect } from 'vitest';
 // MUI X の ESM import 解決問題を回避するため AppDataGrid をモックする。
 // onRowClick は { row: rowData } 形式で呼び出す。
 // is_own_report が true のとき「自分」ラベルを描画する（SelfLabel の動作を再現）。
+// slots.footer を受け取り DataGrid フッターコンテナ相当の div 内で描画する（issue #147 再オープン D-1 直接利用パターン検証用）。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
     rows: Array<{ id: string; submitter_name: string; title: string; total_amount: number; is_own_report: boolean; approved_at: string | null }>;
@@ -48,33 +50,52 @@ vi.mock('../../../components/ui/AppDataGrid', () => ({
     onRowClick?: (params: { row: unknown }) => void;
     loading?: boolean;
     emptyMessage?: string;
+    slots?: { footer?: () => React.ReactNode };
   }) => {
     if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     if (props.rows.length === 0) {
-      return <div data-testid="app-data-grid">{props.emptyMessage}</div>;
+      return (
+        <div>
+          <div data-testid="app-data-grid">{props.emptyMessage}</div>
+          {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
+          {props.slots?.footer && (
+            <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
+              {props.slots.footer()}
+            </div>
+          )}
+        </div>
+      );
     }
     return (
-      <table data-testid="payable-report-table" data-column-count={props.columns.length}>
-        <tbody>
-          {props.rows.map((row) => (
-            <tr
-              key={row.id}
-              onClick={() => props.onRowClick?.({ row })}
-              data-testid={`payable-report-row-${row.id}`}
-            >
-              <td>
-                {row.submitter_name}
-                {row.is_own_report && <span>自分</span>}
-              </td>
-              <td>{row.title}</td>
-              <td>{`¥${row.total_amount.toLocaleString()}`}</td>
-              <td data-testid="payable-table-header-approved-at">
-                {row.approved_at ? new Date(row.approved_at).toLocaleDateString('ja-JP') : '-'}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div>
+        <table data-testid="payable-report-table" data-column-count={props.columns.length}>
+          <tbody>
+            {props.rows.map((row) => (
+              <tr
+                key={row.id}
+                onClick={() => props.onRowClick?.({ row })}
+                data-testid={`payable-report-row-${row.id}`}
+              >
+                <td>
+                  {row.submitter_name}
+                  {row.is_own_report && <span>自分</span>}
+                </td>
+                <td>{row.title}</td>
+                <td>{`¥${row.total_amount.toLocaleString()}`}</td>
+                <td data-testid="payable-table-header-approved-at">
+                  {row.approved_at ? new Date(row.approved_at).toLocaleDateString('ja-JP') : '-'}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
+        {props.slots?.footer && (
+          <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
+            {props.slots.footer()}
+          </div>
+        )}
+      </div>
     );
   },
 }));

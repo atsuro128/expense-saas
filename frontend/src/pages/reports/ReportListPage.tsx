@@ -226,6 +226,7 @@ export default function ReportListPage() {
       ) : (
         <Box data-testid="report-list-table">
           {/* ReportListTable（DataGrid + StatusChip）でステータスを日本語 Chip 表示する（issue #139 対応） */}
+          {/* paginationFooter: AppPaginationFooter を slots.footer 経由で DataGrid フッターコンテナに統合する（issue #147 再オープン D-1 ②a） */}
           <ReportListTable
             reports={reports.map((r) => ({
               id: r.id,
@@ -238,19 +239,19 @@ export default function ReportListPage() {
             }))}
             onRowClick={(id) => navigate(`/reports/${id}`)}
             onCreateReport={() => navigate('/reports/new')}
+            paginationFooter={
+              <AppPaginationFooter
+                currentPage={pagination?.current_page ?? page}
+                totalPages={pagination?.total_pages ?? 1}
+                onPageChange={handlePageChange}
+                perPage={pagination?.per_page ?? per_page}
+                onPerPageChange={handlePerPageChange}
+                disabled={isLoading}
+              />
+            }
           />
         </Box>
       )}
-
-      {/* ページネーションフッター: 常時表示（issue #147 Q3）。ローディング中は disabled */}
-      <AppPaginationFooter
-        currentPage={pagination?.current_page ?? page}
-        totalPages={pagination?.total_pages ?? 1}
-        onPageChange={handlePageChange}
-        perPage={pagination?.per_page ?? per_page}
-        onPerPageChange={handlePerPageChange}
-        disabled={isLoading}
-      />
     </Box>
   );
 }
