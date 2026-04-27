@@ -34,7 +34,7 @@ export default function AppPagination({
   };
 
   return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', mt: 2 }} data-testid="app-pagination">
+    <Box sx={{ display: 'flex', justifyContent: 'center' }} data-testid="app-pagination">
       <Pagination
         count={totalPages}
         page={currentPage}

@@ -12,28 +12,38 @@ import ReportListPage from '../ReportListPage';
 
 // AppDataGrid を軽量な HTMLTable モックで差し替える。
 // MUI X DataGrid は jsdom 環境で ESM import 問題が発生するため、テスト時はモックする（ReportListTable.test.tsx と同方針）。
+// slots.footer を受け取り DataGrid フッターコンテナ相当の div 内で描画する（issue #147 再オープン D-1 中間ラッパー経由パターン検証用）。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
     rows: Array<{ id: string; title: string; periodStart: string; periodEnd: string; totalAmount: number; status: string; createdAt: string }>;
     columns: unknown[];
     onRowClick?: (params: { row: unknown }) => void;
     loading?: boolean;
+    slots?: { footer?: () => import('react').ReactNode };
   }) => {
     if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
-      <table data-testid="app-data-grid">
-        <tbody>
-          {props.rows.map((row) => (
-            <tr
-              key={row.id}
-              onClick={() => props.onRowClick?.({ row })}
-              data-testid={`row-${row.id}`}
-            >
-              <td>{row.title}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div>
+        <table data-testid="app-data-grid">
+          <tbody>
+            {props.rows.map((row) => (
+              <tr
+                key={row.id}
+                onClick={() => props.onRowClick?.({ row })}
+                data-testid={`row-${row.id}`}
+              >
+                <td>{row.title}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
+        {props.slots?.footer && (
+          <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
+            {props.slots.footer()}
+          </div>
+        )}
+      </div>
     );
   },
 }));

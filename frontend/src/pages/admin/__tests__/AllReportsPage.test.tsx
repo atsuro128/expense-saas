@@ -2,6 +2,7 @@
 // TNT-FE-016〜023 に対応する。
 // TNT-FE-046〜047: issue 088（403 認可エラーフィードバック）の navigate toast state 確認テストを追加。
 
+import React from 'react';
 import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
@@ -28,24 +29,34 @@ vi.mock('../../../components/ui/AppDatePicker', () => ({
   ),
 }));
 // AppDataGrid モック: GridRowParams 互換で { row: rowData } 形式で onRowClick を呼ぶ。
+// slots.footer を受け取り DataGrid フッターコンテナ相当の div 内で描画する（issue #147 再オープン D-1 中間ラッパー経由パターン検証用）。
 vi.mock('../../../components/ui/AppDataGrid', () => ({
   default: (props: {
     rows: unknown[];
     columns: unknown[];
     onRowClick?: (params: { row: unknown }) => void;
     loading?: boolean;
+    slots?: { footer?: () => React.ReactNode };
   }) => {
     if (props.loading) return <div data-testid="app-data-grid-loading">Loading...</div>;
     return (
-      <table data-testid="app-data-grid">
-        <tbody>
-          {(props.rows as Array<{ id: string; title: string }>).map((row) => (
-            <tr key={row.id} onClick={() => props.onRowClick?.({ row })} data-testid={`row-${row.id}`}>
-              <td>{row.title}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div>
+        <table data-testid="app-data-grid">
+          <tbody>
+            {(props.rows as Array<{ id: string; title: string }>).map((row) => (
+              <tr key={row.id} onClick={() => props.onRowClick?.({ row })} data-testid={`row-${row.id}`}>
+                <td>{row.title}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {/* DataGrid フッターコンテナ相当: slots.footer をここで描画する（issue #147 再オープン D-1 テスト用） */}
+        {props.slots?.footer && (
+          <div className="MuiDataGrid-footerContainer" data-testid="datagrid-footer-container">
+            {props.slots.footer()}
+          </div>
+        )}
+      </div>
     );
   },
 }));

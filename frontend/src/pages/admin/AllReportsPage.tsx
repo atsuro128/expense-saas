@@ -169,20 +169,22 @@ export default function AllReportsPage() {
         members={members}
         membersLoading={membersLoading}
       />
+      {/* paginationFooter: AppPaginationFooter を slots.footer 経由で DataGrid フッターコンテナに統合する（issue #147 再オープン D-1 ②a） */}
       <AllReportsTable
         reports={reports}
         loading={isLoading}
         hasActiveFilters={hasActiveFilters}
         onRowClick={handleRowClick}
-      />
-      {/* ページネーションフッター: 常時表示（issue #147 Q3）。ローディング中は disabled */}
-      <AppPaginationFooter
-        currentPage={pagination?.current_page ?? page}
-        totalPages={totalPages}
-        onPageChange={handlePageChange}
-        perPage={pagination?.per_page ?? per_page}
-        onPerPageChange={handlePerPageChange}
-        disabled={isLoading}
+        paginationFooter={
+          <AppPaginationFooter
+            currentPage={pagination?.current_page ?? page}
+            totalPages={totalPages}
+            onPageChange={handlePageChange}
+            perPage={pagination?.per_page ?? per_page}
+            onPerPageChange={handlePerPageChange}
+            disabled={isLoading}
+          />
+        }
       />
       <AppToast
         open={toastOpen}
