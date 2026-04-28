@@ -1,13 +1,15 @@
 // PageSizeSelector のユニットテスト。
-// PSS-001〜005 に対応する（issue #147）。
+// PSS-001〜006 に対応する（issue #147）。
 // 55_ui_component/common-components.md §PageSizeSelector の Props 型・動作仕様を検証する。
 //
-// Traceability: test_cases/reports.md §FE-6（PSS-001〜PSS-005）
+// Traceability: test_cases/reports.md §FE-6（PSS-001〜PSS-006）
 // PSS-001 → 'PSS-001: test_PageSizeSelector_renders_standard_options'
 // PSS-002 → 'PSS-002: test_PageSizeSelector_appends_non_standard_perPage_to_options'
 // PSS-003 → 'PSS-003: test_PageSizeSelector_dedupes_when_perPage_already_in_standard'
 // PSS-004 → 'PSS-004: test_PageSizeSelector_calls_onPerPageChange_with_number'
 // PSS-005 → 'PSS-005: test_PageSizeSelector_disables_when_disabled_true'
+// PSS-006 → 'PSS-006: test_PageSizeSelector_select_has_standard_variant'
+//   issue #147 再々オープン A1 案: variant="standard" の適用を検証（MUI 標準寄せ）
 //
 // 実装コード（PageSizeSelector.tsx）は未存在（β2 テスト先行 PR）のため、
 // tsc / vitest 実行は赤になることを想定している。CI 赤は意図的。
@@ -169,5 +171,43 @@ describe('PageSizeSelector', () => {
     // クリックしても onPerPageChange が呼ばれないこと。
     await user.click(select);
     expect(onPerPageChange).not.toHaveBeenCalled();
+  });
+
+  // PSS-006: issue #147 再々オープン A1 案 — Select に variant="standard" が適用されていることを検証。
+  // MUI X DataGrid 標準フッター（@mui/material/TablePagination）の Select は
+  // variant="standard" をハードコードしている（TablePagination.js L260 確認済み）。
+  // 本プロジェクトの「MUI 標準寄せ」趣旨と整合させるために outlined から standard に訂正した結果を保証する。
+  //
+  // jsdom + emotion 環境では sx の CSS クラス変換が完全再現されないため、以下の代替検証を採用する:
+  // - MUI Select の variant="standard" が適用されると内部コンポーネントとして Input（not OutlinedInput）が使われ、
+  //   DOM 上にラッパー要素が描画される際 MuiInput-underline クラスが付与される。
+  //   これを `data-testid="page-size-selector"` 配下の要素から検索して確認する。
+  // - DOM 構造で確認できない場合（jsdom の制約）は、select 要素の祖先に outlined 特有の
+  //   fieldset 要素が存在しないことで outlined でないことを間接検証する（variant="outlined" では
+  //   fieldset + legend による枠線構造が DOM に生成される）。
+  it('PSS-006: test_PageSizeSelector_select_has_standard_variant — Select に variant="standard" が適用されている（MUI 標準寄せ、A1 案確定）', () => {
+    // PSS-006
+    const props: PageSizeSelectorProps = {
+      perPage: 20,
+      onPerPageChange: vi.fn(),
+    };
+
+    const { container } = render(<PageSizeSelector {...props} />);
+
+    // ルート要素（FormControl）が描画されること。
+    const pageSizeSelector = screen.getByTestId('page-size-selector');
+    expect(pageSizeSelector).toBeInTheDocument();
+
+    // variant="standard" の確認方法 A: MuiInput-underline クラスが存在すること。
+    // variant="standard" の Select は内部で Input コンポーネントを使い、MuiInput-underline クラスが付与される。
+    // variant="outlined" の場合は OutlinedInput が使われ、MuiInput-underline は付与されない。
+    const underlineElement = container.querySelector('.MuiInput-underline');
+    expect(underlineElement).toBeInTheDocument();
+
+    // variant="standard" の確認方法 B（補強）: outlined 特有の fieldset 要素が存在しないこと。
+    // variant="outlined" では MUI が枠線を描画するために fieldset + legend 構造を DOM に生成する。
+    // variant="standard" ではこの構造は生成されない。
+    const fieldset = container.querySelector('fieldset');
+    expect(fieldset).not.toBeInTheDocument();
   });
 });
