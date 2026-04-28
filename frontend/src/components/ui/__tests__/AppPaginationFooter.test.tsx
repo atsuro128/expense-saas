@@ -69,9 +69,8 @@ describe('AppPaginationFooter', () => {
     const pagination = screen.getByRole('navigation');
     expect(pagination).toBeInTheDocument();
 
-    // PageSizeSelector の「表示件数:」ラベルが描画されること。
-    // MUI は InputLabel と fieldset legend の両方にラベルテキストを描画するため getAllByText を使う。
-    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
+    // PageSizeSelector が描画されること（B 案: 視覚ラベル無し、aria-label="表示件数" で検出）。
+    expect(screen.getByRole('combobox', { name: '表示件数' })).toBeInTheDocument();
 
     // PageSizeSelector の現在値が 20 であること。
     const selector = screen.getByRole('combobox');
@@ -101,9 +100,8 @@ describe('AppPaginationFooter', () => {
     // ページ番号「1」が表示されること（Math.max(0, 1) = 1 の保証）。
     expect(screen.getByRole('button', { name: /1/ })).toBeInTheDocument();
 
-    // PageSizeSelector も描画されること。
-    // MUI は InputLabel と fieldset legend の両方にラベルテキストを描画するため getAllByText を使う。
-    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
+    // PageSizeSelector も描画されること（B 案: 視覚ラベル無し、aria-label="表示件数" で検出）。
+    expect(screen.getByRole('combobox', { name: '表示件数' })).toBeInTheDocument();
   });
 
   // APF-003: totalPages=1, currentPage=1, perPage=20
@@ -360,9 +358,9 @@ describe('AppPaginationFooter', () => {
     // 件数表示要素が描画されないこと。
     expect(screen.queryByTestId('app-pagination-footer-count')).not.toBeInTheDocument();
 
-    // AppPagination と PageSizeSelector は引き続き描画されること。
+    // AppPagination と PageSizeSelector は引き続き描画されること（B 案: aria-label 経由で検出）。
     expect(screen.getByRole('navigation')).toBeInTheDocument();
-    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '表示件数' })).toBeInTheDocument();
   });
 
   // APF-011: sx 設定と PageSizeSelector FormControl の margin/sx 設定の検証（高さ支配回帰防止）。
