@@ -1,12 +1,14 @@
 // 表示件数セレクタコンポーネント。
 // 1 ページあたりの表示件数（per_page）を選択する UI。
-// common-components.md §PageSizeSelector 準拠（issue #147 再々オープン A2 案）。
+// common-components.md §PageSizeSelector 準拠（issue #147 再々オープン A1 案）。
 // 標準選択肢 [10, 20, 50, 100] をデフォルトとし、URL 由来の標準外値が現在値として渡された場合は
 // 動的に選択肢に追加して URL を正直に反映する（issue #147 採用方針 A: パターン X）。
 //
-// サイズ・variant 方針（A2 案確定）:
+// サイズ・variant 方針（A1 案確定）:
 // - size="small": MUI Select 標準の小サイズ（フッター高さを最小化）
-// - variant="outlined": 既存実装と整合し、MUI X DataGrid 標準フッターの TablePagination 内 Select と同系統
+// - variant="standard": MUI X DataGrid 標準フッター（@mui/material/TablePagination）の Select と揃える
+//   （TablePagination.js L260 でハードコード確認済み。issue #147 再々オープン A1 案）
+//   下線のみの薄い見た目になり、フッター内で枠線が目立たない
 // - FormControl に margin="none" + sx={{ my: 0 }}: 余白を完全排除し minHeight: 52 を Select 枠線が支配しないよう調整
 
 import FormControl from '@mui/material/FormControl';
@@ -19,7 +21,7 @@ import type { SelectChangeEvent } from '@mui/material/Select';
 const DEFAULT_STANDARD_OPTIONS = [10, 20, 50, 100];
 
 /**
- * FormControl に適用する sx 定数（A2 案確定値）。
+ * FormControl に適用する sx 定数（A1 案確定値）。
  * テストから直接参照できるよう named export する（APF-011 スタイル回帰防止）。
  * margin="none" と組み合わせて Select 枠線が AppPaginationFooter の minHeight を支配しないよう余白を排除する。
  */
@@ -41,8 +43,9 @@ export interface PageSizeSelectorProps {
  * 標準外の per_page 値が渡された場合は動的に選択肢に追加する。
  * Set による重複除去で MUI MenuItem の key 重複 warning を回避する。
  *
- * A2 案確定: variant="outlined" / FormControl margin="none" + sx={{ my: 0 }} で
+ * A1 案確定: variant="standard" / FormControl margin="none" + sx={{ my: 0 }} で
  * Select 枠線が AppPaginationFooter の minHeight: 52 を支配しないようにする。
+ * MUI X DataGrid 標準フッター（TablePagination）の Select と variant を揃えて MUI 標準寄せとする。
  */
 export default function PageSizeSelector({
   perPage,
@@ -74,7 +77,7 @@ export default function PageSizeSelector({
         id="page-size-selector-select"
         value={perPage}
         label="表示件数:"
-        variant="outlined"
+        variant="standard"
         onChange={handleChange}
         inputProps={{ 'data-testid': 'page-size-selector-input' }}
       >
