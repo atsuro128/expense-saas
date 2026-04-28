@@ -11,8 +11,9 @@
 // PSS-006 → 'PSS-006: test_PageSizeSelector_select_has_standard_variant'
 //   issue #147 再々オープン A1 案: variant="standard" の適用を検証（MUI 標準寄せ）
 //
-// 実装コード（PageSizeSelector.tsx）は未存在（β2 テスト先行 PR）のため、
-// tsc / vitest 実行は赤になることを想定している。CI 赤は意図的。
+// issue #147 B 案: ビジュアルラベル（InputLabel）撤去に伴い PSS-001 の検証を更新。
+// 「表示件数:」テキストの DOM 存在チェックを削除し、
+// aria-label="表示件数" 付与による getByRole('combobox', { name: '表示件数' }) 経由に変更。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -37,8 +38,10 @@ interface PageSizeSelectorProps {
 
 describe('PageSizeSelector', () => {
   // PSS-001: perPage=20、standardOptions 省略（デフォルト [10,20,50,100]）
-  // → 「表示件数:」ラベルと Select が描画され、選択肢に 10, 20, 50, 100 の 4 件が含まれる。
+  // → Select が描画され、選択肢に 10, 20, 50, 100 の 4 件が含まれる。
   //    現在値として 20 が選択されている。
+  //    （B 案）ビジュアルラベル「表示件数:」は存在しない。
+  //    aria-label="表示件数" が付与されているため getByRole('combobox', { name: '表示件数' }) で取得できる。
   it('PSS-001: test_PageSizeSelector_renders_standard_options — デフォルト標準選択肢 [10,20,50,100] と現在値 20 が描画される', () => {
     // PSS-001
     const props: PageSizeSelectorProps = {
@@ -48,12 +51,12 @@ describe('PageSizeSelector', () => {
 
     render(<PageSizeSelector {...props} />);
 
-    // 「表示件数:」ラベルが描画されること。
-    // MUI は InputLabel と fieldset legend の両方にラベルテキストを描画するため getAllByText を使う。
-    expect(screen.getAllByText(/表示件数/)[0]).toBeInTheDocument();
+    // （B 案）ビジュアルラベル「表示件数:」が DOM に存在しないこと。
+    expect(screen.queryByText('表示件数:')).not.toBeInTheDocument();
 
-    // Select（combobox または listbox）が存在すること。
-    const select = screen.getByRole('combobox');
+    // Select（combobox）が aria-label="表示件数" で取得できること。
+    // inputProps の aria-label がスクリーンリーダー向けアクセシブルネームとして機能する。
+    const select = screen.getByRole('combobox', { name: '表示件数' });
     expect(select).toBeInTheDocument();
 
     // 現在値が 20 であること。
