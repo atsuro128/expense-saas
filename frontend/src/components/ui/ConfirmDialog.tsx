@@ -2,6 +2,12 @@
 // screens.md §4.6 準拠。
 // 提出・削除・承認・却下・支払完了の確認に使用する。
 // 却下理由入力・承認コメント入力のオプションフィールドに対応する。
+//
+// 修正履歴:
+//   #156 - open=false の閉じるアニメーション中に title/message がちらつく問題を修正。
+//          usePrevious で open=false の間は前回の title/message を保持する。
+//   #159 - inputField.required + onBlur 時にエラー文言を helperText に表示する機能を追加。
+//          InputFieldConfig に errorMessage? プロパティを追加。
 
 import { useState } from 'react';
 import Button from '@mui/material/Button';
@@ -12,6 +18,7 @@ import DialogContent from '@mui/material/DialogContent';
 import DialogContentText from '@mui/material/DialogContentText';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
+import { usePrevious } from '../../hooks/usePrevious';
 
 /** 確認ダイアログのオプションテキスト入力フィールド設定 */
 interface InputFieldConfig {
@@ -25,6 +32,11 @@ interface InputFieldConfig {
   maxLength: number;
   /** 複数行入力か */
   multiline: boolean;
+  /**
+   * required=true のとき、onBlur + 未入力で helperText に表示するエラー文言。
+   * 省略した場合は文字数カウンタのみ表示される（エラー文言は出ない）。
+   */
+  errorMessage?: string;
 }
 
 export interface ConfirmDialogProps {
@@ -53,6 +65,16 @@ export interface ConfirmDialogProps {
 /**
  * ConfirmDialog は操作前の確認ダイアログを提供する。
  * 却下理由・承認コメント等のテキスト入力フィールドをオプションで表示できる。
+ *
+ * ## ちらつき防止（#156）
+ * open=false の閉じるアニメーション中に title/message が変化する問題を防ぐため、
+ * usePrevious を使い「open=true の間は props の値を採用し、
+ * open=false になったら前回の値を保持する」ロジックを実装している。
+ *
+ * ## 必須バリデーション（#159）
+ * inputField.required=true のとき、onBlur で touched フラグを立て、
+ * 未入力の場合は helperText に inputField.errorMessage を赤字で表示する。
+ * onChange で入力が始まったらエラー状態を解除する。
  */
 export default function ConfirmDialog({
   open,
@@ -67,6 +89,21 @@ export default function ConfirmDialog({
   onCancel,
 }: ConfirmDialogProps) {
   const [inputValue, setInputValue] = useState('');
+  // onBlur が一度でも発生したかどうかを追跡する（バリデーション表示制御用）。
+  const [touched, setTouched] = useState(false);
+
+  // --- ちらつき防止: open=false の間は前回の値を保持する (#156) ---
+  // open=true のときは現在の props 値を使い、
+  // open=false（閉じるアニメーション中）は usePrevious で前回値を維持する。
+  const prevTitle = usePrevious(title);
+  const prevMessage = usePrevious(message);
+  const displayTitle = open ? title : (prevTitle ?? title);
+  const displayMessage = open ? message : (prevMessage ?? message);
+
+  // --- 必須バリデーション (#159) ---
+  // required=true かつ touched かつ入力が空のとき、エラー状態とみなす。
+  const isInvalid =
+    (inputField?.required === true) && touched && (inputValue.trim() === '');
 
   const handleConfirm = () => {
     if (inputField) {
@@ -76,13 +113,14 @@ export default function ConfirmDialog({
     }
   };
 
-  // ダイアログが閉じた後に入力値をリセット
+  // ダイアログが閉じた後に入力値と touched 状態をリセットする。
   const handleClose = () => {
     onCancel();
     setInputValue('');
+    setTouched(false);
   };
 
-  // 入力必須フィールドが空の場合は確認ボタンを無効化
+  // 入力必須フィールドが空の場合は確認ボタンを無効化する。
   const isConfirmDisabled =
     loading || (inputField?.required === true && inputValue.trim() === '');
 
@@ -93,9 +131,9 @@ export default function ConfirmDialog({
       maxWidth="sm"
       fullWidth
     >
-      <DialogTitle>{title}</DialogTitle>
+      <DialogTitle>{displayTitle}</DialogTitle>
       <DialogContent sx={{ p: 3 }}>
-        <DialogContentText>{message}</DialogContentText>
+        <DialogContentText>{displayMessage}</DialogContentText>
         {inputField && (
           <TextField
             autoFocus
@@ -109,8 +147,20 @@ export default function ConfirmDialog({
             size="small"
             inputProps={{ maxLength: inputField.maxLength }}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
-            helperText={`${inputValue.length} / ${inputField.maxLength}`}
+            onChange={(e) => {
+              setInputValue(e.target.value);
+              // 入力が始まったらエラー状態を解除する（UX 向上）。
+              if (e.target.value.trim() !== '' && touched) {
+                setTouched(false);
+              }
+            }}
+            onBlur={() => setTouched(true)}
+            error={isInvalid}
+            helperText={
+              isInvalid && inputField.errorMessage
+                ? inputField.errorMessage
+                : `${inputValue.length} / ${inputField.maxLength}`
+            }
           />
         )}
       </DialogContent>

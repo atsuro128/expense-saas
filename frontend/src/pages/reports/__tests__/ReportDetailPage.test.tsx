@@ -1103,6 +1103,103 @@ describe('ReportDetailPage', () => {
     expect(rejectMutate).not.toHaveBeenCalled();
   });
 
+  // WFL-FE-064-H: 却下ダイアログで却下理由欄を空のままブラーすると「却下理由を入力してください」が表示される (#159)
+  it('WFL-FE-064-H: 却下ダイアログで空ブラーすると「却下理由を入力してください」エラー文言が表示される', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 却下理由欄を空のままフォーカスしてブラーする（Tab キーでフォーカスを外す）。
+    const reasonField = screen.getByLabelText(/却下理由/);
+    await user.click(reasonField);
+    await user.tab();
+
+    // 「却下理由を入力してください」エラー文言が表示されること。
+    await waitFor(() => {
+      expect(screen.getByText('却下理由を入力してください')).toBeInTheDocument();
+    });
+  });
+
+  // WFL-FE-064-I: 却下ダイアログで却下理由入力後にエラー文言が消える (#159)
+  it('WFL-FE-064-I: 却下ダイアログで却下理由を入力するとエラー文言が消える', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 空のままブラーしてエラーを発生させる。
+    const reasonField = screen.getByLabelText(/却下理由/);
+    await user.click(reasonField);
+    await user.tab();
+
+    await waitFor(() => {
+      expect(screen.getByText('却下理由を入力してください')).toBeInTheDocument();
+    });
+
+    // 入力するとエラー文言が消えること。
+    await user.click(reasonField);
+    await user.type(reasonField, '経費の内容が不適切です');
+
+    await waitFor(() => {
+      expect(screen.queryByText('却下理由を入力してください')).not.toBeInTheDocument();
+    });
+  });
+
   // -------------------------------------------------------------------------
   // G-C03: 支払完了確認ダイアログ
   // -------------------------------------------------------------------------

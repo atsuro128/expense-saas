@@ -619,6 +619,7 @@ export default function ReportDetailPage() {
       />
 
       {/* ワークフロー操作確認ダイアログ（承認・却下・支払完了） */}
+      {/* title の三項演算子は pay を明示し、null フォールバックによるちらつきを二重防御する (#156) */}
       <ConfirmDialog
         open={workflowDialogAction !== null}
         title={
@@ -626,7 +627,9 @@ export default function ReportDetailPage() {
             ? 'このレポートを承認しますか？'
             : workflowDialogAction === 'reject'
               ? 'このレポートを却下しますか？'
-              : 'このレポートの支払完了を記録しますか？'
+              : workflowDialogAction === 'pay'
+                ? 'このレポートの支払完了を記録しますか？'
+                : ''
         }
         message=""
         confirmLabel={
@@ -652,6 +655,8 @@ export default function ReportDetailPage() {
                   required: true,
                   maxLength: 1000,
                   multiline: true,
+                  // 空ブラー時に helperText に表示するエラー文言 (#159)
+                  errorMessage: '却下理由を入力してください',
                 }
               : undefined
         }
