@@ -32,21 +32,25 @@ interface AllReportsTableProps {
 }
 
 /** テーブルのカラム定義。openapi.yaml の ExpenseReportSummary に準拠した snake_case プロパティを参照する。 */
+// minWidth はスマホ幅で列内容が読めるよう設定する（issue #160 対応）。
 const COLUMNS: GridColDef[] = [
   {
     field: 'submitter_name',
     headerName: '申請者名',
     flex: 1,
+    minWidth: 120,
   },
   {
     field: 'title',
     headerName: 'タイトル',
     flex: 2,
+    minWidth: 200,
   },
   {
     field: 'total_amount',
     headerName: '合計金額',
     flex: 1,
+    minWidth: 100,
     // 金額を ¥ プレフィックス付きで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
@@ -54,6 +58,7 @@ const COLUMNS: GridColDef[] = [
     field: 'status',
     headerName: 'ステータス',
     flex: 1,
+    minWidth: 100,
     // StatusChip コンポーネントで色分け表示する。
     renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
   },
@@ -61,6 +66,7 @@ const COLUMNS: GridColDef[] = [
     field: 'submitted_at',
     headerName: '提出日',
     flex: 1,
+    minWidth: 110,
     valueFormatter: (value: string | null) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
   },
