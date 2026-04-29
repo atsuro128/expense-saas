@@ -270,8 +270,11 @@ describe('TenantPage', () => {
     renderTenantPage();
 
     // PageSkeleton（variant="card"）が表示されること。
+    // PageSkeleton は data-testid="page-skeleton" / data-variant="card" を付与する。
     await waitFor(() => {
-      expect(screen.getByTestId('page-skeleton-card')).toBeInTheDocument();
+      const skeleton = screen.getByTestId('page-skeleton');
+      expect(skeleton).toBeInTheDocument();
+      expect(skeleton).toHaveAttribute('data-variant', 'card');
     });
   });
 });
