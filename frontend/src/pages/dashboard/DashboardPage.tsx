@@ -122,7 +122,6 @@ export default function DashboardPage() {
             <CountCard
               label="承認待ち"
               count={dashboard.pending_approval_count ?? 0}
-              showBadge={true}
               href="/approvals"
               accentColor="info"
             />
@@ -137,7 +136,6 @@ export default function DashboardPage() {
             <CountCard
               label="支払待ち"
               count={dashboard.pending_payment_count ?? 0}
-              showBadge={true}
               href="/payments"
               accentColor="success"
             />
