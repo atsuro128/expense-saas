@@ -1,5 +1,6 @@
 // AppDataGrid の単体テスト。
-// ADG-001〜004 に対応する（issue #147 再オープン D-1 対応 PR #102 追加テスト）。
+// ADG-001〜006 に対応する（issue #147 再オープン D-1 対応 PR #102 追加テスト、
+// ADG-005 / ADG-006 は issue #154 / #160 対応）。
 // AppDataGrid の slots 合成挙動（{...rest} 展開順序修正後）を検証する。
 //
 // Traceability: 新規接頭辞 ADG- を新設（既存ドキュメントに ADG- 採番なし）
@@ -7,18 +8,49 @@
 // ADG-002 → 'ADG-002: slots.footer を渡すとフッターが描画され、デフォルト noRowsOverlay も保持される'
 // ADG-003 → 'ADG-003: slots.noRowsOverlay を渡すと呼び出し側の実装で AppDataGrid デフォルトを上書きする'
 // ADG-004 → 'ADG-004: slots.footer と slots.noRowsOverlay を同時に渡すと両方が描画される'
+// ADG-005 → 'ADG-005: rows=[] 時に DataGrid に minHeight: 200 が適用される'
+// ADG-006 → 'ADG-006: ルート Box に overflowX: auto が適用される'
 //
 // MUI X DataGrid の ESM import 解決問題を回避するため @mui/x-data-grid をモックする。
 // モックは slots / rows / loading を受け取り、MUI DataGrid の動作を最小限再現する。
+//
+// @mui/material/Box もモックする（ADG-006 回帰防止）。
+// MUI Box の sx は Emotion により動的 CSS クラスに変換されるため jsdom では
+// getComputedStyle / toHaveStyle による sx 値の検証が不安定である。
+// Box モックは sx の overflowX / minHeight を data-* 属性として展開し、
+// テストが実値を直接アサートできるようにする。
 
 import React from 'react';
 import { render, screen } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
+// @mui/material/Box をモックする。
+// sx の overflowX を data-overflow-x 属性に展開することで ADG-006 の実値検証を可能にする。
+// data-testid="appdatagrid-root" を設定し、ルート要素を特定できるようにする。
+vi.mock('@mui/material/Box', () => ({
+  default: ({
+    children,
+    sx,
+    ...rest
+  }: {
+    children?: React.ReactNode;
+    sx?: Record<string, unknown>;
+    [key: string]: unknown;
+  }) => (
+    <div
+      data-testid="appdatagrid-root"
+      data-overflow-x={typeof sx?.overflowX === 'string' ? sx.overflowX : undefined}
+      {...rest}
+    >
+      {children}
+    </div>
+  ),
+}));
+
 // @mui/x-data-grid をモックする。
 // DataGrid は slots.noRowsOverlay（rows が空のとき）と slots.footer を描画する最小実装。
 // GridColDef / DataGridProps は実際の型シグネチャと互換性を持つよう定義する。
-// ADG-005 / ADG-006 検証のため sx を data-sx 属性として出力する。
+// ADG-005 検証のため sx の minHeight を data-has-min-height 属性として出力する。
 vi.mock('@mui/x-data-grid', () => ({
   DataGrid: (props: {
     rows: unknown[];
@@ -197,8 +229,14 @@ describe('AppDataGrid', () => {
 
   // ADG-006: ルート Box に overflowX: 'auto' が適用されている（issue #160 対応）。
   // 列幅合計が画面幅を超える場合に横スクロールを許可するための設定。
+  // @mui/material/Box をモックして sx.overflowX を data-overflow-x 属性に展開し、
+  // AppDataGrid が overflowX: 'auto' を渡していることを直接検証する。
   it('ADG-006: ルート Box に overflowX: auto が適用される', () => {
     // ADG-006
+    // Box モックは sx.overflowX を data-overflow-x 属性として出力するため、
+    // overflowX: 'auto' が渡された Box を属性セレクタで特定できる。
+    // AppDataGrid が sx={{ overflowX: 'auto' }} を渡していることをここで検証する。
+    // この検証により、AppDataGrid.tsx から overflowX: 'auto' を削除すると FAIL する。
     const { container } = render(
       <AppDataGrid
         columns={TEST_COLUMNS}
@@ -206,16 +244,10 @@ describe('AppDataGrid', () => {
         emptyMessage="空です"
       />,
     );
-
-    // ルート Box（最初の div）が overflowX: auto スタイルを持つこと。
-    // MUI Box の sx={{ overflowX: 'auto' }} はインラインスタイルに変換される。
-    const rootBox = container.firstChild as HTMLElement;
-    expect(rootBox).toBeTruthy();
-    // sx props は MUI により CSS クラスまたはインラインスタイルに変換される。
-    // テスト環境では style 属性に直接反映されることを確認する。
-    // MUI Box + Emotion の変換で style ではなく className に入る場合もあるが、
-    // モック環境では実際の DOM 構造を検証するためノードが存在することを確認する。
-    expect(rootBox.tagName).toBe('DIV');
+    // data-overflow-x="auto" を持つ要素が DOM 内に存在することを検証する。
+    // querySelectorAll で属性値を直接検索する（Box モックの data-overflow-x 属性）。
+    const overflowBoxes = container.querySelectorAll('[data-overflow-x="auto"]');
+    expect(overflowBoxes.length).toBeGreaterThanOrEqual(1);
   });
 
   // ADG-004: slots.footer と slots.noRowsOverlay の両方を渡し、rows=[] の場合:
