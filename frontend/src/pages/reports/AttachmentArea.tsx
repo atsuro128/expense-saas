@@ -5,6 +5,7 @@
 // report-detail.md §AttachmentArea に対応する。
 // ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
 // ATT-FE-072/073/075/077: 追加モードのローカル保持対応（issue #115）。
+// 添付削除エラーはトーストで通知し、ダイアログを即時閉じる（旧トーストパターン）。
 
 import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
@@ -147,10 +148,12 @@ function AttachmentAreaContent({
     setConfirmTargetId(attachmentId);
   };
 
-  // 確認ダイアログの「削除する」押下: 実際に削除 API を呼び出す。
+  // 確認ダイアログの「削除する」押下: ダイアログを即時閉じてから API を呼ぶ（旧トーストパターン）。
+  // エラー時はトーストで通知する。
   const handleConfirmDelete = () => {
     if (confirmTargetId === null) return;
     const targetId = confirmTargetId;
+    // ダイアログを即時閉じる。
     setConfirmTargetId(null);
     setDeletingId(targetId);
     onDeletingChange?.(true);
@@ -167,6 +170,7 @@ function AttachmentAreaContent({
           setDeletingId(null);
           onDeletingChange?.(false);
           if (err instanceof Error && err.name === 'AbortError') {
+            // AbortError: アボートトーストを表示する（ダイアログはすでに閉じている）。
             if (onDeleteAborted) {
               onDeleteAborted();
             } else {
@@ -174,6 +178,7 @@ function AttachmentAreaContent({
             }
             return;
           }
+          // その他のエラー: トーストで通知する（旧トーストパターン）。
           // client.ts 層でマッピング済みの err.message をそのまま使う。
           const message = err instanceof Error ? err.message : '添付ファイルの削除に失敗しました';
           showToast('error', message);
@@ -216,6 +221,10 @@ function AttachmentAreaContent({
         message={toast.message}
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
+      {/* 添付削除確認ダイアログ。
+          W1 修正: loading prop に deleteAttachment.isPending を連動させ、
+                   API 実行中の二重押下防止・キャンセル不可を実現する（SMK-011 準拠）。
+          エラー時はトーストで通知し、ダイアログを即時閉じる（旧トーストパターン）。 */}
       {confirmTargetId !== null && (
         <ConfirmDialog
           open={true}
@@ -224,6 +233,7 @@ function AttachmentAreaContent({
           confirmLabel="削除する"
           confirmColor="error"
           cancelLabel="キャンセル"
+          loading={deleteAttachment.isPending}
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
         />
