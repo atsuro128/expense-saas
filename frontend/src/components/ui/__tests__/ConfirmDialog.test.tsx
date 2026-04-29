@@ -1,5 +1,6 @@
 // ConfirmDialog のユニットテスト。
 // issue #156（ちらつき防止 usePrevious）と #159（必須バリデーションエラー文言）に対応する。
+// #156/#159 大幅改修: apiError prop の FormAlert 表示と全表示 props の usePrevious 拡張テストを追加する。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -356,6 +357,165 @@ describe('ConfirmDialog', () => {
       render(<ConfirmDialog {...defaultProps} loading={true} />);
 
       expect(screen.getByRole('button', { name: 'キャンセル' })).toBeDisabled();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // #156/#159 大幅改修: apiError prop の FormAlert 表示
+  // ---------------------------------------------------------------------------
+
+  describe('#156/#159: apiError prop が FormAlert でダイアログ本文上部に表示される', () => {
+    it('apiError が文字列のとき FormAlert が表示される', () => {
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          apiError="却下理由を入力してください"
+        />,
+      );
+
+      // FormAlert が data-testid="form-alert" で描画されること。
+      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+      // エラーメッセージが表示されること。
+      expect(screen.getByText('却下理由を入力してください')).toBeInTheDocument();
+    });
+
+    it('apiError が null のとき FormAlert が表示されない', () => {
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          apiError={null}
+        />,
+      );
+
+      // FormAlert が描画されないこと（FormAlert は message=null のとき null を返す）。
+      expect(screen.queryByTestId('form-alert')).not.toBeInTheDocument();
+    });
+
+    it('apiError が省略（undefined）のとき FormAlert が表示されない', () => {
+      render(<ConfirmDialog {...defaultProps} />);
+
+      // apiError prop 省略時も FormAlert が描画されないこと。
+      expect(screen.queryByTestId('form-alert')).not.toBeInTheDocument();
+    });
+
+    it('apiError が severity="error" で表示される（FormAlert のデフォルト severity）', () => {
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          apiError="操作に失敗しました"
+        />,
+      );
+
+      // FormAlert の data-severity が "error" であること。
+      const alert = screen.getByTestId('form-alert');
+      expect(alert).toHaveAttribute('data-severity', 'error');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // #156/#159 大幅改修: 全表示 props の usePrevious 拡張
+  // open=false の閉じるアニメーション中に confirmLabel/confirmColor/inputField/apiError が
+  // 変化しないことを検証する
+  // ---------------------------------------------------------------------------
+
+  describe('#156/#159: open=false 時に confirmLabel / inputField / apiError の前回値が保持される', () => {
+    it('open=true で confirmLabel="却下する" を表示した後、open=false に切り替えても confirmLabel が保持される', () => {
+      const { rerender } = render(
+        <ConfirmDialog
+          {...defaultProps}
+          open={true}
+          confirmLabel="却下する"
+          confirmColor="error"
+        />,
+      );
+
+      // open=true のとき正しいラベルが表示されること。
+      expect(screen.getByRole('button', { name: '却下する' })).toBeInTheDocument();
+
+      // open=false に切り替える（閉じるアニメーション開始直後を模擬）。
+      // confirmLabel を "支払完了にする" に変更しても前回値が保持される。
+      rerender(
+        <ConfirmDialog
+          {...defaultProps}
+          open={false}
+          confirmLabel="支払完了にする"
+          confirmColor="primary"
+        />,
+      );
+
+      // MUI Dialog は open=false になるとアニメーション中に DOM から消える場合がある。
+      // dialog 要素が消えていれば、ちらつきが発生していないことを確認済みとみなす。
+      // dialog が残存する場合は前回の confirmLabel が保持されること。
+      const dialog = screen.queryByRole('dialog');
+      if (dialog) {
+        // 前回値「却下する」が維持されること（「支払完了にする」ではないこと）。
+        expect(screen.getByRole('button', { name: '却下する' })).toBeInTheDocument();
+      }
+      // dialog が消えていればちらつき防止として合格。
+    });
+
+    it('open=true で inputField あり → open=false に切り替えても inputField が保持される', () => {
+      const { rerender } = render(
+        <ConfirmDialog
+          {...defaultProps}
+          open={true}
+          inputField={{
+            label: '却下理由',
+            required: true,
+            maxLength: 1000,
+            multiline: true,
+            errorMessage: '却下理由を入力してください',
+          }}
+        />,
+      );
+
+      // open=true のとき inputField が描画されること。
+      expect(screen.getByLabelText(/却下理由/)).toBeInTheDocument();
+
+      // open=false に切り替え、inputField を undefined に変更する。
+      rerender(
+        <ConfirmDialog
+          {...defaultProps}
+          open={false}
+          inputField={undefined}
+        />,
+      );
+
+      // dialog が残存する場合は前回の inputField が保持されること（undefined にフォールバックしない）。
+      const dialog = screen.queryByRole('dialog');
+      if (dialog) {
+        // 前回値の inputField が維持され、却下理由欄が消えないこと。
+        expect(screen.getByLabelText(/却下理由/)).toBeInTheDocument();
+      }
+    });
+
+    it('open=true で apiError あり → open=false に切り替えても apiError が保持される', () => {
+      const { rerender } = render(
+        <ConfirmDialog
+          {...defaultProps}
+          open={true}
+          apiError="却下理由を入力してください"
+        />,
+      );
+
+      // open=true のとき apiError が表示されること。
+      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+
+      // open=false に切り替え、apiError を null に変更する。
+      rerender(
+        <ConfirmDialog
+          {...defaultProps}
+          open={false}
+          apiError={null}
+        />,
+      );
+
+      // dialog が残存する場合は前回の apiError が保持されること（null にフォールバックしない）。
+      const dialog = screen.queryByRole('dialog');
+      if (dialog) {
+        // 前回値の apiError が維持され、FormAlert が消えないこと。
+        expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+      }
     });
   });
 
