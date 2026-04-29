@@ -9,7 +9,7 @@
 //   #159 - inputField.required + onBlur 時にエラー文言を helperText に表示する機能を追加。
 //          InputFieldConfig に errorMessage? プロパティを追加。
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import Button from '@mui/material/Button';
 import CircularProgress from '@mui/material/CircularProgress';
 import Dialog from '@mui/material/Dialog';
@@ -91,6 +91,17 @@ export default function ConfirmDialog({
   const [inputValue, setInputValue] = useState('');
   // onBlur が一度でも発生したかどうかを追跡する（バリデーション表示制御用）。
   const [touched, setTouched] = useState(false);
+
+  // ダイアログが閉じた時点で入力値と touched 状態をリセットする。
+  // onCancel 経由（handleClose）だけでなく onConfirm 成功時の外部からの open=false にも追従する。
+  // これにより「却下成功 → 再度却下フローを開く」際に touched=true が引き継がれて
+  // 初回 render から赤字エラーが出る挙動を防ぐ。
+  useEffect(() => {
+    if (!open) {
+      setInputValue('');
+      setTouched(false);
+    }
+  }, [open]);
 
   // --- ちらつき防止: open=false の間は前回の値を保持する (#156) ---
   // open=true のときは現在の props 値を使い、
