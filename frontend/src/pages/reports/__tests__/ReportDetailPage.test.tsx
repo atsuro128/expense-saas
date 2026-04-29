@@ -1200,6 +1200,253 @@ describe('ReportDetailPage', () => {
     });
   });
 
+  // WFL-FE-064-J: 却下 API が 422 (MissingRejectionReason) を返したとき、
+  // ダイアログが閉じず FormAlert に apiError が表示される（#159 F1 対応）
+  it('WFL-FE-064-J: 却下 API が 422 エラーを返したとき、ダイアログが閉じず FormAlert にエラーが表示される', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    // 422 MissingRejectionReason: client.ts 層で SERVER_ERROR_MESSAGES.MISSING_REJECTION_REASON にマッピング済み。
+    const missingReasonError = new ActualApiClientError(
+      '却下理由を入力してください',
+      422,
+      'MISSING_REJECTION_REASON',
+    );
+    // rejectReport.mutate が 422 エラーを onError でコールするモック。
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rejectMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(missingReasonError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: rejectMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 却下理由を入力して「却下する」を押す（フロントのバリデーションは通過させる）。
+    await user.type(screen.getByLabelText(/却下理由/), '何か理由');
+    await user.click(screen.getByRole('button', { name: '却下する' }));
+
+    // rejectReport.mutate が呼ばれること。
+    await waitFor(() => {
+      expect(rejectMutate).toHaveBeenCalled();
+    });
+
+    // エラー時にダイアログが閉じていないこと（F1 修正）。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // FormAlert にエラーメッセージが表示されること（#159 F1 対応: apiError prop 経由）。
+    await waitFor(() => {
+      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+      expect(screen.getByTestId('form-alert')).toHaveTextContent('却下理由を入力してください');
+    });
+  });
+
+  // WFL-FE-063-J: 承認 API がエラーを返したとき、ダイアログが閉じず FormAlert に表示される
+  it('WFL-FE-063-J: 承認 API がエラーを返したとき、ダイアログが閉じず FormAlert にエラーが表示される', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    const forbiddenError = new ActualApiClientError(
+      'この操作を行う権限がありません。',
+      403,
+      'FORBIDDEN',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const approveMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(forbiddenError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseApproveReport.mockReturnValue({ mutate: approveMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 承認ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '承認' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「承認する」をクリックする。
+    await user.click(screen.getByRole('button', { name: '承認する' }));
+
+    // エラー時にダイアログが閉じていないこと。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // FormAlert にエラーメッセージが表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+      expect(screen.getByTestId('form-alert')).toHaveTextContent('この操作を行う権限がありません。');
+    });
+  });
+
+  // WFL-FE-065-J: 支払完了 API がエラーを返したとき、ダイアログが閉じず FormAlert に表示される
+  it('WFL-FE-065-J: 支払完了 API がエラーを返したとき、ダイアログが閉じず FormAlert にエラーが表示される', async () => {
+    const user = userEvent.setup();
+
+    const accountingUser = {
+      ...mockCurrentUser,
+      id: 'accounting-user-id',
+      role: 'accounting' as const,
+    };
+    const approvedReport = {
+      ...mockDraftReportDetail,
+      status: 'approved' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    const { ApiClientError: ActualApiClientError } = await import('../../../api/client');
+    const selfPaymentError = new ActualApiClientError(
+      '自分が作成したレポートの支払完了は記録できません',
+      403,
+      'SELF_PAYMENT_NOT_ALLOWED',
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onError?.(selfPaymentError);
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseMarkAsPaid.mockReturnValue({ mutate: payMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: accountingUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: approvedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 支払完了ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '支払完了' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「支払完了にする」をクリックする。
+    await user.click(screen.getByRole('button', { name: '支払完了にする' }));
+
+    // エラー時にダイアログが閉じていないこと。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // FormAlert にエラーメッセージが表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+      expect(screen.getByTestId('form-alert')).toHaveTextContent('自分が作成したレポートの支払完了は記録できません');
+    });
+  });
+
+  // WFL-FE-064-K: 却下 API 成功時はダイアログが閉じてトーストが表示される（既存パターン維持確認）
+  it('WFL-FE-064-K: 却下 API 成功時はダイアログが閉じてトーストが表示される', async () => {
+    const user = userEvent.setup();
+
+    const approverUser = {
+      ...mockCurrentUser,
+      id: 'approver-user-id',
+      role: 'approver' as const,
+    };
+    const submittedReport = {
+      ...mockDraftReportDetail,
+      status: 'submitted' as const,
+      submitter: { id: 'other-user-id', name: '申請者太郎' },
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rejectMutate = vi.fn().mockImplementation((_data: unknown, options?: any) => {
+      options?.onSuccess?.();
+    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseRejectReport.mockReturnValue({ mutate: rejectMutate, isPending: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseCurrentUser.mockReturnValue({ data: { data: approverUser }, isLoading: false } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseReport.mockReturnValue({ data: { data: submittedReport }, isLoading: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseSubmitReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    mockUseDeleteReport.mockReturnValue({ mutate: vi.fn(), isPending: false, isError: false, error: null } as any);
+
+    renderPage('test-report-id');
+
+    // 却下ボタンをクリックする。
+    await user.click(screen.getByRole('button', { name: '却下' }));
+
+    // ConfirmDialog が表示されるまで待つ。
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 却下理由を入力して「却下する」を押す。
+    await user.type(screen.getByLabelText(/却下理由/), '経費の内容が不適切です');
+    await user.click(screen.getByRole('button', { name: '却下する' }));
+
+    // 成功時はダイアログが閉じること。
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    // 成功トーストが表示されること。
+    await waitFor(() => {
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('レポートを却下しました');
+    });
+  });
+
   // -------------------------------------------------------------------------
   // G-C03: 支払完了確認ダイアログ
   // -------------------------------------------------------------------------
@@ -1474,11 +1721,11 @@ describe('ReportDetailPage エラーハンドリング回帰テスト（issue #1
     });
   });
 
-  // issue #135: 明細削除で FORBIDDEN エラー時に Toast でメッセージが表示されること。
-  // 修正前: handleDeleteItemConfirm の onError が setItemApiError を呼んでいたため、
-  //   パネルが閉じた状態では itemApiError が ItemSlidePanel.apiError prop に渡っても表示されなかった。
-  // 修正後: setToast（handleActionError 経由）に変更し、Toast でエラーを表示する（issue #135）。
-  it('issue #135: 明細削除で 403 エラー時に err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示される', async () => {
+  // issue #135 → #156/#159 大幅改修: 明細削除でエラー時の挙動変更。
+  // 旧設計（issue #135）: handleActionError 経由でトーストに表示。
+  // 新設計（#156/#159 大幅改修）: ダイアログを open 維持 + deleteItemDialogApiError に set。
+  //   → ConfirmDialog の apiError prop 経由で FormAlert にエラーが表示される。
+  it('issue #135 → #156/#159: 明細削除で 403 エラー時にダイアログが閉じず FormAlert にエラーが表示される', async () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1523,11 +1770,15 @@ describe('ReportDetailPage エラーハンドリング回帰テスト（issue #1
     // ダイアログで「削除する」ボタンをクリックする。
     await user.click(screen.getByRole('button', { name: /削除する/ }));
 
-    // err.message（SERVER_ERROR_MESSAGES.FORBIDDEN）がトーストに表示されること。
-    // 修正前は itemApiError に setItemApiError で設定されたが、パネルが閉じているため画面に出なかった。
-    // 修正後は handleActionError 経由で setToast が呼ばれ、AppToast にメッセージが表示される。
+    // エラー時にダイアログが閉じていないこと（#156/#159 大幅改修: apiError パターン適用）。
     await waitFor(() => {
-      expect(screen.getByTestId('app-toast')).toHaveTextContent('この操作を行う権限がありません。');
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // FormAlert にエラーメッセージが表示されること（ConfirmDialog の apiError prop 経由）。
+    await waitFor(() => {
+      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
+      expect(screen.getByTestId('form-alert')).toHaveTextContent('この操作を行う権限がありません。');
     });
   });
 });

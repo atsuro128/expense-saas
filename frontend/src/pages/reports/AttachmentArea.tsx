@@ -5,6 +5,7 @@
 // report-detail.md §AttachmentArea に対応する。
 // ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
 // ATT-FE-072/073/075/077: 追加モードのローカル保持対応（issue #115）。
+// #156/#159: 添付削除ダイアログに apiError パターンを適用（エラー時はダイアログ open 維持 + FormAlert 表示）。
 
 import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
@@ -93,6 +94,9 @@ function AttachmentAreaContent({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // 確認ダイアログ用の状態: 削除対象の添付ファイル ID を保持する（null のとき非表示）。
   const [confirmTargetId, setConfirmTargetId] = useState<string | null>(null);
+  // 添付削除ダイアログ専用の API エラー state（#156/#159 対応）。
+  // 削除 API エラー時にダイアログを open のまま apiError を表示する。
+  const [deleteDialogApiError, setDeleteDialogApiError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     open: boolean;
     severity: 'success' | 'error';
@@ -142,16 +146,18 @@ function AttachmentAreaContent({
     }
   };
 
-  // 削除ボタン押下: 確認ダイアログを表示する。
+  // 削除ボタン押下: 確認ダイアログを表示し、前回の apiError をクリアする。
   const handleDeleteRequest = (attachmentId: string) => {
+    setDeleteDialogApiError(null);
     setConfirmTargetId(attachmentId);
   };
 
   // 確認ダイアログの「削除する」押下: 実際に削除 API を呼び出す。
+  // #156/#159 対応: ダイアログを即時閉じずに API を呼ぶ。
+  // 成功時にダイアログを閉じ、エラー時は open 維持 + apiError を表示する。
   const handleConfirmDelete = () => {
     if (confirmTargetId === null) return;
     const targetId = confirmTargetId;
-    setConfirmTargetId(null);
     setDeletingId(targetId);
     onDeletingChange?.(true);
     deleteAttachment.mutate(
@@ -160,6 +166,9 @@ function AttachmentAreaContent({
         onSuccess: () => {
           setDeletingId(null);
           onDeletingChange?.(false);
+          // 成功時にダイアログを閉じる。
+          setConfirmTargetId(null);
+          setDeleteDialogApiError(null);
           // 共通定数を使用する（issue #143、add モードと文言を統一）。
           showToast('success', ATTACHMENT_DELETE_SUCCESS);
         },
@@ -167,6 +176,9 @@ function AttachmentAreaContent({
           setDeletingId(null);
           onDeletingChange?.(false);
           if (err instanceof Error && err.name === 'AbortError') {
+            // AbortError: ダイアログを閉じてアボートトーストを表示する。
+            setConfirmTargetId(null);
+            setDeleteDialogApiError(null);
             if (onDeleteAborted) {
               onDeleteAborted();
             } else {
@@ -174,9 +186,10 @@ function AttachmentAreaContent({
             }
             return;
           }
+          // その他のエラー: ダイアログを open 維持 + apiError を set する。
           // client.ts 層でマッピング済みの err.message をそのまま使う。
           const message = err instanceof Error ? err.message : '添付ファイルの削除に失敗しました';
-          showToast('error', message);
+          setDeleteDialogApiError(message);
         },
       },
     );
@@ -184,6 +197,7 @@ function AttachmentAreaContent({
 
   // 確認ダイアログの「キャンセル」押下。
   const handleCancelDelete = () => {
+    setDeleteDialogApiError(null);
     setConfirmTargetId(null);
   };
 
@@ -216,6 +230,8 @@ function AttachmentAreaContent({
         message={toast.message}
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
+      {/* 添付削除確認ダイアログ。
+          #156/#159 対応: エラー時はダイアログを open 維持 + apiError を FormAlert で表示する。 */}
       {confirmTargetId !== null && (
         <ConfirmDialog
           open={true}
@@ -224,6 +240,7 @@ function AttachmentAreaContent({
           confirmLabel="削除する"
           confirmColor="error"
           cancelLabel="キャンセル"
+          apiError={deleteDialogApiError}
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
         />
