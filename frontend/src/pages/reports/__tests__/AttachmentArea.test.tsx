@@ -856,3 +856,181 @@ describe('AttachmentArea add/edit モード UI 一貫性（ATT-FE-076, 084-087, 
     // edit / add 両モードで完全一致している（差分はダウンロードアイコンのみ）。
   });
 });
+
+// =============================================================================
+// W1 回帰テスト: 添付削除ダイアログ loading prop 連動
+// SMK-011: API 実行中は確認ボタンとキャンセルボタンが disabled になること
+// =============================================================================
+
+describe('AttachmentArea W1: 添付削除ダイアログ loading prop 連動テスト', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // SMK-011-W1-ATT1: 添付削除ダイアログ - 削除 API 実行中（isPending=true）に
+  // 確認ボタン・キャンセルボタンが disabled になること
+  // 実装: AttachmentAreaContent の ConfirmDialog に loading={deleteAttachment.isPending} を連動する
+  it('SMK-011-W1-ATT1: 添付削除ダイアログで「削除する」押下後に確認・キャンセルが disabled になる（二重押下防止）', async () => {
+    // 添付一覧取得: att-001 を 1 件返す。
+    // 削除 API: resolve しない（永続的なローディング状態をシミュレートする）。
+    const pendingDeleteCallbacks: Array<() => void> = [];
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
+      if ((opts?.method ?? 'GET').toUpperCase() === 'DELETE') {
+        // 削除リクエストは resolve しない（isPending=true を維持するためのシミュレーション）。
+        return new Promise<Response>((resolve) => {
+          pendingDeleteCallbacks.push(() =>
+            resolve({
+              ok: true,
+              status: 204,
+              headers: { get: () => null },
+              json: async () => ({}),
+            } as unknown as Response),
+          );
+        });
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          data: [
+            {
+              id: 'att-001',
+              item_id: 'item-1',
+              file_name: 'receipt.jpg',
+              file_size: 245760,
+              mime_type: 'image/jpeg',
+              created_at: '2026-03-01T00:00:00Z',
+            },
+          ],
+          pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+        }),
+      } as unknown as Response);
+    });
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 削除ボタンが描画されるまで待機する。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
+    // 削除ボタンをクリックして確認ダイアログを開く。
+    await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+
+    await waitFor(() => {
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+    });
+
+    // 「削除する」ボタンをクリックして削除 API を呼び出す（resolve しない → isPending=true 状態）。
+    await userEvent.click(screen.getByText('削除する'));
+
+    // 削除 API 実行中は確認ボタン（削除する）が disabled になること（二重押下防止, SMK-011）。
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: '削除する' })).toBeDisabled();
+    });
+
+    // 削除 API 実行中はキャンセルボタンも disabled になること（実行中閉じ不可, SMK-011）。
+    expect(screen.getByRole('button', { name: 'キャンセル' })).toBeDisabled();
+
+    // テスト後に pending な Promise を解決する。
+    // act() でラップすることで、Promise 解決に伴う React state 更新を act の内部で処理し
+    // "not wrapped in act" 警告を抑制する。
+    const { act } = await import('@testing-library/react');
+    await act(async () => {
+      for (const cb of pendingDeleteCallbacks) {
+        cb();
+      }
+    });
+  });
+
+  // SMK-011-W1-ATT2: 添付削除ダイアログ - 削除 API 成功後にダイアログが閉じること（既存動作の回帰確認）
+  it('SMK-011-W1-ATT2: 添付削除 API 成功後はダイアログが閉じること（loading 連動後の正常系回帰）', async () => {
+    const attachmentListResponse = {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [
+          {
+            id: 'att-001',
+            item_id: 'item-1',
+            file_name: 'receipt.jpg',
+            file_size: 245760,
+            mime_type: 'image/jpeg',
+            created_at: '2026-03-01T00:00:00Z',
+          },
+        ],
+        pagination: { current_page: 1, per_page: 20, total_count: 1, total_pages: 1 },
+      }),
+    } as unknown as Response;
+    const deleteResponse = {
+      ok: true,
+      status: 204,
+      headers: { get: () => null },
+      json: async () => ({}),
+    } as unknown as Response;
+    const emptyListResponse = {
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: async () => ({
+        data: [],
+        pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+      }),
+    } as unknown as Response;
+
+    let getCallCount = 0;
+    globalThis.fetch = vi.fn().mockImplementation((_url: string, opts?: RequestInit) => {
+      if ((opts?.method ?? 'GET').toUpperCase() === 'DELETE') {
+        return Promise.resolve(deleteResponse);
+      }
+      getCallCount += 1;
+      return Promise.resolve(getCallCount === 1 ? attachmentListResponse : emptyListResponse);
+    });
+
+    const Wrapper = createWrapper();
+    render(
+      <Wrapper>
+        <AttachmentArea
+          reportId="rpt-1"
+          itemId="item-1"
+          canModify={true}
+        />
+      </Wrapper>,
+    );
+
+    // 削除ボタンが描画されるまで待機する。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-delete-att-001')).toBeInTheDocument();
+    });
+
+    // 削除ボタンをクリックして確認ダイアログを開く。
+    await userEvent.click(screen.getByTestId('attachment-delete-att-001'));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+    // 「削除する」ボタンをクリックする。
+    await userEvent.click(screen.getByText('削除する'));
+
+    // 削除 API 成功後にダイアログが閉じること（loading 連動後も正常系は変わらないこと）。
+    await waitFor(() => {
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+  });
+});

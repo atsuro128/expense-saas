@@ -137,8 +137,8 @@ export default function ReportDetailPage() {
     categoriesData?.map((c) => ({ value: c.id, label: c.name_ja })) ?? [];
 
   // レポート操作ミューテーション。
-  const { mutate: submitMutate } = useSubmitReport();
-  const { mutate: deleteMutate } = useDeleteReport();
+  const { mutate: submitMutate, isPending: isSubmitPending } = useSubmitReport();
+  const { mutate: deleteMutate, isPending: isDeletePending } = useDeleteReport();
 
   // ワークフロー操作ミューテーション。
   const approveReport = useApproveReport();
@@ -657,7 +657,9 @@ export default function ReportDetailPage() {
         reportPeriodEnd={report.period_end}
       />
 
-      {/* 提出・削除確認ダイアログ */}
+      {/* 提出・削除確認ダイアログ
+          W1 修正: loading prop に isSubmitPending / isDeletePending を連動させ、
+          API 実行中の二重押下防止とキャンセル不可を実現する（SMK-011 準拠）。 */}
       <ConfirmDialog
         open={dialogAction !== null}
         title={dialogAction === 'submit' ? 'レポートを提出しますか？' : 'レポートを削除しますか？'}
@@ -669,6 +671,7 @@ export default function ReportDetailPage() {
         confirmLabel="はい"
         confirmColor={dialogAction === 'delete' ? 'error' : 'primary'}
         cancelLabel="キャンセル"
+        loading={dialogAction === 'submit' ? isSubmitPending : isDeletePending}
         onConfirm={handleDialogConfirm}
         onCancel={() => setDialogAction(null)}
       />
@@ -677,6 +680,8 @@ export default function ReportDetailPage() {
           F1 修正: 成功時にダイアログを閉じ、エラー時はダイアログを open 維持 + apiError を表示する。
           F2 修正: confirmLabel/confirmColor/inputField を usePrevious（ConfirmDialog 内部）で保持し、
                    閉じるアニメーション中のちらつきを防ぐ。
+          W1 修正: loading prop に各 mutation の isPending を連動させ、
+                   API 実行中の二重押下防止・キャンセル不可・エラー表示先確保を実現する（SMK-011 準拠）。
           title の三項演算子は pay を明示し、null フォールバックによるちらつきを二重防御する (#156) */}
       <ConfirmDialog
         open={workflowDialogAction !== null}
@@ -699,6 +704,13 @@ export default function ReportDetailPage() {
         }
         confirmColor={workflowDialogAction === 'reject' ? 'error' : 'primary'}
         cancelLabel="キャンセル"
+        loading={
+          workflowDialogAction === 'approve'
+            ? approveReport.isPending
+            : workflowDialogAction === 'reject'
+              ? rejectReport.isPending
+              : markAsPaid.isPending
+        }
         inputField={
           workflowDialogAction === 'approve'
             ? {
@@ -724,7 +736,9 @@ export default function ReportDetailPage() {
       />
 
       {/* 明細削除確認ダイアログ
-          apiError パターン適用: 削除エラー時はダイアログを open 維持 + apiError を表示する。 */}
+          apiError パターン適用: 削除エラー時はダイアログを open 維持 + apiError を表示する。
+          W1 修正: loading prop に deleteItem.isPending を連動させ、
+                   API 実行中の二重押下防止・キャンセル不可を実現する（SMK-011 準拠）。 */}
       <ConfirmDialog
         open={deletingItemId !== null}
         title="この明細を削除しますか？"
@@ -732,6 +746,7 @@ export default function ReportDetailPage() {
         confirmLabel="削除する"
         confirmColor="error"
         cancelLabel="キャンセル"
+        loading={deleteItem.isPending}
         apiError={deleteItemDialogApiError}
         onConfirm={handleDeleteItemConfirm}
         onCancel={handleDeleteItemCancel}

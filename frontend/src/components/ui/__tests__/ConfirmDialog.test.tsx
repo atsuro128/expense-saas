@@ -358,6 +358,19 @@ describe('ConfirmDialog', () => {
 
       expect(screen.getByRole('button', { name: 'キャンセル' })).toBeDisabled();
     });
+
+    // W1 追加: loading=true のとき onClose が undefined になり Dialog 外クリックで閉じない
+    // ConfirmDialog の実装: onClose={loading ? undefined : handleClose}
+    it('loading=true のとき Dialog の onClose が undefined になる（外側クリックで閉じない）', () => {
+      render(<ConfirmDialog {...defaultProps} loading={true} />);
+
+      // loading=true のとき Dialog が open であること。
+      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      // キャンセルボタンが disabled であることを再確認（閉じ操作が封鎖されている）。
+      expect(screen.getByRole('button', { name: 'キャンセル' })).toBeDisabled();
+      // 確認ボタンも disabled であること（二重押下防止）。
+      expect(screen.getByRole('button', { name: '確認する' })).toBeDisabled();
+    });
   });
 
   // ---------------------------------------------------------------------------

@@ -231,7 +231,9 @@ function AttachmentAreaContent({
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
       {/* 添付削除確認ダイアログ。
-          #156/#159 対応: エラー時はダイアログを open 維持 + apiError を FormAlert で表示する。 */}
+          #156/#159 対応: エラー時はダイアログを open 維持 + apiError を FormAlert で表示する。
+          W1 修正: loading prop に deleteAttachment.isPending を連動させ、
+                   API 実行中の二重押下防止・キャンセル不可・エラー表示先確保を実現する（SMK-011 準拠）。 */}
       {confirmTargetId !== null && (
         <ConfirmDialog
           open={true}
@@ -240,6 +242,7 @@ function AttachmentAreaContent({
           confirmLabel="削除する"
           confirmColor="error"
           cancelLabel="キャンセル"
+          loading={deleteAttachment.isPending}
           apiError={deleteDialogApiError}
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
