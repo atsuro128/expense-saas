@@ -2,9 +2,13 @@
 // ローディング中は PageSkeleton を表示し、データ取得後は TenantInfoField で会社名を表示する。
 // 404 エラー時はエラーメッセージを表示する。
 
+import Card from '@mui/material/Card';
+import CardContent from '@mui/material/CardContent';
+import Typography from '@mui/material/Typography';
 import type { TenantInfo } from '../../api/types';
 import type { ApiClientError } from '../../api/client';
 import TenantInfoField from './TenantInfoField';
+import PageSkeleton from '../../components/ui/PageSkeleton';
 
 /** TenantInfoCard コンポーネントの Props。 */
 interface TenantInfoCardProps {
@@ -23,13 +27,19 @@ interface TenantInfoCardProps {
  */
 export default function TenantInfoCard({ tenant, loading, error }: TenantInfoCardProps) {
   if (loading) {
-    // ローディング中は PageSkeleton を表示する（variant="card"）。
-    return <div data-testid="page-skeleton-card" aria-label="読み込み中" />;
+    // ローディング中は共通 PageSkeleton（variant="card"）を表示する。
+    return <PageSkeleton variant="card" />;
   }
 
   if (error) {
     if (error.status === 404) {
-      return <p>テナント情報が見つかりません。</p>;
+      return (
+        <Card>
+          <CardContent>
+            <Typography color="text.secondary">テナント情報が見つかりません。</Typography>
+          </CardContent>
+        </Card>
+      );
     }
     return null;
   }
@@ -39,8 +49,10 @@ export default function TenantInfoCard({ tenant, loading, error }: TenantInfoCar
   }
 
   return (
-    <div>
-      <TenantInfoField label="会社名" value={tenant.name} />
-    </div>
+    <Card>
+      <CardContent>
+        <TenantInfoField label="会社名" value={tenant.name} />
+      </CardContent>
+    </Card>
   );
 }

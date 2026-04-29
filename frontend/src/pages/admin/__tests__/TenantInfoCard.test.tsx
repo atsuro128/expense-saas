@@ -27,7 +27,10 @@ describe('TenantInfoCard', () => {
     render(<TenantInfoCard tenant={undefined} loading={true} error={null} />);
 
     // PageSkeleton（variant="card"）が描画されること。
-    expect(screen.getByTestId('page-skeleton-card')).toBeInTheDocument();
+    // PageSkeleton は data-testid="page-skeleton" / data-variant="card" を付与する。
+    const skeleton = screen.getByTestId('page-skeleton');
+    expect(skeleton).toBeInTheDocument();
+    expect(skeleton).toHaveAttribute('data-variant', 'card');
 
     // TenantInfoField が描画されないこと。
     expect(screen.queryByText('会社名')).not.toBeInTheDocument();
