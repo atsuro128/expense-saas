@@ -32,16 +32,19 @@ export interface ReportListTableProps {
 }
 
 /** テーブルのカラム定義。ReportListItem のフィールド名に準拠する。 */
+// minWidth はスマホ幅で列内容が読めるよう設定する（issue #160 対応・予防的対応）。
 const COLUMNS: GridColDef[] = [
   {
     field: 'title',
     headerName: 'タイトル',
     flex: 2,
+    minWidth: 200,
   },
   {
     field: 'period',
     headerName: '対象期間',
     flex: 2,
+    minWidth: 180,
     // periodStart〜periodEnd を結合して表示する。
     renderCell: (params) => (
       <span>{`${params.row.periodStart as string} 〜 ${params.row.periodEnd as string}`}</span>
@@ -51,6 +54,7 @@ const COLUMNS: GridColDef[] = [
     field: 'totalAmount',
     headerName: '合計金額',
     flex: 1,
+    minWidth: 100,
     // 金額を 3 桁カンマ区切りで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
@@ -58,6 +62,7 @@ const COLUMNS: GridColDef[] = [
     field: 'status',
     headerName: 'ステータス',
     flex: 1,
+    minWidth: 100,
     // StatusChip コンポーネントで色分け表示する。
     renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
   },
@@ -65,6 +70,7 @@ const COLUMNS: GridColDef[] = [
     field: 'createdAt',
     headerName: '作成日',
     flex: 1,
+    minWidth: 110,
     valueFormatter: (value: string) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
   },

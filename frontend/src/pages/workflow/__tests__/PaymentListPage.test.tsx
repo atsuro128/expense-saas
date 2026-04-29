@@ -564,8 +564,8 @@ describe('PaymentListPage（PayableReportsPage）', () => {
     // 申請者名・タイトルが表示されること。
     expect(screen.getByText('田中太郎')).toBeInTheDocument();
     expect(screen.getByText('4月交通費')).toBeInTheDocument();
-    // 遷移アイコン列を含む5カラムであること。
-    expect(screen.getByTestId('payable-report-table')).toHaveAttribute('data-column-count', '5');
+    // 申請者名・タイトル・合計金額・承認日の4カラムであること（issue #155 で ChevronRight 列削除済み）。
+    expect(screen.getByTestId('payable-report-table')).toHaveAttribute('data-column-count', '4');
   });
 
   // WFL-FE-046: is_own_report=true のレポートに「自分」ラベルが表示される。
