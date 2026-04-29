@@ -1270,8 +1270,9 @@ describe('ReportDetailPage', () => {
     });
   });
 
-  // WFL-FE-063-J: 承認 API がエラーを返したとき、ダイアログが閉じず FormAlert に表示される
-  it('WFL-FE-063-J: 承認 API がエラーを返したとき、ダイアログが閉じず FormAlert にエラーが表示される', async () => {
+  // WFL-FE-063-J: 承認 API がエラーを返したとき、ダイアログが閉じてトーストにエラーが表示される
+  // （承認は旧トーストパターン: エラー時にダイアログを即時閉じてトーストで通知する）
+  it('WFL-FE-063-J: 承認 API がエラーを返したとき、ダイアログが閉じてトーストにエラーが表示される', async () => {
     const user = userEvent.setup();
 
     const approverUser = {
@@ -1316,23 +1317,23 @@ describe('ReportDetailPage', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
-    // 「承認する」をクリックする。
+    // 「承認する」をクリックする（ダイアログを即時閉じてから API を呼ぶ）。
     await user.click(screen.getByRole('button', { name: '承認する' }));
 
-    // エラー時にダイアログが閉じていないこと。
+    // 承認は旧トーストパターン: ダイアログが閉じること。
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    // FormAlert にエラーメッセージが表示されること。
+    // トーストにエラーメッセージが表示されること。
     await waitFor(() => {
-      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
-      expect(screen.getByTestId('form-alert')).toHaveTextContent('この操作を行う権限がありません。');
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('この操作を行う権限がありません。');
     });
   });
 
-  // WFL-FE-065-J: 支払完了 API がエラーを返したとき、ダイアログが閉じず FormAlert に表示される
-  it('WFL-FE-065-J: 支払完了 API がエラーを返したとき、ダイアログが閉じず FormAlert にエラーが表示される', async () => {
+  // WFL-FE-065-J: 支払完了 API がエラーを返したとき、ダイアログが閉じてトーストにエラーが表示される
+  // （支払完了は旧トーストパターン: エラー時にダイアログを即時閉じてトーストで通知する）
+  it('WFL-FE-065-J: 支払完了 API がエラーを返したとき、ダイアログが閉じてトーストにエラーが表示される', async () => {
     const user = userEvent.setup();
 
     const accountingUser = {
@@ -1377,18 +1378,17 @@ describe('ReportDetailPage', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
-    // 「支払完了にする」をクリックする。
+    // 「支払完了にする」をクリックする（ダイアログを即時閉じてから API を呼ぶ）。
     await user.click(screen.getByRole('button', { name: '支払完了にする' }));
 
-    // エラー時にダイアログが閉じていないこと。
+    // 支払完了は旧トーストパターン: ダイアログが閉じること。
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    // FormAlert にエラーメッセージが表示されること。
+    // トーストにエラーメッセージが表示されること。
     await waitFor(() => {
-      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
-      expect(screen.getByTestId('form-alert')).toHaveTextContent('自分が作成したレポートの支払完了は記録できません');
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('自分が作成したレポートの支払完了は記録できません');
     });
   });
 
@@ -1721,11 +1721,10 @@ describe('ReportDetailPage エラーハンドリング回帰テスト（issue #1
     });
   });
 
-  // issue #135 → #156/#159 大幅改修: 明細削除でエラー時の挙動変更。
+  // issue #135: 明細削除でエラー時の挙動（旧トーストパターン）。
   // 旧設計（issue #135）: handleActionError 経由でトーストに表示。
-  // 新設計（#156/#159 大幅改修）: ダイアログを open 維持 + deleteItemDialogApiError に set。
-  //   → ConfirmDialog の apiError prop 経由で FormAlert にエラーが表示される。
-  it('issue #135 → #156/#159: 明細削除で 403 エラー時にダイアログが閉じず FormAlert にエラーが表示される', async () => {
+  // 現在の設計: ダイアログを即時閉じてトーストで通知する（旧トーストパターンに戻す）。
+  it('issue #135: 明細削除で 403 エラー時にダイアログが閉じてトーストにエラーが表示される', async () => {
     const user = userEvent.setup();
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1767,18 +1766,17 @@ describe('ReportDetailPage エラーハンドリング回帰テスト（issue #1
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
-    // ダイアログで「削除する」ボタンをクリックする。
+    // ダイアログで「削除する」ボタンをクリックする（ダイアログを即時閉じてから API を呼ぶ）。
     await user.click(screen.getByRole('button', { name: /削除する/ }));
 
-    // エラー時にダイアログが閉じていないこと（#156/#159 大幅改修: apiError パターン適用）。
+    // 明細削除は旧トーストパターン: ダイアログが閉じること。
     await waitFor(() => {
-      expect(screen.getByRole('dialog')).toBeInTheDocument();
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
-    // FormAlert にエラーメッセージが表示されること（ConfirmDialog の apiError prop 経由）。
+    // トーストにエラーメッセージが表示されること（旧トーストパターン）。
     await waitFor(() => {
-      expect(screen.getByTestId('form-alert')).toBeInTheDocument();
-      expect(screen.getByTestId('form-alert')).toHaveTextContent('この操作を行う権限がありません。');
+      expect(screen.getByTestId('app-toast')).toHaveTextContent('この操作を行う権限がありません。');
     });
   });
 });

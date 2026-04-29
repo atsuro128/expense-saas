@@ -5,7 +5,7 @@
 // report-detail.md §AttachmentArea に対応する。
 // ATT-FE-060/062/063: AbortController による中断トースト対応（issue #108）。
 // ATT-FE-072/073/075/077: 追加モードのローカル保持対応（issue #115）。
-// #156/#159: 添付削除ダイアログに apiError パターンを適用（エラー時はダイアログ open 維持 + FormAlert 表示）。
+// 添付削除エラーはトーストで通知し、ダイアログを即時閉じる（旧トーストパターン）。
 
 import { useState, useRef, useEffect } from 'react';
 import type { MutableRefObject } from 'react';
@@ -94,9 +94,6 @@ function AttachmentAreaContent({
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // 確認ダイアログ用の状態: 削除対象の添付ファイル ID を保持する（null のとき非表示）。
   const [confirmTargetId, setConfirmTargetId] = useState<string | null>(null);
-  // 添付削除ダイアログ専用の API エラー state（#156/#159 対応）。
-  // 削除 API エラー時にダイアログを open のまま apiError を表示する。
-  const [deleteDialogApiError, setDeleteDialogApiError] = useState<string | null>(null);
   const [toast, setToast] = useState<{
     open: boolean;
     severity: 'success' | 'error';
@@ -146,18 +143,18 @@ function AttachmentAreaContent({
     }
   };
 
-  // 削除ボタン押下: 確認ダイアログを表示し、前回の apiError をクリアする。
+  // 削除ボタン押下: 確認ダイアログを表示する。
   const handleDeleteRequest = (attachmentId: string) => {
-    setDeleteDialogApiError(null);
     setConfirmTargetId(attachmentId);
   };
 
-  // 確認ダイアログの「削除する」押下: 実際に削除 API を呼び出す。
-  // #156/#159 対応: ダイアログを即時閉じずに API を呼ぶ。
-  // 成功時にダイアログを閉じ、エラー時は open 維持 + apiError を表示する。
+  // 確認ダイアログの「削除する」押下: ダイアログを即時閉じてから API を呼ぶ（旧トーストパターン）。
+  // エラー時はトーストで通知する。
   const handleConfirmDelete = () => {
     if (confirmTargetId === null) return;
     const targetId = confirmTargetId;
+    // ダイアログを即時閉じる。
+    setConfirmTargetId(null);
     setDeletingId(targetId);
     onDeletingChange?.(true);
     deleteAttachment.mutate(
@@ -166,9 +163,6 @@ function AttachmentAreaContent({
         onSuccess: () => {
           setDeletingId(null);
           onDeletingChange?.(false);
-          // 成功時にダイアログを閉じる。
-          setConfirmTargetId(null);
-          setDeleteDialogApiError(null);
           // 共通定数を使用する（issue #143、add モードと文言を統一）。
           showToast('success', ATTACHMENT_DELETE_SUCCESS);
         },
@@ -176,9 +170,7 @@ function AttachmentAreaContent({
           setDeletingId(null);
           onDeletingChange?.(false);
           if (err instanceof Error && err.name === 'AbortError') {
-            // AbortError: ダイアログを閉じてアボートトーストを表示する。
-            setConfirmTargetId(null);
-            setDeleteDialogApiError(null);
+            // AbortError: アボートトーストを表示する（ダイアログはすでに閉じている）。
             if (onDeleteAborted) {
               onDeleteAborted();
             } else {
@@ -186,10 +178,10 @@ function AttachmentAreaContent({
             }
             return;
           }
-          // その他のエラー: ダイアログを open 維持 + apiError を set する。
+          // その他のエラー: トーストで通知する（旧トーストパターン）。
           // client.ts 層でマッピング済みの err.message をそのまま使う。
           const message = err instanceof Error ? err.message : '添付ファイルの削除に失敗しました';
-          setDeleteDialogApiError(message);
+          showToast('error', message);
         },
       },
     );
@@ -197,7 +189,6 @@ function AttachmentAreaContent({
 
   // 確認ダイアログの「キャンセル」押下。
   const handleCancelDelete = () => {
-    setDeleteDialogApiError(null);
     setConfirmTargetId(null);
   };
 
@@ -231,9 +222,9 @@ function AttachmentAreaContent({
         onClose={() => setToast((prev) => ({ ...prev, open: false }))}
       />
       {/* 添付削除確認ダイアログ。
-          #156/#159 対応: エラー時はダイアログを open 維持 + apiError を FormAlert で表示する。
           W1 修正: loading prop に deleteAttachment.isPending を連動させ、
-                   API 実行中の二重押下防止・キャンセル不可・エラー表示先確保を実現する（SMK-011 準拠）。 */}
+                   API 実行中の二重押下防止・キャンセル不可を実現する（SMK-011 準拠）。
+          エラー時はトーストで通知し、ダイアログを即時閉じる（旧トーストパターン）。 */}
       {confirmTargetId !== null && (
         <ConfirmDialog
           open={true}
@@ -243,7 +234,6 @@ function AttachmentAreaContent({
           confirmColor="error"
           cancelLabel="キャンセル"
           loading={deleteAttachment.isPending}
-          apiError={deleteDialogApiError}
           onConfirm={handleConfirmDelete}
           onCancel={handleCancelDelete}
         />

@@ -95,14 +95,10 @@ export default function ReportDetailPage() {
   // ワークフロー確認ダイアログの操作種別。
   const [workflowDialogAction, setWorkflowDialogAction] = useState<WorkflowDialogAction>(null);
 
-  // ワークフロー確認ダイアログ専用の API エラー state（#159 F1 対応）。
+  // 却下ダイアログ専用の API エラー state（#159 F1 対応, D4 規定）。
   // 422 MissingRejectionReason 等の API エラーをダイアログ内で表示するために使用する。
-  // ダイアログを閉じずに apiError prop に設定することで、設計書 report-detail.md §D4 規定に準拠する。
-  const [workflowDialogApiError, setWorkflowDialogApiError] = useState<string | null>(null);
-
-  // 明細削除確認ダイアログ専用の API エラー state。
-  // 削除 API エラー時にダイアログを開いたまま apiError を表示する。
-  const [deleteItemDialogApiError, setDeleteItemDialogApiError] = useState<string | null>(null);
+  // 却下以外（承認・支払）は旧トーストパターンを使うため、却下専用 state として維持する。
+  const [rejectDialogApiError, setRejectDialogApiError] = useState<string | null>(null);
 
   // 409 Conflict が発生したかどうか（競合バナー表示に使用）。
   const [conflictDetected, setConflictDetected] = useState(false);
@@ -278,10 +274,9 @@ export default function ReportDetailPage() {
   const isOwner = user?.id === report.submitter?.id;
 
   /**
-   * 承認ボタン押下時の処理。確認ダイアログを開き、前回の apiError をクリアする。
+   * 承認ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleApprove = () => {
-    setWorkflowDialogApiError(null);
     setWorkflowDialogAction('approve');
   };
 
@@ -289,15 +284,14 @@ export default function ReportDetailPage() {
    * 却下ボタン押下時の処理。確認ダイアログを開き、前回の apiError をクリアする。
    */
   const handleReject = () => {
-    setWorkflowDialogApiError(null);
+    setRejectDialogApiError(null);
     setWorkflowDialogAction('reject');
   };
 
   /**
-   * 支払完了ボタン押下時の処理。確認ダイアログを開き、前回の apiError をクリアする。
+   * 支払完了ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleMarkAsPaid = () => {
-    setWorkflowDialogApiError(null);
     setWorkflowDialogAction('pay');
   };
 
@@ -307,36 +301,35 @@ export default function ReportDetailPage() {
    * reject: 却下理由（必須）付きで却下 API を呼ぶ。
    * pay: 支払完了 API を呼ぶ。
    *
-   * 設計書 report-detail.md §D4 規定に基づく処理フロー:
-   * - ミューテーション実行中はダイアログを閉じない（setWorkflowDialogAction(null) を即時呼ばない）
-   * - onSuccess: ダイアログを閉じてトーストで成功通知
-   * - onError: apiError を set してダイアログを open のまま維持（F1 修正）
-   * - 422 MissingRejectionReason 等のエラーをダイアログ内の FormAlert で表示
+   * 処理フロー:
+   * - approve/pay: ダイアログを即時閉じてから API を呼ぶ（旧トーストパターン）。
+   *   エラー時はトーストで通知する。
+   * - reject: 設計書 report-detail.md §D4 規定に基づき、ダイアログを閉じずに API を呼ぶ。
+   *   422 MissingRejectionReason 等の API エラーはダイアログ内の FormAlert で表示する（F1 修正）。
    */
   const handleWorkflowDialogConfirm = (inputValue?: string) => {
     if (workflowDialogAction === 'approve') {
-      // 承認: ダイアログは閉じずに API を呼ぶ。成功時に閉じ、エラー時は open 維持。
+      // 承認: ダイアログを即時閉じてから API を呼ぶ（旧トーストパターン）。
+      setWorkflowDialogAction(null);
       setWorkflowPendingAction('approve');
       approveReport.mutate(
         { id: report.id, comment: inputValue, updated_at: report.updated_at },
         {
           onSuccess: () => {
             setWorkflowPendingAction(null);
-            setWorkflowDialogAction(null);
-            setWorkflowDialogApiError(null);
             setToast({ open: true, severity: 'success', message: 'レポートを承認しました' });
           },
           onError: (err: Error) => {
             setWorkflowPendingAction(null);
-            // エラー時はダイアログを閉じずに apiError を set する（F1 修正）。
+            // エラー時はトーストで通知する（承認は旧トーストパターン）。
             const message = err instanceof Error ? err.message : '承認に失敗しました';
-            setWorkflowDialogApiError(message);
+            setToast({ open: true, severity: 'error', message });
           },
         },
       );
     } else if (workflowDialogAction === 'reject') {
-      // 却下: ダイアログは閉じずに API を呼ぶ。成功時に閉じ、エラー時は open 維持。
-      // 422 MissingRejectionReason は apiError としてダイアログ内に表示する（F1 修正）。
+      // 却下: ダイアログは閉じずに API を呼ぶ（D4 規定に基づく apiError パターン）。
+      // 422 MissingRejectionReason は rejectDialogApiError としてダイアログ内に表示する（F1 修正）。
       setWorkflowPendingAction('reject');
       rejectReport.mutate(
         { id: report.id, reason: inputValue ?? '', updated_at: report.updated_at },
@@ -344,35 +337,34 @@ export default function ReportDetailPage() {
           onSuccess: () => {
             setWorkflowPendingAction(null);
             setWorkflowDialogAction(null);
-            setWorkflowDialogApiError(null);
+            setRejectDialogApiError(null);
             setToast({ open: true, severity: 'success', message: 'レポートを却下しました' });
           },
           onError: (err: Error) => {
             setWorkflowPendingAction(null);
-            // エラー時はダイアログを閉じずに apiError を set する（F1 修正）。
+            // エラー時はダイアログを閉じずに rejectDialogApiError を set する（F1 修正）。
             // client.ts 層でマッピング済みの err.message をそのまま使う。
             const message = err instanceof Error ? err.message : '却下に失敗しました';
-            setWorkflowDialogApiError(message);
+            setRejectDialogApiError(message);
           },
         },
       );
     } else if (workflowDialogAction === 'pay') {
-      // 支払完了: ダイアログは閉じずに API を呼ぶ。成功時に閉じ、エラー時は open 維持。
+      // 支払完了: ダイアログを即時閉じてから API を呼ぶ（旧トーストパターン）。
+      setWorkflowDialogAction(null);
       setWorkflowPendingAction('pay');
       markAsPaid.mutate(
         { id: report.id, updated_at: report.updated_at },
         {
           onSuccess: () => {
             setWorkflowPendingAction(null);
-            setWorkflowDialogAction(null);
-            setWorkflowDialogApiError(null);
             setToast({ open: true, severity: 'success', message: '支払完了を記録しました' });
           },
           onError: (err: Error) => {
             setWorkflowPendingAction(null);
-            // エラー時はダイアログを閉じずに apiError を set する（F1 修正）。
+            // エラー時はトーストで通知する（支払完了は旧トーストパターン）。
             const message = err instanceof Error ? err.message : '支払完了の記録に失敗しました';
-            setWorkflowDialogApiError(message);
+            setToast({ open: true, severity: 'error', message });
           },
         },
       );
@@ -381,10 +373,10 @@ export default function ReportDetailPage() {
 
   /**
    * ワークフロー確認ダイアログのキャンセル処理。
-   * apiError をクリアしてダイアログを閉じる。
+   * 却下ダイアログ用の rejectDialogApiError をクリアしてダイアログを閉じる。
    */
   const handleWorkflowDialogCancel = () => {
-    setWorkflowDialogApiError(null);
+    setRejectDialogApiError(null);
     setWorkflowDialogAction(null);
   };
 
@@ -445,29 +437,28 @@ export default function ReportDetailPage() {
    * 明細削除ボタン押下時の処理。確認ダイアログを開く。
    */
   const handleDeleteItem = (itemId: string) => {
-    setDeleteItemDialogApiError(null);
     setDeletingItemId(itemId);
   };
 
   /**
    * 明細削除確認ダイアログの「削除する」ボタン押下時の処理。
-   * ダイアログは閉じずに API を呼ぶ。成功時に閉じ、エラー時は open 維持 + apiError 表示。
+   * ダイアログを即時閉じてから API を呼ぶ（旧トーストパターン）。
+   * エラー時はトーストで通知する。
    */
   const handleDeleteItemConfirm = () => {
     if (deletingItemId === null) return;
+    setDeletingItemId(null);
     deleteItem.mutate(
       { reportId: report.id, itemId: deletingItemId },
       {
         onSuccess: () => {
-          setDeletingItemId(null);
-          setDeleteItemDialogApiError(null);
           setToast({ open: true, severity: 'success', message: '明細を削除しました' });
         },
         onError: (err) => {
-          // エラー時はダイアログを閉じずに apiError を set する。
+          // エラー時はトーストで通知する（明細削除は旧トーストパターン）。
           // client.ts 層でマッピング済みの err.message をそのまま使う。
           const message = err instanceof Error ? err.message : '明細の削除に失敗しました';
-          setDeleteItemDialogApiError(message);
+          setToast({ open: true, severity: 'error', message });
         },
       },
     );
@@ -475,10 +466,8 @@ export default function ReportDetailPage() {
 
   /**
    * 明細削除確認ダイアログのキャンセル処理。
-   * apiError をクリアしてダイアログを閉じる。
    */
   const handleDeleteItemCancel = () => {
-    setDeleteItemDialogApiError(null);
     setDeletingItemId(null);
   };
 
@@ -677,11 +666,12 @@ export default function ReportDetailPage() {
       />
 
       {/* ワークフロー操作確認ダイアログ（承認・却下・支払完了）
-          F1 修正: 成功時にダイアログを閉じ、エラー時はダイアログを open 維持 + apiError を表示する。
           F2 修正: confirmLabel/confirmColor/inputField を usePrevious（ConfirmDialog 内部）で保持し、
                    閉じるアニメーション中のちらつきを防ぐ。
           W1 修正: loading prop に各 mutation の isPending を連動させ、
-                   API 実行中の二重押下防止・キャンセル不可・エラー表示先確保を実現する（SMK-011 準拠）。
+                   API 実行中の二重押下防止・キャンセル不可を実現する（SMK-011 準拠）。
+          F1 対応（却下のみ）: 却下エラー時はダイアログを open 維持 + rejectDialogApiError を表示する。
+                   承認・支払はエラー時にトーストで通知し、ダイアログを即時閉じる（旧トーストパターン）。
           title の三項演算子は pay を明示し、null フォールバックによるちらつきを二重防御する (#156) */}
       <ConfirmDialog
         open={workflowDialogAction !== null}
@@ -730,15 +720,15 @@ export default function ReportDetailPage() {
                 }
               : undefined
         }
-        apiError={workflowDialogApiError}
+        apiError={workflowDialogAction === 'reject' ? rejectDialogApiError : null}
         onConfirm={handleWorkflowDialogConfirm}
         onCancel={handleWorkflowDialogCancel}
       />
 
       {/* 明細削除確認ダイアログ
-          apiError パターン適用: 削除エラー時はダイアログを open 維持 + apiError を表示する。
           W1 修正: loading prop に deleteItem.isPending を連動させ、
-                   API 実行中の二重押下防止・キャンセル不可を実現する（SMK-011 準拠）。 */}
+                   API 実行中の二重押下防止・キャンセル不可を実現する（SMK-011 準拠）。
+          エラー時はトーストで通知し、ダイアログを即時閉じる（旧トーストパターン）。 */}
       <ConfirmDialog
         open={deletingItemId !== null}
         title="この明細を削除しますか？"
@@ -747,7 +737,6 @@ export default function ReportDetailPage() {
         confirmColor="error"
         cancelLabel="キャンセル"
         loading={deleteItem.isPending}
-        apiError={deleteItemDialogApiError}
         onConfirm={handleDeleteItemConfirm}
         onCancel={handleDeleteItemCancel}
       />
