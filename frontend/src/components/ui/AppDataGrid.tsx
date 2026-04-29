@@ -31,7 +31,8 @@ export default function AppDataGrid({
   ...rest
 }: AppDataGridProps) {
   return (
-    <Box sx={{ width: '100%' }}>
+    // overflowX: 'auto' で列幅合計が画面幅を超える場合に横スクロールを許可する（issue #160 対応）。
+    <Box sx={{ width: '100%', overflowX: 'auto' }}>
       <DataGrid
         {...rest}
         columns={columns}
@@ -69,6 +70,9 @@ export default function AppDataGrid({
           '& .MuiDataGrid-columnHeaderTitle': {
             fontWeight: 'bold',
           },
+          // rows=0 件のとき空状態テキストが DataGrid 内に収まる最小高さを確保する（issue #154 対応）。
+          // autoHeight は採用しない（フッター常時表示と干渉するため）。
+          minHeight: 200,
           // 呼び出し側の sx を後から展開して合成する。
           ...rest.sx,
         }}

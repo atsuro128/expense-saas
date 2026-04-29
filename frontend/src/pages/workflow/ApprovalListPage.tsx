@@ -5,7 +5,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { GridColDef, GridRowParams } from '@mui/x-data-grid';
-import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import TextField from '@mui/material/TextField';
 import AppDataGrid from '../../components/ui/AppDataGrid';
 import AppPaginationFooter from '../../components/ui/AppPaginationFooter';
@@ -20,11 +19,15 @@ import { useCurrentUser } from '../../hooks/useCurrentUser';
 export const PAGE_TEST_ID = 'pending-approvals-page';
 
 /** テーブルのカラム定義。openapi.yaml の PendingReport フィールドに準拠する。 */
+// 行末 ChevronRight アイコンは表示しない（issue #155 対応）。
+// 行クリック + cursor:pointer のみで操作可能性を表現する。
+// minWidth はスマホ幅で列内容が読めるよう設定する（issue #160 対応）。
 const COLUMNS: GridColDef[] = [
   {
     field: 'submitter_name',
     headerName: '申請者名',
     flex: 1,
+    minWidth: 120,
     // 申請者名と「自分」ラベルを並べて表示する。
     renderCell: (params) => (
       <>
@@ -37,11 +40,13 @@ const COLUMNS: GridColDef[] = [
     field: 'title',
     headerName: 'タイトル',
     flex: 2,
+    minWidth: 200,
   },
   {
     field: 'total_amount',
     headerName: '合計金額',
     flex: 1,
+    minWidth: 100,
     // 金額を ¥ プレフィックス付きで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
@@ -49,16 +54,9 @@ const COLUMNS: GridColDef[] = [
     field: 'submitted_at',
     headerName: '提出日',
     flex: 1,
+    minWidth: 110,
     valueFormatter: (value: string | null) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
-  },
-  {
-    field: 'navigate',
-    headerName: '',
-    width: 48,
-    sortable: false,
-    disableColumnMenu: true,
-    renderCell: () => <ChevronRightIcon fontSize="small" color="action" />,
   },
 ];
 
