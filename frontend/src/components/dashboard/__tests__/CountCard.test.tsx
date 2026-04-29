@@ -28,7 +28,7 @@ function renderWithProviders(ui: React.ReactElement) {
  * 指定した Card 要素（MuiCard-root）の Emotion クラスに紐づく CSS ルールのみを返す。
  * MUI v6 + Emotion は data-emotion 属性を持つ style タグにスタイルを注入する。
  * document 全体のスタイルではなく対象要素固有のクラスに絞ることで、
- * 他のテストで注入された Badge 等の色コードによる false positive を防止する。
+ * 他のテストで注入された色コードによる false positive を防止する。
  */
 function getStylesForCard(cardElement: HTMLElement): string {
   // Emotion が付与したクラス名（css- プレフィックス）を抽出する。
@@ -86,42 +86,9 @@ describe('CountCard', () => {
     expect(screen.getByText('0')).toBeInTheDocument();
   });
 
-  // DSH-FE-012: showBadge=true かつ count >= 1 のとき要対応バッジが表示されること。
-  it('DSH-FE-012: showBadge=true かつ count >= 1 のときバッジが表示される', () => {
-    const { container } = renderWithProviders(<CountCard label="承認待ち" count={3} showBadge={true} />);
-    // MUI Badge は dot バリアントで badge を出力する。
-    const badge = container.querySelector('.MuiBadge-badge');
-    expect(badge).toBeInTheDocument();
-  });
-
-  // DSH-FE-012b: showBadge=true かつ count >= 1 のとき anchorOrigin が top/right であること。
-  it('DSH-FE-012b: showBadge=true かつ count >= 1 のとき Badge が anchorOriginTopRight クラスを持つ', () => {
-    const { container } = renderWithProviders(<CountCard label="承認待ち" count={3} showBadge={true} />);
-    // MUI Badge は anchorOrigin に基づいて MuiBadge-anchorOriginTopRight クラスを付与する。
-    const badge = container.querySelector('.MuiBadge-anchorOriginTopRight');
-    expect(badge).toBeInTheDocument();
-  });
-
-  // DSH-FE-012c: showBadge=true かつ count >= 1 のとき aria-label="要対応あり" が付与されること。
-  it('DSH-FE-012c: showBadge=true かつ count >= 1 のとき Badge に aria-label="要対応あり" が付与される', () => {
-    renderWithProviders(<CountCard label="承認待ち" count={3} showBadge={true} />);
-    // Badge の span 要素に aria-label が付与されていることを確認する。
-    const badgeRoot = document.querySelector('[aria-label="要対応あり"]');
-    expect(badgeRoot).toBeInTheDocument();
-  });
-
-  // DSH-FE-013: showBadge=true かつ count=0 のときバッジが表示されないこと。
-  it('DSH-FE-013: showBadge=true かつ count=0 のときバッジが表示されない', () => {
-    const { container } = renderWithProviders(<CountCard label="承認待ち" count={0} showBadge={true} />);
-    // count が 0 の場合、Badge を使わない実装のためバッジ要素が存在しない。
-    const badge = container.querySelector('.MuiBadge-badge');
-    expect(badge).not.toBeInTheDocument();
-  });
-
   // DSH-FE-014: accentColor ごとに正しいパレットカラーが borderColor に適用されること。
   // ThemeProvider でラップし、対象 Card 要素の Emotion クラスに紐づく CSS ルールのみを検証する。
-  // document 全体のスタイルではなく Card 固有のクラスに絞ることで、
-  // 先行テスト（DSH-FE-012: Badge color="error" が注入する #d32f2f）による false positive を防止する。
+  // document 全体のスタイルではなく Card 固有のクラスに絞ることで false positive を防止する。
   // CountCard 実装: CountCard.tsx L43-44 の borderColor: `${accentColor}.main` が
   // 期待する palette.main 色コードに変換されることを保証する。
   it.each([
@@ -134,8 +101,6 @@ describe('CountCard', () => {
   ])(
     'DSH-FE-014: accentColor="$color" で $expectedHex が borderColor として CSS に注入される',
     ({ color, label, expectedHex }) => {
-      // showBadge を渡さない（デフォルト false）ため Badge は描画されない。
-      // Badge 由来の error 色（#d32f2f）が style タグに注入されることを防ぐ。
       const { container } = renderWithProviders(
         <CountCard label={label} count={2} accentColor={color} />,
       );

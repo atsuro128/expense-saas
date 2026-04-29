@@ -8,7 +8,6 @@ import Box from '@mui/material/Box';
 import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import Typography from '@mui/material/Typography';
-import Badge from '@mui/material/Badge';
 
 export interface CountCardProps {
   /** カードのラベル（例: 「下書き」「承認待ち」） */
@@ -19,8 +18,6 @@ export interface CountCardProps {
   href?: string;
   /** アクセントカラー */
   accentColor?: 'default' | 'info' | 'success' | 'error' | 'secondary';
-  /** 要対応バッジの表示（count >= 1 のときに赤丸バッジを表示） */
-  showBadge?: boolean;
   /** 件数の単位（デフォルト: 「件」） */
   unit?: string;
 }
@@ -33,7 +30,6 @@ export default function CountCard({
   count,
   href,
   accentColor = 'default',
-  showBadge = false,
   unit = '件',
 }: CountCardProps) {
   const cardContent = (
@@ -60,28 +56,13 @@ export default function CountCard({
     </Card>
   );
 
-  const wrappedCard =
-    showBadge && count >= 1 ? (
-      <Badge
-        color="error"
-        variant="dot"
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        aria-label="要対応あり"
-        sx={{ width: '100%' }}
-      >
-        {cardContent}
-      </Badge>
-    ) : (
-      cardContent
-    );
-
   if (href) {
     return (
       <Link to={href} style={{ textDecoration: 'none', display: 'block' }}>
-        {wrappedCard}
+        {cardContent}
       </Link>
     );
   }
 
-  return <>{wrappedCard}</>;
+  return <>{cardContent}</>;
 }
