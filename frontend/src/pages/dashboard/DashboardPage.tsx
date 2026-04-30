@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -153,22 +154,33 @@ export default function DashboardPage() {
             rejectedCount={dashboard.tenant_rejected_count ?? 0}
             paidCount={dashboard.tenant_paid_count ?? 0}
           />
-          <CountCard
-            label="メンバー数"
-            count={dashboard.tenant_member_count ?? 0}
-            unit="人"
-          />
+          {/* メンバー数カードを Grid でラップし、他ロール（MyReportCountCards）と同じ 1/3 幅基準に揃える。 */}
+          <Box sx={{ mt: 2 }}>
+            <Grid container spacing={2} data-testid="admin-member-count-cards">
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <CountCard
+                  label="メンバー数"
+                  count={dashboard.tenant_member_count ?? 0}
+                  unit="人"
+                />
+              </Grid>
+            </Grid>
+          </Box>
         </>
       )}
 
       {/* Approver / Accounting / Admin: 月別サマリー */}
       {isApproverOrAccountingOrAdmin && (
-        <MonthlySummaryTable items={monthlySummaryItems} />
+        <Box sx={{ mt: 3 }}>
+          <MonthlySummaryTable items={monthlySummaryItems} />
+        </Box>
       )}
 
       {/* Member / Approver / Accounting: 最近のレポート一覧 */}
       {isMemberLike && (
-        <RecentReportList reports={recentReports} />
+        <Box sx={{ mt: 3 }}>
+          <RecentReportList reports={recentReports} />
+        </Box>
       )}
     </div>
   );

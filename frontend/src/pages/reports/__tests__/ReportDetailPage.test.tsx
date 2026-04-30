@@ -963,8 +963,9 @@ describe('ReportDetailPage', () => {
     expect(reasonField).toBeRequired();
   });
 
-  // WFL-FE-064-E: 却下理由未入力時は「却下する」ボタンが disabled である
-  it('WFL-FE-064-E: 却下理由未入力時は「却下する」ボタンが disabled である', async () => {
+  // WFL-FE-064-E: 却下ダイアログ初期表示で「却下する」ボタンが enabled である（#162 regression 修正）
+  // 旧: 未入力時 disabled。新: 初期表示では enabled とし、空のまま押下時にバリデーション発火（#162）。
+  it('WFL-FE-064-E: 却下ダイアログ初期表示で「却下する」ボタンが enabled である（#162 regression 修正）', async () => {
     const user = userEvent.setup();
 
     const approverUser = {
@@ -997,9 +998,10 @@ describe('ReportDetailPage', () => {
       expect(screen.getByRole('dialog')).toBeInTheDocument();
     });
 
-    // 却下理由が未入力の場合、「却下する」ボタンが disabled であること。
-    // ConfirmDialog の isConfirmDisabled ロジック: required=true && inputValue.trim() === ''
-    expect(screen.getByRole('button', { name: '却下する' })).toBeDisabled();
+    // #162 修正後: 初期表示（未入力）でも「却下する」ボタンは enabled であること。
+    // isConfirmDisabled = loading のみ（loading=false のため enabled）。
+    // 空のまま押下した場合はバリデーション発火（ConfirmDialog 内部の handleConfirm で制御）。
+    expect(screen.getByRole('button', { name: '却下する' })).not.toBeDisabled();
   });
 
   // WFL-FE-064-F: 却下理由入力 + 「却下する」押下で useRejectReport.mutate が reason 付きで呼ばれる

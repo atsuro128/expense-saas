@@ -1,5 +1,5 @@
 // MonthlySummaryTable コンポーネントのユニットテスト。
-// DSH-FE-022〜DSH-FE-026 に対応する。
+// DSH-FE-022〜DSH-FE-026, DSH-FE-NEW-1 に対応する。
 
 import { render, screen } from '@testing-library/react';
 import { describe, it, expect } from 'vitest';
@@ -16,6 +16,9 @@ describe('MonthlySummaryTable', () => {
   // DSH-FE-022: 3 件のデータで 3 行のテーブルが表示され、年月カラムと金額カラムが存在すること。
   it('DSH-FE-022: 3 件のデータで 3 行が表示され、年月・合計金額カラムが存在する', () => {
     render(<MonthlySummaryTable items={mockMonthlySummary} />);
+
+    // セクション見出しが表示されること。
+    expect(screen.getByText('月別支出サマリー')).toBeInTheDocument();
 
     // テーブルヘッダーが表示されること。
     expect(screen.getByText('年月')).toBeInTheDocument();
@@ -52,11 +55,21 @@ describe('MonthlySummaryTable', () => {
     expect(rows[1]).toHaveTextContent('2026年4月');
   });
 
-  // DSH-FE-026: 空配列を渡したときデータなしの表示になること。
-  it('DSH-FE-026: items が空配列のときデータなし表示になる', () => {
+  // DSH-FE-026: 空配列を渡したときデータなしの表示になること。0 件時も見出しは表示されること。
+  it('DSH-FE-026: items が空配列のときデータなし表示になる（見出しは表示される）', () => {
     render(<MonthlySummaryTable items={[]} />);
+    // 0 件時もセクション見出しは表示されること。
+    expect(screen.getByText('月別支出サマリー')).toBeInTheDocument();
     expect(screen.getByText('データがありません')).toBeInTheDocument();
     // テーブル要素が存在しないこと。
     expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  // DSH-FE-NEW-1: セクション見出しが h6 レベルでレンダリングされること。
+  it('DSH-FE-NEW-1: セクション見出し「月別支出サマリー」が h6 レベルでレンダリングされる', () => {
+    render(<MonthlySummaryTable items={mockMonthlySummary} />);
+    expect(
+      screen.getByRole('heading', { level: 6, name: '月別支出サマリー' }),
+    ).toBeInTheDocument();
   });
 });

@@ -30,8 +30,10 @@ export default function TenantStatusCards({
   paidCount,
 }: TenantStatusCardsProps) {
   return (
-    <Grid container spacing={2}>
-      <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
+    // PC 幅（md ≥ 900px）で 5 等分（12 / 5 = 2.4）、タブレット幅（sm）で 2 列折返し、モバイルで縦積み。
+    // `md: 'auto'` はコンテンツ自然幅扱いで意図しない縮小を招くため使用しない。
+    <Grid container spacing={2} data-testid="tenant-status-cards">
+      <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
         <CountCard
           label="下書き"
           count={draftCount}
@@ -39,7 +41,7 @@ export default function TenantStatusCards({
           href="/reports/all?status=draft"
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
+      <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
         <CountCard
           label="提出済み"
           count={submittedCount}
@@ -47,7 +49,7 @@ export default function TenantStatusCards({
           href="/reports/all?status=submitted"
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
+      <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
         <CountCard
           label="承認済み"
           count={approvedCount}
@@ -55,7 +57,7 @@ export default function TenantStatusCards({
           href="/reports/all?status=approved"
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
+      <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
         <CountCard
           label="却下"
           count={rejectedCount}
@@ -63,7 +65,7 @@ export default function TenantStatusCards({
           href="/reports/all?status=rejected"
         />
       </Grid>
-      <Grid size={{ xs: 12, sm: 4, md: 'auto' }}>
+      <Grid size={{ xs: 12, sm: 6, md: 2.4 }}>
         <CountCard
           label="支払済み"
           count={paidCount}

@@ -70,9 +70,10 @@ export default function AppDataGrid({
           '& .MuiDataGrid-columnHeaderTitle': {
             fontWeight: 'bold',
           },
-          // rows=0 件のとき空状態テキストが DataGrid 内に収まる最小高さを確保する（issue #154 対応）。
-          // autoHeight は採用しない（フッター常時表示と干渉するため）。
-          minHeight: 200,
+          // rows=0 件時のみ EmptyState（アクションボタン付き）が画面内に収まる minHeight を確保する。
+          // 1 件以上は DataGrid の自然高さに任せる（不要な余白を防ぐ、issue #154 再オープン 案A）。
+          // 300px は EmptyState 本文 + アクションボタンが見切れない値として設定する。
+          minHeight: rows.length === 0 ? 300 : undefined,
           // 呼び出し側の sx を後から展開して合成する。
           ...rest.sx,
         }}
