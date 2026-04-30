@@ -129,6 +129,25 @@ WHERE er.tenant_id  = $1
   AND er.deleted_at IS NULL
   AND (sqlc.narg('applicant_name')::text IS NULL OR u.name ILIKE '%' || sqlc.narg('applicant_name') || '%');
 
+-- name: ListProcessedReports :many
+-- Approver が処理済みのレポートを処理日時 DESC で返す。
+-- approved_by = $2 または rejected_by = $2 に一致するレポートを対象とする。
+SELECT er.report_id, er.tenant_id, er.user_id, er.title, er.period_start, er.period_end, er.status, er.total_amount, er.reference_report_id, er.submitted_by, er.submitted_at, er.approved_by, er.approved_at, er.approval_comment, er.rejected_by, er.rejected_at, er.rejection_reason, er.paid_by, er.paid_at, er.created_at, er.updated_at, er.deleted_at
+FROM expense_reports er
+WHERE er.tenant_id  = $1
+  AND (er.approved_by = $2 OR er.rejected_by = $2)
+  AND er.deleted_at IS NULL
+ORDER BY COALESCE(er.approved_at, er.rejected_at) DESC, er.report_id DESC
+LIMIT $3 OFFSET $4;
+
+-- name: CountProcessedReports :one
+-- Approver が処理済みのレポート総件数を返す（ページネーション用）。
+SELECT COUNT(*)::int
+FROM expense_reports er
+WHERE er.tenant_id  = $1
+  AND (er.approved_by = $2 OR er.rejected_by = $2)
+  AND er.deleted_at IS NULL;
+
 -- name: CountReportsByStatus :many
 SELECT status, COUNT(*)::int AS count
 FROM expense_reports

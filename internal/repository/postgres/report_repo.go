@@ -358,6 +358,52 @@ func (r *reportRepo) ListPending(ctx context.Context, tenantID uuid.UUID, params
 	return result, int(total), nil
 }
 
+func (r *reportRepo) ListProcessed(ctx context.Context, tenantID, approverID uuid.UUID, params domain.WorkflowListParams) ([]domain.ExpenseReport, int, error) {
+	q := queries(ctx, r.pool)
+
+	// PerPage のデフォルト・上限を設定する。
+	perPage := params.PerPage
+	if perPage <= 0 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	offset := (page - 1) * perPage
+
+	// approverID を pgtype.UUID に変換する（$2 は approved_by / rejected_by の両方に使用される）。
+	approverIDParam := pgtype.UUID{Bytes: approverID, Valid: true}
+
+	rows, err := q.ListProcessedReports(ctx, sqlcgen.ListProcessedReportsParams{
+		TenantID:   tenantID,
+		ApprovedBy: approverIDParam,
+		Limit:      int32(perPage),
+		Offset:     int32(offset),
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("reportRepo.ListProcessed: %w", err)
+	}
+
+	total, err := q.CountProcessedReports(ctx, sqlcgen.CountProcessedReportsParams{
+		TenantID:   tenantID,
+		ApprovedBy: approverIDParam,
+	})
+	if err != nil {
+		return nil, 0, fmt.Errorf("reportRepo.ListProcessed (count): %w", err)
+	}
+
+	result := make([]domain.ExpenseReport, len(rows))
+	for i, row := range rows {
+		rpt := reportFromRow(row)
+		result[i] = *rpt
+	}
+	return result, int(total), nil
+}
+
 func (r *reportRepo) ListRecentReports(ctx context.Context, tenantID, userID uuid.UUID, limit int) ([]domain.ExpenseReport, error) {
 	q := queries(ctx, r.pool)
 	rows, err := q.ListRecentReports(ctx, sqlcgen.ListRecentReportsParams{

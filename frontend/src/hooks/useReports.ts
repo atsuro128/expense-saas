@@ -3,7 +3,7 @@
 
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../api/client';
-import type { ApiListResponse, ApiResponse, ExpenseReportDetail, ExpenseReportSummary, PendingReport, PayableReport } from '../api/types';
+import type { ApiListResponse, ApiResponse, ExpenseReportDetail, ExpenseReportSummary, PendingReport, PayableReport, ProcessedReport } from '../api/types';
 import type { UseMutationResult, UseQueryResult } from '@tanstack/react-query';
 
 // useMyReports のパラメータ型。
@@ -228,6 +228,36 @@ export function usePayableReports(params: PayableReportListParams = {}): UseQuer
   return useQuery<ApiListResponse<PayableReport>>({
     queryKey: ['workflow', 'payable', params],
     queryFn: () => api.get<ApiListResponse<PayableReport>>(url),
+    staleTime: 30 * 1000,
+  });
+}
+
+// useProcessedReports のパラメータ型。
+// SCR-WFL-003（処理済みレポート一覧）で使用する。フィルタは MVP では実装しない。
+export interface ProcessedReportListParams {
+  page?: number;
+  per_page?: number;
+}
+
+/**
+ * useProcessedReports は GET /api/workflow/processed を呼び出す。
+ * state-management.md §クエリキー設計: ['workflow', 'processed', params], staleTime 30秒。
+ * SCR-WFL-003（処理済みレポート一覧）で使用する。
+ */
+export function useProcessedReports(params: ProcessedReportListParams = {}): UseQueryResult<ApiListResponse<ProcessedReport>> {
+  const { page, per_page } = params;
+
+  // クエリパラメータを構築する。
+  const searchParams = new URLSearchParams();
+  if (page !== undefined) searchParams.set('page', String(page));
+  if (per_page !== undefined) searchParams.set('per_page', String(per_page));
+
+  const qs = searchParams.toString();
+  const url = qs ? `/api/workflow/processed?${qs}` : '/api/workflow/processed';
+
+  return useQuery<ApiListResponse<ProcessedReport>>({
+    queryKey: ['workflow', 'processed', params],
+    queryFn: () => api.get<ApiListResponse<ProcessedReport>>(url),
     staleTime: 30 * 1000,
   });
 }

@@ -113,6 +113,9 @@ type ReportRepository interface {
 	// ListPayable はテナント内の承認済みレポートを返す。
 	// 戻り値の int は総件数（ページネーション用）。
 	ListPayable(ctx context.Context, tenantID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
+	// ListProcessed は指定 Approver が処理済み（approved_by または rejected_by）のレポートを返す。
+	// 戻り値の int は総件数（ページネーション用）。
+	ListProcessed(ctx context.Context, tenantID, approverID uuid.UUID, params WorkflowListParams) ([]ExpenseReport, int, error)
 	// ListRecentReports はダッシュボード用に指定ユーザーの直近レポートを limit 件取得する。
 	ListRecentReports(ctx context.Context, tenantID, userID uuid.UUID, limit int) ([]ExpenseReport, error)
 }

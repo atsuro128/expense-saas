@@ -18,6 +18,7 @@ import ReportCreatePage from './pages/reports/ReportCreatePage';
 import ReportEditPage from './pages/reports/ReportEditPage';
 import ApprovalListPage from './pages/workflow/ApprovalListPage';
 import PaymentListPage from './pages/workflow/PaymentListPage';
+import ProcessedReportsPage from './pages/workflow/ProcessedReportsPage';
 import AllReportsPage from './pages/admin/AllReportsPage';
 import TenantPage from './pages/admin/TenantPage';
 import NotFoundPage from './pages/error/NotFoundPage';
@@ -45,6 +46,8 @@ export default function App() {
             <Route path="/reports/:id" element={<ReportDetailPage />} />
             <Route path="/reports/:id/edit" element={<ReportEditPage />} />
             <Route path="/approvals" element={<ApprovalListPage />} />
+            {/* SCR-WFL-003: Approver の処理済みレポート一覧（issue #158） */}
+            <Route path="/approvals/processed" element={<ProcessedReportsPage />} />
             <Route path="/payments" element={<PaymentListPage />} />
             {/* SCR-ADM-002: テナント設定画面 */}
             <Route path="/settings/tenant" element={<TenantPage />} />
