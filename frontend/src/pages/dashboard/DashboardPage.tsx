@@ -5,6 +5,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import Box from '@mui/material/Box';
 import Grid from '@mui/material/Grid2';
 import { useDashboard } from '../../hooks/useDashboard';
 import { useCurrentUser } from '../../hooks/useCurrentUser';
@@ -163,12 +164,16 @@ export default function DashboardPage() {
 
       {/* Approver / Accounting / Admin: 月別サマリー */}
       {isApproverOrAccountingOrAdmin && (
-        <MonthlySummaryTable items={monthlySummaryItems} />
+        <Box sx={{ mt: 3 }}>
+          <MonthlySummaryTable items={monthlySummaryItems} />
+        </Box>
       )}
 
       {/* Member / Approver / Accounting: 最近のレポート一覧 */}
       {isMemberLike && (
-        <RecentReportList reports={recentReports} />
+        <Box sx={{ mt: 3 }}>
+          <RecentReportList reports={recentReports} />
+        </Box>
       )}
     </div>
   );
