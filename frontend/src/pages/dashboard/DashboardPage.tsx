@@ -154,11 +154,18 @@ export default function DashboardPage() {
             rejectedCount={dashboard.tenant_rejected_count ?? 0}
             paidCount={dashboard.tenant_paid_count ?? 0}
           />
-          <CountCard
-            label="メンバー数"
-            count={dashboard.tenant_member_count ?? 0}
-            unit="人"
-          />
+          {/* メンバー数カードを Grid でラップし、他ロール（MyReportCountCards）と同じ 1/3 幅基準に揃える。 */}
+          <Box sx={{ mt: 2 }}>
+            <Grid container spacing={2} data-testid="admin-member-count-cards">
+              <Grid size={{ xs: 12, sm: 4 }}>
+                <CountCard
+                  label="メンバー数"
+                  count={dashboard.tenant_member_count ?? 0}
+                  unit="人"
+                />
+              </Grid>
+            </Grid>
+          </Box>
         </>
       )}
 

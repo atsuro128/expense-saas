@@ -264,6 +264,36 @@ describe('DashboardPage', () => {
     expect(within(actionCardsContainer).getByText('支払待ち')).toBeInTheDocument();
   });
 
+  // DSH-FE-NEW-A1: Admin ロールで TenantStatusCards の 5 枚カードが data-testid="tenant-status-cards" 配下に描画されること（issue #164）。
+  // jsdom は CSS レイアウト計算をしないため、DOM 構造（Grid ラップの存在・リンク枚数）を検証する。
+  it('DSH-FE-NEW-A1: Admin ロールで TenantStatusCards の 5 枚カードが tenant-status-cards コンテナ内に描画される', () => {
+    renderDashboard('admin', mockDashboardAdmin);
+
+    // data-testid="tenant-status-cards" の Grid コンテナが存在すること。
+    const tenantStatusCards = screen.getByTestId('tenant-status-cards');
+    expect(tenantStatusCards).toBeInTheDocument();
+
+    // コンテナ内に 5 枚分のリンク（各ステータスカードのリンク）が存在すること。
+    const links = within(tenantStatusCards).getAllByRole('link');
+    expect(links).toHaveLength(5);
+  });
+
+  // DSH-FE-NEW-A2: Admin ロールでメンバー数カードが data-testid="admin-member-count-cards" 配下の Grid コンテナ内に描画されること（issue #164）。
+  // Grid コンテナでラップされて他ロール（MyReportCountCards）と同じ幅基準で配置されることを DOM 構造で検証する。
+  it('DSH-FE-NEW-A2: Admin ロールでメンバー数カードが admin-member-count-cards Grid コンテナ内に配置される', () => {
+    renderDashboard('admin', mockDashboardAdmin);
+
+    // data-testid="admin-member-count-cards" の Grid コンテナが存在すること。
+    const memberCountCards = screen.getByTestId('admin-member-count-cards');
+    expect(memberCountCards).toBeInTheDocument();
+
+    // コンテナ内に「メンバー数」ラベルが存在すること。
+    expect(within(memberCountCards).getByText('メンバー数')).toBeInTheDocument();
+
+    // コンテナ内に「人」単位テキストが存在すること。
+    expect(within(memberCountCards).getByText('人')).toBeInTheDocument();
+  });
+
   // DSH-FE-006: useDashboard が isLoading=true のとき PageSkeleton が表示されること。
   it('DSH-FE-006: isLoading=true のとき PageSkeleton が表示される', () => {
     (useCurrentUserModule.useCurrentUser as Mock).mockReturnValue({
