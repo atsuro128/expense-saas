@@ -1,5 +1,5 @@
 // RecentReportList コンポーネントのユニットテスト。
-// DSH-FE-027〜DSH-FE-029 に対応する。
+// DSH-FE-027〜DSH-FE-029, DSH-FE-NEW-2, DSH-FE-NEW-3 に対応する。
 
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
@@ -21,7 +21,7 @@ function renderWithRouter(ui: React.ReactElement) {
 }
 
 describe('RecentReportList', () => {
-  // DSH-FE-027: 5 件のレポート行が表示されること。
+  // DSH-FE-027: 5 件のレポート行が表示されること。TableHead 追加により行数は header 1 + data 5 = 6 行。
   it('DSH-FE-027: 5 件のレポートタイトルが表示される', () => {
     renderWithRouter(<RecentReportList reports={mockRecentReports} />);
     expect(screen.getByText('4月交通費')).toBeInTheDocument();
@@ -29,11 +29,17 @@ describe('RecentReportList', () => {
     expect(screen.getByText('2月飲食費')).toBeInTheDocument();
     expect(screen.getByText('1月消耗品費')).toBeInTheDocument();
     expect(screen.getByText('12月通信費')).toBeInTheDocument();
+
+    // TableHead 追加後の行数確認: ヘッダー行 1 + データ行 5 = 6 行。
+    const rows = screen.getAllByRole('row');
+    expect(rows.length).toBe(6);
   });
 
-  // DSH-FE-028: 空配列のとき EmptyState が表示されること。
-  it('DSH-FE-028: reports が空配列のとき EmptyState が表示される', () => {
+  // DSH-FE-028: 空配列のとき EmptyState が表示されること。0 件時も見出しは表示されること。
+  it('DSH-FE-028: reports が空配列のとき EmptyState が表示される（見出しは表示される）', () => {
     renderWithRouter(<RecentReportList reports={[]} />);
+    // 0 件時もセクション見出しは表示されること。
+    expect(screen.getByText('最近のレポート')).toBeInTheDocument();
     expect(
       screen.getByText('経費レポートはまだありません。レポートを作成して経費精算を始めましょう。'),
     ).toBeInTheDocument();
@@ -45,5 +51,22 @@ describe('RecentReportList', () => {
     const link = screen.getByText('すべてのレポートを見る').closest('a');
     expect(link).toBeInTheDocument();
     expect(link).toHaveAttribute('href', '/reports');
+  });
+
+  // DSH-FE-NEW-2: 列見出し（タイトル / 期間 / 金額 / ステータス）が 4 つ描画されること。
+  it('DSH-FE-NEW-2: 列見出し「タイトル」「期間」「金額」「ステータス」が描画される', () => {
+    renderWithRouter(<RecentReportList reports={mockRecentReports} />);
+    expect(screen.getByText('タイトル')).toBeInTheDocument();
+    expect(screen.getByText('期間')).toBeInTheDocument();
+    expect(screen.getByText('金額')).toBeInTheDocument();
+    expect(screen.getByText('ステータス')).toBeInTheDocument();
+  });
+
+  // DSH-FE-NEW-3: セクション見出しが h6 レベルでレンダリングされること。
+  it('DSH-FE-NEW-3: セクション見出し「最近のレポート」が h6 レベルでレンダリングされる', () => {
+    renderWithRouter(<RecentReportList reports={mockRecentReports} />);
+    expect(
+      screen.getByRole('heading', { level: 6, name: '最近のレポート' }),
+    ).toBeInTheDocument();
   });
 });

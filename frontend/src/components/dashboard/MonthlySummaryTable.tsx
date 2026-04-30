@@ -2,6 +2,7 @@
 // 直近 3 ヶ月のデータを降順で表示する。
 // 55_ui_component/screens/dashboard.md §MonthlySummaryTable 準拠。
 
+import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
 import TableCell from '@mui/material/TableCell';
@@ -40,34 +41,38 @@ function formatAmount(amount: number): string {
 
 /**
  * MonthlySummaryTable はテナント全体の直近 3 ヶ月の月別合計金額をテーブルで表示する。
+ * ルート要素は Box で、上部にセクション見出しを配置する。0 件時も見出しを表示する。
  */
 export default function MonthlySummaryTable({ items }: MonthlySummaryTableProps) {
-  if (items.length === 0) {
-    return (
-      <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
-        データがありません
-      </Typography>
-    );
-  }
-
   return (
-    <TableContainer component={Paper} variant="outlined">
-      <Table size="small" aria-label="月別支出サマリー">
-        <TableHead>
-          <TableRow>
-            <TableCell>年月</TableCell>
-            <TableCell align="right">合計金額</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {items.map((item) => (
-            <TableRow key={item.yearMonth}>
-              <TableCell>{formatYearMonth(item.yearMonth)}</TableCell>
-              <TableCell align="right">{formatAmount(item.totalAmount)}</TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </TableContainer>
+    <Box>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        月別支出サマリー
+      </Typography>
+      {items.length === 0 ? (
+        <Typography variant="body2" color="text.secondary" sx={{ py: 2 }}>
+          データがありません
+        </Typography>
+      ) : (
+        <TableContainer component={Paper} variant="outlined">
+          <Table size="small" aria-label="月別支出サマリー">
+            <TableHead>
+              <TableRow>
+                <TableCell>年月</TableCell>
+                <TableCell align="right">合計金額</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {items.map((item) => (
+                <TableRow key={item.yearMonth}>
+                  <TableCell>{formatYearMonth(item.yearMonth)}</TableCell>
+                  <TableCell align="right">{formatAmount(item.totalAmount)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
+    </Box>
   );
 }
