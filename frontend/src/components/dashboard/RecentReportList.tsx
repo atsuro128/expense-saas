@@ -6,9 +6,13 @@ import { Link } from 'react-router-dom';
 import Box from '@mui/material/Box';
 import Table from '@mui/material/Table';
 import TableBody from '@mui/material/TableBody';
+import TableCell from '@mui/material/TableCell';
 import TableContainer from '@mui/material/TableContainer';
+import TableHead from '@mui/material/TableHead';
+import TableRow from '@mui/material/TableRow';
 import Paper from '@mui/material/Paper';
 import MuiLink from '@mui/material/Link';
+import Typography from '@mui/material/Typography';
 import EmptyState from '../ui/EmptyState';
 import RecentReportRow from './RecentReportRow';
 import type { ReportStatus } from '../ui/StatusChip';
@@ -35,16 +39,28 @@ export interface RecentReportListProps {
 
 /**
  * RecentReportList は直近の経費レポートを最大 5 件表示する。
- * 0 件の場合は EmptyState を表示する。
+ * ルート要素は Box で、上部にセクション見出しを配置する。0 件時も見出しを表示する。
+ * テーブルには TableHead で列見出し（タイトル / 期間 / 金額 / ステータス）を表示する。
  */
 export default function RecentReportList({ reports }: RecentReportListProps) {
   return (
     <Box>
+      <Typography variant="h6" sx={{ mb: 1 }}>
+        最近のレポート
+      </Typography>
       {reports.length === 0 ? (
         <EmptyState message="経費レポートはまだありません。レポートを作成して経費精算を始めましょう。" />
       ) : (
         <TableContainer component={Paper} variant="outlined">
           <Table size="small" aria-label="最近の経費レポート">
+            <TableHead>
+              <TableRow>
+                <TableCell>タイトル</TableCell>
+                <TableCell>期間</TableCell>
+                <TableCell align="right">金額</TableCell>
+                <TableCell>ステータス</TableCell>
+              </TableRow>
+            </TableHead>
             <TableBody>
               {reports.map((report) => (
                 <RecentReportRow
