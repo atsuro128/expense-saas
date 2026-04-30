@@ -92,6 +92,9 @@ func (m *mockReportRepository) ListPending(_ context.Context, _ uuid.UUID, _ dom
 func (m *mockReportRepository) ListPayable(_ context.Context, _ uuid.UUID, _ domain.WorkflowListParams) ([]domain.ExpenseReport, int, error) {
 	return nil, 0, errors.New("not implemented")
 }
+func (m *mockReportRepository) ListProcessed(_ context.Context, _, _ uuid.UUID, _ domain.WorkflowListParams) ([]domain.ExpenseReport, int, error) {
+	return nil, 0, errors.New("not implemented")
+}
 func (m *mockReportRepository) ListRecentReports(_ context.Context, _, _ uuid.UUID, _ int) ([]domain.ExpenseReport, error) {
 	return nil, errors.New("not implemented")
 }
