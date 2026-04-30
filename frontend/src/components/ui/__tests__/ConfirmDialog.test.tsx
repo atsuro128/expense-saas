@@ -1,6 +1,7 @@
 // ConfirmDialog のユニットテスト。
 // issue #156（ちらつき防止 usePrevious）と #159（必須バリデーションエラー文言）に対応する。
 // #156/#159 大幅改修: apiError prop の FormAlert 表示と全表示 props の usePrevious 拡張テストを追加する。
+// #162: 初期表示でエラー文言非表示 + ボタン enabled の regression 修正テストを追加する。
 
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -216,7 +217,7 @@ describe('ConfirmDialog', () => {
       expect(screen.getByText('0 / 1000')).toBeInTheDocument();
     });
 
-    it('required=true: 未入力時は確認ボタンが disabled である', async () => {
+    it('required=true: 初期表示では確認ボタンが enabled である（#162 regression 修正）', () => {
       render(
         <ConfirmDialog
           {...defaultProps}
@@ -224,11 +225,12 @@ describe('ConfirmDialog', () => {
         />,
       );
 
-      // 未入力時は確認ボタンが disabled であること。
-      expect(screen.getByRole('button', { name: '確認する' })).toBeDisabled();
+      // #162 修正後: 初期表示（未入力・未タッチ）でも確認ボタンは enabled であること。
+      // （旧実装では disabled になる regression があった）
+      expect(screen.getByRole('button', { name: '確認する' })).not.toBeDisabled();
     });
 
-    it('required=true: 入力後は確認ボタンが有効になる', async () => {
+    it('required=true: 入力後も確認ボタンが有効のまま', async () => {
       const user = userEvent.setup();
 
       render(
@@ -241,7 +243,7 @@ describe('ConfirmDialog', () => {
       const textField = screen.getByLabelText(/却下理由/);
       await user.type(textField, '経費が不適切です');
 
-      // 入力後は確認ボタンが有効になること。
+      // 入力後も確認ボタンが有効であること。
       expect(screen.getByRole('button', { name: '確認する' })).not.toBeDisabled();
     });
   });
@@ -297,6 +299,111 @@ describe('ConfirmDialog', () => {
       );
 
       // エラー文言がリセットされていること（touched=false になっているため）。
+      expect(screen.queryByText('却下理由を入力してください')).not.toBeInTheDocument();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // #162: 初期表示挙動と押下時バリデーション発火
+  // ---------------------------------------------------------------------------
+
+  describe('#162: 初期表示 regression 修正 / 押下時バリデーション発火', () => {
+    const requiredInputFieldForNew = {
+      label: '却下理由',
+      required: true,
+      maxLength: 1000,
+      multiline: true,
+      errorMessage: '却下理由を入力してください',
+    };
+
+    // NEW-1: 初期表示で apiError 文言が描画されない、ボタン enabled
+    it('NEW-1: required=true 初期表示で errorMessage が helperText に表示されず、文字数カウンタのみ表示される', () => {
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          inputField={requiredInputFieldForNew}
+        />,
+      );
+
+      // helperText に errorMessage が出ていないこと（DoD-1）。
+      expect(screen.queryByText('却下理由を入力してください')).not.toBeInTheDocument();
+      // 文字数カウンタのみ表示されること。
+      expect(screen.getByText('0 / 1000')).toBeInTheDocument();
+      // ボタンが enabled であること（DoD-2）。
+      expect(screen.getByRole('button', { name: '確認する' })).not.toBeDisabled();
+    });
+
+    // NEW-2: 空のまま「却下する」押下 → エラー文言表示、onConfirm 呼ばれない
+    it('NEW-2: required=true で空のまま確認ボタン押下 → errorMessage 表示 / onConfirm 未呼び出し（DoD-3）', async () => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          onConfirm={onConfirm}
+          inputField={requiredInputFieldForNew}
+        />,
+      );
+
+      // 空のまま確認ボタンを押下する。
+      await user.click(screen.getByRole('button', { name: '確認する' }));
+
+      // helperText に errorMessage が赤字表示されること。
+      expect(screen.getByText('却下理由を入力してください')).toBeInTheDocument();
+      // onConfirm が呼ばれていないこと。
+      expect(onConfirm).not.toHaveBeenCalled();
+    });
+
+    // NEW-3: 理由入力 → エラー文言クリア、ボタン押下で onConfirm 呼ばれる
+    it('NEW-3: required=true で入力後押下 → errorMessage 消える / onConfirm(inputValue) 呼ばれる（DoD-4）', async () => {
+      const user = userEvent.setup();
+      const onConfirm = vi.fn();
+
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          onConfirm={onConfirm}
+          inputField={requiredInputFieldForNew}
+        />,
+      );
+
+      // 一度空のまま押下してエラーを発生させる。
+      await user.click(screen.getByRole('button', { name: '確認する' }));
+      expect(screen.getByText('却下理由を入力してください')).toBeInTheDocument();
+
+      // 理由を入力するとエラー文言が消えること。
+      const textField = screen.getByLabelText(/却下理由/);
+      await user.type(textField, '金額誤り');
+      expect(screen.queryByText('却下理由を入力してください')).not.toBeInTheDocument();
+
+      // 確認ボタン押下で onConfirm が入力値付きで呼ばれること。
+      await user.click(screen.getByRole('button', { name: '確認する' }));
+      expect(onConfirm).toHaveBeenCalledWith('金額誤り');
+      expect(onConfirm).toHaveBeenCalledTimes(1);
+    });
+
+    // NEW-4: 押下時の setTouched(true) 発火動作確認
+    it('NEW-4: required=true で空のまま押下すると touched=true になり helperText がエラー表示に切り替わる', async () => {
+      const user = userEvent.setup();
+
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          inputField={requiredInputFieldForNew}
+        />,
+      );
+
+      // 初期状態ではエラー文言なし（touched=false）。
+      expect(screen.queryByText('却下理由を入力してください')).not.toBeInTheDocument();
+
+      // 空のまま確認ボタンを押下 → touched=true が立ち、helperText がエラー文言に切り替わる。
+      await user.click(screen.getByRole('button', { name: '確認する' }));
+      expect(screen.getByText('却下理由を入力してください')).toBeInTheDocument();
+
+      // その後入力すると touched が解除されエラーが消える。
+      const textField = screen.getByLabelText(/却下理由/);
+      await user.type(textField, 'テスト理由');
       expect(screen.queryByText('却下理由を入力してください')).not.toBeInTheDocument();
     });
   });

@@ -11,6 +11,11 @@
 //   #156/#159 (大幅改修) - 全表示 props（title/message/confirmLabel/confirmColor/inputField/apiError）を
 //          usePrevious で保持し、閉じる際の全要素ちらつきを完全防止。
 //          apiError prop を追加し、422 等の API エラー文言を FormAlert でダイアログ本文上部に表示する。
+//   #162 - 初期表示時のバリデーションエラー / ボタン disabled regression 修正。
+//          isConfirmDisabled から未入力条件（inputValue.trim() === ''）を削除し loading のみに絞る。
+//          代わりに handleConfirm 内で未入力なら setTouched(true) のみ実行して onConfirm を呼ばない
+//          ガードを追加（クライアントバリデーション = onBlur + onSubmit の二点発火）。
+//          apiError の責務はサーバー応答エラー専用（null のとき FormAlert は描画せず、disabled も発火させない）。
 
 import { useEffect, useState } from 'react';
 import Button from '@mui/material/Button';
@@ -147,6 +152,12 @@ export default function ConfirmDialog({
     (displayInputField?.required === true) && touched && (inputValue.trim() === '');
 
   const handleConfirm = () => {
+    // 必須フィールドが未入力の場合はクライアントバリデーションを発火させ、onConfirm を呼ばない（#162）。
+    // isConfirmDisabled から未入力条件を削除した代わりに、押下時にバリデーションを発火させる。
+    if (displayInputField?.required === true && inputValue.trim() === '') {
+      setTouched(true);
+      return;
+    }
     if (displayInputField) {
       onConfirm(inputValue);
     } else {
@@ -161,9 +172,9 @@ export default function ConfirmDialog({
     setTouched(false);
   };
 
-  // 入力必須フィールドが空の場合は確認ボタンを無効化する。
-  const isConfirmDisabled =
-    loading || (displayInputField?.required === true && inputValue.trim() === '');
+  // 多重送信防止のため loading 中のみ disabled にする（#162: 未入力時 disabled は廃止し、押下時バリデーションに切替）。
+  // apiError はサーバー応答エラー専用。disabled 発火条件には含めない。
+  const isConfirmDisabled = loading;
 
   return (
     <Dialog
