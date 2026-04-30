@@ -150,6 +150,20 @@ type PayableReport struct {
 	IsOwnReport bool        `json:"is_own_report"`
 }
 
+// ProcessedReport は Approver の処理済みレポート一覧（SCR-WFL-003）の各項目。
+// decision は自分が承認者なら "approved"、却下者なら "rejected"。
+// decided_at は decision に対応する処理日時（approved_at または rejected_at）。
+// current_status はレポートの現在ステータス（approved / rejected / paid）。
+type ProcessedReport struct {
+	ID            uuid.UUID   `json:"id"`
+	Title         string      `json:"title"`
+	TotalAmount   int         `json:"total_amount"`
+	Submitter     UserSummary `json:"submitter"`
+	Decision      string      `json:"decision"`
+	DecidedAt     time.Time   `json:"decided_at"`
+	CurrentStatus string      `json:"current_status"`
+}
+
 // RecentReport はダッシュボードで使用するコンパクトなレポートレコード。
 type RecentReport struct {
 	ID          uuid.UUID         `json:"id"`

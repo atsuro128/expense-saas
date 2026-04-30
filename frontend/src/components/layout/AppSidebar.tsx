@@ -16,6 +16,7 @@ import DashboardIcon from '@mui/icons-material/Dashboard';
 import ReceiptIcon from '@mui/icons-material/Receipt';
 import AddIcon from '@mui/icons-material/Add';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import HistoryIcon from '@mui/icons-material/History';
 import PaymentIcon from '@mui/icons-material/Payment';
 import FolderIcon from '@mui/icons-material/Folder';
 import BusinessIcon from '@mui/icons-material/Business';
@@ -69,6 +70,14 @@ const NAV_ITEMS: NavItem[] = [
     label: '承認待ち',
     path: '/approvals',
     icon: <CheckCircleIcon />,
+    roles: ['approver'],
+  },
+  {
+    // SCR-WFL-003: Approver が自分の処理済みレポートを確認する（issue #158）。
+    // screens.md §4.3 サイドナビ: Approver の「処理済み」は「承認待ち」直下に配置する。
+    label: '処理済み',
+    path: '/approvals/processed',
+    icon: <HistoryIcon />,
     roles: ['approver'],
   },
   {

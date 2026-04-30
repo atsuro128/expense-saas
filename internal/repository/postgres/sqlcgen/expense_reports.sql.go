@@ -127,6 +127,27 @@ func (q *Queries) CountPendingReports(ctx context.Context, arg CountPendingRepor
 	return column_1, err
 }
 
+const countProcessedReports = `-- name: CountProcessedReports :one
+SELECT COUNT(*)::int
+FROM expense_reports er
+WHERE er.tenant_id  = $1
+  AND (er.approved_by = $2 OR er.rejected_by = $2)
+  AND er.deleted_at IS NULL
+`
+
+type CountProcessedReportsParams struct {
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	ApprovedBy pgtype.UUID `json:"approved_by"`
+}
+
+// Approver が処理済みのレポート総件数を返す（ページネーション用）。
+func (q *Queries) CountProcessedReports(ctx context.Context, arg CountProcessedReportsParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countProcessedReports, arg.TenantID, arg.ApprovedBy)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countReportsByStatus = `-- name: CountReportsByStatus :many
 SELECT status, COUNT(*)::int AS count
 FROM expense_reports
@@ -450,6 +471,73 @@ func (q *Queries) ListPendingReports(ctx context.Context, arg ListPendingReports
 		arg.Limit,
 		arg.Offset,
 		arg.ApplicantName,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []ExpenseReport{}
+	for rows.Next() {
+		var i ExpenseReport
+		if err := rows.Scan(
+			&i.ReportID,
+			&i.TenantID,
+			&i.UserID,
+			&i.Title,
+			&i.PeriodStart,
+			&i.PeriodEnd,
+			&i.Status,
+			&i.TotalAmount,
+			&i.ReferenceReportID,
+			&i.SubmittedBy,
+			&i.SubmittedAt,
+			&i.ApprovedBy,
+			&i.ApprovedAt,
+			&i.ApprovalComment,
+			&i.RejectedBy,
+			&i.RejectedAt,
+			&i.RejectionReason,
+			&i.PaidBy,
+			&i.PaidAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.DeletedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listProcessedReports = `-- name: ListProcessedReports :many
+SELECT er.report_id, er.tenant_id, er.user_id, er.title, er.period_start, er.period_end, er.status, er.total_amount, er.reference_report_id, er.submitted_by, er.submitted_at, er.approved_by, er.approved_at, er.approval_comment, er.rejected_by, er.rejected_at, er.rejection_reason, er.paid_by, er.paid_at, er.created_at, er.updated_at, er.deleted_at
+FROM expense_reports er
+WHERE er.tenant_id  = $1
+  AND (er.approved_by = $2 OR er.rejected_by = $2)
+  AND er.deleted_at IS NULL
+ORDER BY COALESCE(er.approved_at, er.rejected_at) DESC, er.report_id DESC
+LIMIT $3 OFFSET $4
+`
+
+type ListProcessedReportsParams struct {
+	TenantID   uuid.UUID   `json:"tenant_id"`
+	ApprovedBy pgtype.UUID `json:"approved_by"`
+	Limit      int32       `json:"limit"`
+	Offset     int32       `json:"offset"`
+}
+
+// Approver が処理済みのレポートを処理日時 DESC で返す。
+// approved_by = $2 または rejected_by = $2 に一致するレポートを対象とする。
+func (q *Queries) ListProcessedReports(ctx context.Context, arg ListProcessedReportsParams) ([]ExpenseReport, error) {
+	rows, err := q.db.Query(ctx, listProcessedReports,
+		arg.TenantID,
+		arg.ApprovedBy,
+		arg.Limit,
+		arg.Offset,
 	)
 	if err != nil {
 		return nil, err

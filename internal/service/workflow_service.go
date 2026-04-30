@@ -86,6 +86,77 @@ func (s *workflowService) ListPendingReports(ctx context.Context, actor domain.A
 	return pendingReports, pagination, nil
 }
 
+// ListProcessedReports は Approver が処理済みのレポートを一覧取得する（SCR-WFL-003）。
+// スコープ: tenant_id = actor.TenantID AND (approved_by = actor.UserID OR rejected_by = actor.UserID)
+func (s *workflowService) ListProcessedReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]ProcessedReport, *Pagination, error) {
+	reports, total, err := s.reportRepo.ListProcessed(ctx, actor.TenantID, actor.UserID, params)
+	if err != nil {
+		return nil, nil, fmt.Errorf("workflowService.ListProcessedReports: %w", err)
+	}
+
+	// ユーザーキャッシュを構築する。
+	userCache := make(map[uuid.UUID]UserSummary)
+	processedReports := make([]ProcessedReport, len(reports))
+	for i, r := range reports {
+		if _, ok := userCache[r.UserID]; !ok {
+			u, err := s.userRepo.GetByID(ctx, r.UserID)
+			if err == nil {
+				userCache[r.UserID] = UserSummary{ID: u.UserID, Name: u.Name}
+			}
+		}
+		submitter := userCache[r.UserID]
+
+		// decision と decided_at を構築する。
+		// approved_by = actor の場合: decision=approved, decided_at=approved_at
+		// rejected_by = actor の場合: decision=rejected, decided_at=rejected_at
+		// 両方が actor となるケースは仕様上発生しない（rejected 後の再申請は別レポート）。
+		decision := ""
+		var decidedAt time.Time
+		if r.ApprovedBy != nil && *r.ApprovedBy == actor.UserID {
+			decision = "approved"
+			if r.ApprovedAt != nil {
+				decidedAt = *r.ApprovedAt
+			}
+		} else if r.RejectedBy != nil && *r.RejectedBy == actor.UserID {
+			decision = "rejected"
+			if r.RejectedAt != nil {
+				decidedAt = *r.RejectedAt
+			}
+		}
+
+		processedReports[i] = ProcessedReport{
+			ID:            r.ReportID,
+			Title:         r.Title,
+			TotalAmount:   r.TotalAmount,
+			Submitter:     submitter,
+			Decision:      decision,
+			DecidedAt:     decidedAt,
+			CurrentStatus: string(r.Status),
+		}
+	}
+
+	perPage := params.PerPage
+	if perPage <= 0 {
+		perPage = 20
+	}
+	page := params.Page
+	if page <= 0 {
+		page = 1
+	}
+	totalPages := (total + perPage - 1) / perPage
+	if totalPages == 0 {
+		totalPages = 1
+	}
+	pagination := &Pagination{
+		CurrentPage: page,
+		PerPage:     perPage,
+		TotalCount:  total,
+		TotalPages:  totalPages,
+	}
+
+	return processedReports, pagination, nil
+}
+
 // ApproveReport は提出済みレポートを承認済みステータスへ遷移させる。
 func (s *workflowService) ApproveReport(ctx context.Context, actor domain.Actor, reportID uuid.UUID, comment *string, updatedAt time.Time) (*ExpenseReportDetail, error) {
 	report, err := s.reportRepo.GetByID(ctx, actor.TenantID, reportID)

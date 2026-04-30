@@ -215,6 +215,7 @@ func main() {
 		// 承認者専用。
 		priv.With(middleware.RequireRole("approver")).Group(func(approver chi.Router) {
 			approver.Get("/api/workflow/pending", workflowHandler.ListPendingReports)
+			approver.Get("/api/workflow/processed", workflowHandler.ListProcessedReports)
 			approver.Post("/api/workflow/{id}/approve", workflowHandler.ApproveReport)
 			approver.Post("/api/workflow/{id}/reject", workflowHandler.RejectReport)
 		})

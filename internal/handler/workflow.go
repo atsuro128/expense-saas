@@ -50,6 +50,84 @@ func (h *WorkflowHandler) ListPendingReports(w http.ResponseWriter, r *http.Requ
 	})
 }
 
+// ListProcessedReports は GET /api/workflow/processed を処理します（SCR-WFL-003）。
+// クエリパラメータ: page, per_page
+func (h *WorkflowHandler) ListProcessedReports(w http.ResponseWriter, r *http.Request) {
+	actor, ok := actorFromRequest(r)
+	if !ok {
+		middleware.RespondError(w, http.StatusUnauthorized, "UNAUTHORIZED", "unauthorized")
+		return
+	}
+
+	params, details, err := parseProcessedListParams(r)
+	if err != nil {
+		middleware.RespondValidationError(w, "入力パラメータに誤りがあります", details)
+		return
+	}
+
+	reports, pagination, err := h.svc.ListProcessedReports(r.Context(), actor, params)
+	if err != nil {
+		respondDomainError(w, err)
+		return
+	}
+
+	middleware.RespondJSON(w, http.StatusOK, map[string]interface{}{
+		"data":       reports,
+		"pagination": pagination,
+	})
+}
+
+// parseProcessedListParams はクエリパラメータから処理済みレポート一覧用の WorkflowListParams を構築します。
+// page のデフォルトは 1、per_page のデフォルトは 20（上限 100）。
+// applicant_name フィルタは本エンドポイントでは使用しないため、WorkflowListParams の ApplicantName は nil。
+func parseProcessedListParams(r *http.Request) (domain.WorkflowListParams, []middleware.ValidationError, error) {
+	q := r.URL.Query()
+	params := domain.WorkflowListParams{
+		Page:    1,
+		PerPage: 20,
+	}
+
+	// バリデーションエラーを収集する。
+	var details []middleware.ValidationError
+
+	// page のパースとバリデーション。
+	if pageStr := q.Get("page"); pageStr != "" {
+		var page int
+		if _, err := parseIntQuery(pageStr, &page); err != nil || page < 1 {
+			details = append(details, middleware.ValidationError{
+				Field:   "page",
+				Message: "page は正の整数でなければなりません",
+			})
+		} else {
+			params.Page = page
+		}
+	}
+
+	// per_page のパースとバリデーション（上限 100）。
+	if perPageStr := q.Get("per_page"); perPageStr != "" {
+		var perPage int
+		if _, err := parseIntQuery(perPageStr, &perPage); err != nil || perPage < 1 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page は正の整数でなければなりません",
+			})
+		} else if perPage > 100 {
+			details = append(details, middleware.ValidationError{
+				Field:   "per_page",
+				Message: "per_page の上限は 100 です",
+			})
+		} else {
+			params.PerPage = perPage
+		}
+	}
+
+	if len(details) > 0 {
+		return params, details, fmt.Errorf("クエリパラメータにバリデーションエラーがあります")
+	}
+
+	return params, nil, nil
+}
+
 // approveReportRequest は POST /api/workflow/{id}/approve のリクエストボディを表します。
 type approveReportRequest struct {
 	Comment   *string `json:"comment"`

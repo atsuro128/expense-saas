@@ -228,6 +228,24 @@ export interface PayableReport {
   is_own_report: boolean;
 }
 
+/**
+ * ProcessedReport は GET /api/workflow/processed のレスポンス要素。
+ * openapi.yaml ProcessedReport schema に対応する。
+ * SCR-WFL-003（処理済みレポート一覧）で使用する。
+ */
+export interface ProcessedReport {
+  id: string;
+  title: string;
+  total_amount: number;
+  submitter: UserSummary;
+  /** 自分の処理結果。approved_by が actor の場合 approved、rejected_by が actor の場合 rejected */
+  decision: 'approved' | 'rejected';
+  /** 自分が処理した日時（decision に対応する approved_at / rejected_at を BE 側で詰めて返す） */
+  decided_at: string;
+  /** 現在のレポートステータス。承認後に paid に進んだか rejected のままかを示す */
+  current_status: 'approved' | 'rejected' | 'paid';
+}
+
 export interface RejectRequest {
   reason: string;
   updated_at: string;

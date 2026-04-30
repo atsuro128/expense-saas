@@ -204,6 +204,10 @@ func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, 
 		"status":        string(domain.ReportStatusDraft),
 		"total_amount":  0,
 		"submitted_at":  (*time.Time)(nil),
+		"approved_by":   (*uuid.UUID)(nil),
+		"approved_at":   (*time.Time)(nil),
+		"rejected_by":   (*uuid.UUID)(nil),
+		"rejected_at":   (*time.Time)(nil),
 	}
 	for _, o := range opts {
 		o(params)
@@ -217,12 +221,15 @@ func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, 
 
 	if _, err := conn.Exec(context.Background(),
 		`INSERT INTO expense_reports
-		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, submitted_at, created_at, updated_at)
-		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_at, approved_by, approved_at, rejected_by, rejected_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
 		id, tenantID, userID,
 		params["title"], params["period_start"], params["period_end"],
 		params["status"], params["total_amount"],
 		params["submitted_at"],
+		params["approved_by"], params["approved_at"],
+		params["rejected_by"], params["rejected_at"],
 		now, now,
 	); err != nil {
 		t.Fatalf("testutil: CreateReport: %v", err)
@@ -255,6 +262,24 @@ func WithReportTotalAmount(amount int) ReportOption {
 func WithReportSubmittedAt(t time.Time) ReportOption {
 	return func(m map[string]interface{}) {
 		m["submitted_at"] = t
+	}
+}
+
+// WithReportApprovedBy は CreateReport の approved_by と approved_at を設定する。
+// 処理済みレポート一覧（SCR-WFL-003）のテストで使用する。
+func WithReportApprovedBy(approverID uuid.UUID, approvedAt time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["approved_by"] = &approverID
+		m["approved_at"] = &approvedAt
+	}
+}
+
+// WithReportRejectedBy は CreateReport の rejected_by と rejected_at を設定する。
+// 処理済みレポート一覧（SCR-WFL-003）のテストで使用する。
+func WithReportRejectedBy(rejectorID uuid.UUID, rejectedAt time.Time) ReportOption {
+	return func(m map[string]interface{}) {
+		m["rejected_by"] = &rejectorID
+		m["rejected_at"] = &rejectedAt
 	}
 }
 

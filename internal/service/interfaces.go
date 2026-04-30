@@ -95,6 +95,8 @@ type WorkflowService interface {
 	ListPayableReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]PayableReport, *Pagination, error)
 	// MarkReportAsPaid は承認済みレポートを支払済みステータスへ遷移させる。
 	MarkReportAsPaid(ctx context.Context, actor domain.Actor, reportID uuid.UUID, updatedAt time.Time) (*ExpenseReportDetail, error)
+	// ListProcessedReports は Approver が処理済みのレポートを一覧取得する（SCR-WFL-003）。
+	ListProcessedReports(ctx context.Context, actor domain.Actor, params domain.WorkflowListParams) ([]ProcessedReport, *Pagination, error)
 }
 
 // DashboardService はロール別のダッシュボードデータを構築する。
