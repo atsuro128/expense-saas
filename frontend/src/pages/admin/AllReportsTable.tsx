@@ -32,41 +32,39 @@ interface AllReportsTableProps {
 }
 
 /** テーブルのカラム定義。openapi.yaml の ExpenseReportSummary に準拠した snake_case プロパティを参照する。 */
-// minWidth はスマホ幅で列内容が読めるよう設定する（issue #160 対応）。
+// flex を使用せず width（絶対値）で列幅を固定する（issue #160 対応・候補 A 採用）。
+// flex を使うと MUI X DataGrid がコンテナ幅に合わせて列幅を縮小するため minWidth が効かなくなる問題を解消する。
+// width 固定により列幅合計（650px）がスマホ幅（375px）を超えるため、
+// ルート Box の overflowX: 'auto' による横スクロールが正常に発火する。
 const COLUMNS: GridColDef[] = [
   {
     field: 'submitter_name',
     headerName: '申請者名',
-    flex: 1,
-    minWidth: 120,
+    width: 120,
   },
   {
     field: 'title',
     headerName: 'タイトル',
-    flex: 2,
-    minWidth: 200,
+    width: 200,
   },
   {
     field: 'total_amount',
     headerName: '合計金額',
-    flex: 1,
-    minWidth: 100,
+    width: 110,
     // 金額を ¥ プレフィックス付きで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
   {
     field: 'status',
     headerName: 'ステータス',
-    flex: 1,
-    minWidth: 100,
+    width: 110,
     // StatusChip コンポーネントで色分け表示する。
     renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
   },
   {
     field: 'submitted_at',
     headerName: '提出日',
-    flex: 1,
-    minWidth: 110,
+    width: 110,
     valueFormatter: (value: string | null) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
   },
