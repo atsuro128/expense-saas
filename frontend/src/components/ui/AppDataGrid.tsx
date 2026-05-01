@@ -71,9 +71,10 @@ export default function AppDataGrid({
             fontWeight: 'bold',
           },
           // rows=0 件時のみ EmptyState（アクションボタン付き）が画面内に収まる minHeight を確保する。
-          // 1 件以上は DataGrid の自然高さに任せる（不要な余白を防ぐ、issue #154 再オープン 案A）。
-          // 300px は EmptyState 本文 + アクションボタンが見切れない値として設定する。
-          minHeight: rows.length === 0 ? 300 : undefined,
+          // 1 件以上は DataGrid の自然高さに任せる（不要な余白を防ぐ）。
+          // 400px の根拠: ColumnHeader 56 + EmptyState 必要量 236 (icon 48 + msg 24 + button 36 + gaps 32 + py 上下 96)
+          //                + AppPaginationFooter 53 + ボタンとフッター間の視覚余白 ~30 = 約 375px。丸めて 400px。
+          minHeight: rows.length === 0 ? 400 : undefined,
           // 呼び出し側の sx を後から展開して合成する。
           ...rest.sx,
         }}
