@@ -127,33 +127,31 @@ func TestListProcessedReports_Unauthorized(t *testing.T) {
 func TestListProcessedReports_TenantIsolation(t *testing.T) {
 	srv, pool := setupWorkflowTest(t)
 
-	approverID := testutil.MustParseUUID(testutil.UserApproverID)
-	tenantAID := testutil.MustParseUUID(testutil.TenantAID)
+	// 独立した 2 テナントを使う（標準フィクスチャの tenant A は approver 処理済みデータを
+	// 含むため、件数ベース 0 件チェックには適さない）。各テナントに別々の Approver/Member
+	// を作成し、テナント B 側にのみ承認済みレポートを作成する。
+	tenantAID := testutil.CreateTenant(t, pool, testutil.WithTenantName("WFL-069 テナント A"))
+	tenantBID := testutil.CreateTenant(t, pool, testutil.WithTenantName("WFL-069 テナント B"))
+	approverAID := testutil.CreateUser(t, pool, testutil.WithUserEmail("approver-069-a@example.com"))
+	approverBID := testutil.CreateUser(t, pool, testutil.WithUserEmail("approver-069-b@example.com"))
+	memberBID := testutil.CreateUser(t, pool, testutil.WithUserEmail("member-069-b@example.com"))
+	testutil.CreateMembership(t, pool, tenantAID, approverAID, domain.RoleApprover)
+	testutil.CreateMembership(t, pool, tenantBID, approverBID, domain.RoleApprover)
+	testutil.CreateMembership(t, pool, tenantBID, memberBID, domain.RoleMember)
 
-	// テナント B に独立した Approver と approved レポートを作成する。
-	// テナント B の Approver の user_id をテナント A の Approver と同じ UUID にして
-	// 「テナント境界をまたいで取得されない」ことを確認する。
-	tenantBID := testutil.MustParseUUID(testutil.TenantBID)
-	tenantBUserID := testutil.CreateUser(t, pool,
-		testutil.WithUserEmail("tenant-b-member@example.com"),
-	)
-	testutil.CreateMembership(t, pool, tenantBID, tenantBUserID, domain.RoleMember)
 	now := time.Now().UTC()
 
-	// テナント B のレポートに approverID が approved_by として登録されているケース
-	// （同じ user_id が別テナントで操作した想定）。
-	testutil.CreateReport(t, pool, tenantBID, tenantBUserID,
+	// テナント B にのみ承認済みレポートを作成する。
+	testutil.CreateReport(t, pool, tenantBID, memberBID,
 		testutil.WithReportTitle("テナント B の承認済みレポート"),
 		testutil.WithReportStatus(domain.ReportStatusApproved),
-		testutil.WithReportApprovedBy(approverID, now),
+		testutil.WithReportApprovedBy(approverBID, now),
 	)
 
 	// テナント A の Approver で API にアクセスする。
-	// テナント A 自身には承認済みレポートを作成していないため、0件が返るはず。
-	_ = tenantAID // テナント A は JWT の tenant_id から自動スコープされる
-
+	// テナント A には承認済みレポートを作成していないため、0 件が返るはず。
 	req := srv.AuthRequest(t, http.MethodGet, "/api/workflow/processed", nil,
-		testutil.UserApproverID, testutil.TenantAID, "approver")
+		approverAID.String(), tenantAID.String(), "approver")
 	rec := srv.Execute(req)
 
 	testutil.AssertStatus(t, rec, http.StatusOK)
@@ -175,19 +173,24 @@ func TestListProcessedReports_TenantIsolation(t *testing.T) {
 func TestListProcessedReports_OnlyApprovedByActor(t *testing.T) {
 	srv, pool := setupWorkflowTest(t)
 
-	approverID := testutil.MustParseUUID(testutil.UserApproverID)
-	tenantID := testutil.MustParseUUID(testutil.TenantAID)
+	// 独立したテナントで検証する（標準フィクスチャの tenant A は paid レポートを含み、
+	// 処理日時 DESC でソートすると先頭が paid になるため、approved 単独検証には適さない）。
+	tenantID := testutil.CreateTenant(t, pool, testutil.WithTenantName("WFL-070 専用テナント"))
+	approverUserID := testutil.CreateUser(t, pool, testutil.WithUserEmail("approver-070@example.com"))
+	memberUserID := testutil.CreateUser(t, pool, testutil.WithUserEmail("member-070@example.com"))
+	testutil.CreateMembership(t, pool, tenantID, approverUserID, domain.RoleApprover)
+	testutil.CreateMembership(t, pool, tenantID, memberUserID, domain.RoleMember)
+
 	approvedAt := time.Date(2026, 4, 15, 10, 0, 0, 0, time.UTC)
 
-	testutil.CreateReport(t, pool, tenantID,
-		testutil.MustParseUUID(testutil.UserMemberID),
+	testutil.CreateReport(t, pool, tenantID, memberUserID,
 		testutil.WithReportTitle("自分が承認したレポート"),
 		testutil.WithReportStatus(domain.ReportStatusApproved),
-		testutil.WithReportApprovedBy(approverID, approvedAt),
+		testutil.WithReportApprovedBy(approverUserID, approvedAt),
 	)
 
 	req := srv.AuthRequest(t, http.MethodGet, "/api/workflow/processed", nil,
-		testutil.UserApproverID, testutil.TenantAID, "approver")
+		approverUserID.String(), tenantID.String(), "approver")
 	rec := srv.Execute(req)
 
 	testutil.AssertStatus(t, rec, http.StatusOK)
@@ -205,7 +208,7 @@ func TestListProcessedReports_OnlyApprovedByActor(t *testing.T) {
 	if len(resp.Data) == 0 {
 		t.Fatal("TestListProcessedReports_OnlyApprovedByActor: expected at least 1 report (WFL-070)")
 	}
-	// 最初のレコードを確認する（ソート順は処理日時 DESC なので最新が先頭）。
+	// 独立テナントなので新規作成した 1 件のみが返る。
 	report := resp.Data[0]
 	if report.Decision != "approved" {
 		t.Errorf("TestListProcessedReports_OnlyApprovedByActor: expected decision=approved, got %s (WFL-070)", report.Decision)
