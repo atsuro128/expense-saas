@@ -72,9 +72,11 @@ export default function AppDataGrid({
           },
           // rows=0 件時のみ EmptyState（アクションボタン付き）が画面内に収まる minHeight を確保する。
           // 1 件以上は DataGrid の自然高さに任せる（不要な余白を防ぐ）。
-          // 400px の根拠: ColumnHeader 56 + EmptyState 必要量 236 (icon 48 + msg 24 + button 36 + gaps 32 + py 上下 96)
-          //                + AppPaginationFooter 53 + ボタンとフッター間の視覚余白 ~30 = 約 375px。丸めて 400px。
-          minHeight: rows.length === 0 ? 400 : undefined,
+          // 361px の根拠（overlayWrapperInner と EmptyState の高さを一致させ centering slack を 0 にする）:
+          //   ColumnHeader 56 + EmptyState 必要量 236.5 (icon 48 + msg 24 + button 36 + gaps 32 + py 上下 96)
+          //   + filler 15 + AppPaginationFooter 53 = 360.5。丸めて 361。
+          //   button と footer 間の視覚余白は EmptyState 自身の py-bottom 48px で確保される。
+          minHeight: rows.length === 0 ? 361 : undefined,
           // 呼び出し側の sx を後から展開して合成する。
           ...rest.sx,
         }}

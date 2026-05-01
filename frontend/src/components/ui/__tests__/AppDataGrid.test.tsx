@@ -8,7 +8,7 @@
 // ADG-002 → 'ADG-002: slots.footer を渡すとフッターが描画され、デフォルト noRowsOverlay も保持される'
 // ADG-003 → 'ADG-003: slots.noRowsOverlay を渡すと呼び出し側の実装で AppDataGrid デフォルトを上書きする'
 // ADG-004 → 'ADG-004: slots.footer と slots.noRowsOverlay を同時に渡すと両方が描画される'
-// ADG-005a → 'ADG-005a: rows=[] 時に DataGrid に minHeight: 400 が適用される'
+// ADG-005a → 'ADG-005a: rows=[] 時に DataGrid に minHeight: 361 が適用される'
 // ADG-005b → 'ADG-005b: rows>0 時に DataGrid に minHeight が適用されない'（余白防止）
 // ADG-006 → 'ADG-006: ルート Box に overflowX: auto が適用される'
 //
@@ -212,10 +212,10 @@ describe('AppDataGrid', () => {
     expect(screen.queryByText('デフォルトメッセージ')).not.toBeInTheDocument();
   });
 
-  // ADG-005a: rows=[] のとき DataGrid に minHeight: 400 が適用される。
+  // ADG-005a: rows=[] のとき DataGrid に minHeight: 361 が適用される。
   // EmptyState（アクションボタン付き）が画面内に収まり、アクションボタンと AppPaginationFooter の間に
   // 視覚的な余白を確保する最小高さを設定する。
-  it('ADG-005a: rows=[] 時に DataGrid に minHeight: 400 が適用される', () => {
+  it('ADG-005a: rows=[] 時に DataGrid に minHeight: 361 が適用される', () => {
     // ADG-005a
     render(
       <AppDataGrid
@@ -225,8 +225,8 @@ describe('AppDataGrid', () => {
       />,
     );
 
-    // DataGrid モックが data-min-height="400" を持つこと（sx.minHeight の実値検証）。
-    expect(screen.getByTestId('datagrid-root')).toHaveAttribute('data-min-height', '400');
+    // DataGrid モックが data-min-height="361" を持つこと（sx.minHeight の実値検証）。
+    expect(screen.getByTestId('datagrid-root')).toHaveAttribute('data-min-height', '361');
   });
 
   // ADG-005b: rows に 1 件以上ある場合、DataGrid に minHeight が適用されない（余白防止）。
