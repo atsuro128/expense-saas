@@ -70,11 +70,11 @@ export default function AppDataGrid({
           '& .MuiDataGrid-columnHeaderTitle': {
             fontWeight: 'bold',
           },
-          // rows=0 件時に NoRowsOverlay 領域を EmptyState（アクションボタン付き）の自然高さに合わせる。
-          // MUI X v8 は overlay 領域の高さを CSS 変数 --DataGrid-overlayHeight で制御しており、
-          // 'auto' を指定することで子要素（EmptyState）の content-box サイズに親（overlayWrapperInner）が追従する。
-          // 1 件以上は変数が無視され DataGrid の自然高さに任せる（不要な余白を防ぐ）。
-          '--DataGrid-overlayHeight': 'auto',
+          // rows=0 件時のみ EmptyState（アクションボタン付き）が画面内に収まる minHeight を確保する。
+          // 1 件以上は DataGrid の自然高さに任せる（不要な余白を防ぐ）。
+          // 400px の根拠: ColumnHeader 56 + EmptyState 必要量 236 (icon 48 + msg 24 + button 36 + gaps 32 + py 上下 96)
+          //                + AppPaginationFooter 53 + ボタンとフッター間の視覚余白 ~30 = 約 375px。丸めて 400px。
+          minHeight: rows.length === 0 ? 400 : undefined,
           // 呼び出し側の sx を後から展開して合成する。
           ...rest.sx,
         }}

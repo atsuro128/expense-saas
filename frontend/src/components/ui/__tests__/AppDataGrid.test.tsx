@@ -8,7 +8,8 @@
 // ADG-002 → 'ADG-002: slots.footer を渡すとフッターが描画され、デフォルト noRowsOverlay も保持される'
 // ADG-003 → 'ADG-003: slots.noRowsOverlay を渡すと呼び出し側の実装で AppDataGrid デフォルトを上書きする'
 // ADG-004 → 'ADG-004: slots.footer と slots.noRowsOverlay を同時に渡すと両方が描画される'
-// ADG-005 → 'ADG-005: DataGrid に --DataGrid-overlayHeight: auto が適用される'（NoRowsOverlay が EmptyState content に auto-fit する）
+// ADG-005a → 'ADG-005a: rows=[] 時に DataGrid に minHeight: 400 が適用される'
+// ADG-005b → 'ADG-005b: rows>0 時に DataGrid に minHeight が適用されない'（余白防止）
 // ADG-006 → 'ADG-006: ルート Box に overflowX: auto が適用される'
 //
 // MUI X DataGrid の ESM import 解決問題を回避するため @mui/x-data-grid をモックする。
@@ -71,12 +72,12 @@ vi.mock('@mui/x-data-grid', () => ({
       return <div data-testid="datagrid-loading">Loading...</div>;
     }
     return (
-      // data-overlay-height: sx['--DataGrid-overlayHeight'] の実値を展開する（ADG-005 検証用）。
-      // 未設定のとき属性を出力しない。
+      // data-min-height: sx.minHeight の実値を展開する（ADG-005a/b 検証用）。
+      // minHeight が undefined のとき属性を出力しない（属性なし = minHeight 未設定）。
       <div
         data-testid="datagrid-root"
-        {...(typeof props.sx?.['--DataGrid-overlayHeight'] === 'string'
-          ? { 'data-overlay-height': String(props.sx['--DataGrid-overlayHeight']) }
+        {...(typeof props.sx?.minHeight === 'number'
+          ? { 'data-min-height': String(props.sx.minHeight) }
           : {})}
       >
         {/* rows が 0 件のとき noRowsOverlay を描画する（DataGrid の MuiDataGrid-overlayWrapper 相当） */}
@@ -211,12 +212,11 @@ describe('AppDataGrid', () => {
     expect(screen.queryByText('デフォルトメッセージ')).not.toBeInTheDocument();
   });
 
-  // ADG-005: DataGrid に --DataGrid-overlayHeight: auto が適用される。
-  // NoRowsOverlay 領域が EmptyState（アクションボタン付き）の自然高さに追従し、
-  // 親要素（overlayWrapperInner）と子要素（EmptyState）のサイズが一致するため、
-  // centering による不要な上下余白が生じない。
-  it('ADG-005: DataGrid に --DataGrid-overlayHeight: auto が適用される', () => {
-    // ADG-005
+  // ADG-005a: rows=[] のとき DataGrid に minHeight: 400 が適用される。
+  // EmptyState（アクションボタン付き）が画面内に収まり、アクションボタンと AppPaginationFooter の間に
+  // 視覚的な余白を確保する最小高さを設定する。
+  it('ADG-005a: rows=[] 時に DataGrid に minHeight: 400 が適用される', () => {
+    // ADG-005a
     render(
       <AppDataGrid
         columns={TEST_COLUMNS}
@@ -225,8 +225,23 @@ describe('AppDataGrid', () => {
       />,
     );
 
-    // DataGrid モックが data-overlay-height="auto" を持つこと（sx['--DataGrid-overlayHeight'] の実値検証）。
-    expect(screen.getByTestId('datagrid-root')).toHaveAttribute('data-overlay-height', 'auto');
+    // DataGrid モックが data-min-height="400" を持つこと（sx.minHeight の実値検証）。
+    expect(screen.getByTestId('datagrid-root')).toHaveAttribute('data-min-height', '400');
+  });
+
+  // ADG-005b: rows に 1 件以上ある場合、DataGrid に minHeight が適用されない（余白防止）。
+  // DataGrid の自然高さに任せることでテーブル末尾に不要な余白が生じないようにする。
+  it('ADG-005b: rows>0 時に DataGrid に minHeight が適用されない', () => {
+    // ADG-005b
+    render(
+      <AppDataGrid
+        columns={TEST_COLUMNS}
+        rows={[{ id: '1', name: 'テスト' }]}
+      />,
+    );
+
+    // DataGrid モックが data-min-height 属性を持たないこと（sx.minHeight = undefined）。
+    expect(screen.getByTestId('datagrid-root')).not.toHaveAttribute('data-min-height');
   });
 
   // ADG-006: ルート Box に overflowX: 'auto' が適用されている（issue #160 対応）。
