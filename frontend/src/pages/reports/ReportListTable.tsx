@@ -32,20 +32,19 @@ export interface ReportListTableProps {
 }
 
 /** テーブルのカラム定義。ReportListItem のフィールド名に準拠する。 */
-// flex を使用せず width（絶対値）で列幅を固定する（issue #160 対応・候補 A 採用）。
-// flex を使うと MUI X DataGrid がコンテナ幅に合わせて列幅を縮小するため minWidth が効かなくなる問題を解消する。
-// width 固定により列幅合計（700px）がスマホ幅（375px）を超えるため、
-// ルート Box の overflowX: 'auto' による横スクロールが正常に発火する。
+// minWidth はスマホ幅で列内容が読めるよう設定する（issue #160 対応・予防的対応）。
 const COLUMNS: GridColDef[] = [
   {
     field: 'title',
     headerName: 'タイトル',
-    width: 200,
+    flex: 2,
+    minWidth: 200,
   },
   {
     field: 'period',
     headerName: '対象期間',
-    width: 180,
+    flex: 2,
+    minWidth: 180,
     // periodStart〜periodEnd を結合して表示する。
     renderCell: (params) => (
       <span>{`${params.row.periodStart as string} 〜 ${params.row.periodEnd as string}`}</span>
@@ -54,21 +53,24 @@ const COLUMNS: GridColDef[] = [
   {
     field: 'totalAmount',
     headerName: '合計金額',
-    width: 110,
+    flex: 1,
+    minWidth: 100,
     // 金額を 3 桁カンマ区切りで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
   {
     field: 'status',
     headerName: 'ステータス',
-    width: 110,
+    flex: 1,
+    minWidth: 100,
     // StatusChip コンポーネントで色分け表示する。
     renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
   },
   {
     field: 'createdAt',
     headerName: '作成日',
-    width: 110,
+    flex: 1,
+    minWidth: 110,
     valueFormatter: (value: string) =>
       value ? new Date(value).toLocaleDateString('ja-JP') : '-',
   },
