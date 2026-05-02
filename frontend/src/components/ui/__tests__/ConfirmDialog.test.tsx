@@ -409,14 +409,19 @@ describe('ConfirmDialog', () => {
   });
 
   // ---------------------------------------------------------------------------
-  // #162 再対応: autoFocus 属性が DOM に存在しないことの検証
-  // jsdom では autoFocus → FocusTrap blur 連鎖は発火しないため実機 regression を直接検証できない。
-  // 代わりに「autoFocus 属性が input 要素に出ていないこと」を検証することで、
-  // 誰かが autoFocus を再追加した際に CI で気付けるようにする。
+  // #162 再対応: autoFocus による focus() 副作用が発生しないことの検証
+  // jsdom では React の autoFocus prop が DOM 属性として残らないため、
+  // toHaveAttribute('autofocus') では autoFocus 再追加を検知できない。
+  // 代わりに HTMLTextAreaElement.prototype.focus をスパイし、
+  // 初期レンダー時に focus() が呼ばれないことを検証する。
+  // これにより autoFocus を再追加したときに CI で確実に FAIL できる。
   // ---------------------------------------------------------------------------
 
-  describe('#162 再対応: TextField に autoFocus 属性が付与されていない', () => {
-    it('required=true の inputField ありでダイアログを open したとき、input 要素に autofocus 属性が存在しない', () => {
+  describe('#162 再対応: TextField の autoFocus 不採用を focus spy で検証', () => {
+    it('initial render では textarea に focus() が呼ばれない（autoFocus 不採用の検証）', () => {
+      // HTMLTextAreaElement.prototype.focus をスパイして呼び出しを追跡する。
+      const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, 'focus');
+
       render(
         <ConfirmDialog
           {...defaultProps}
@@ -430,16 +435,12 @@ describe('ConfirmDialog', () => {
         />,
       );
 
-      // MUI TextField の内部 input/textarea 要素を取得する。
-      // multiline=true の場合は textarea で描画される。
-      const inputEl =
-        screen.queryByRole('textbox', { name: /却下理由/ }) ??
-        document.querySelector('textarea[aria-label]') ??
-        document.querySelector('textarea');
+      // autoFocus が設定されていると jsdom が focus() を呼び出す。
+      // autoFocus を削除した状態では focus() が呼ばれないことを確認する。
+      expect(focusSpy).not.toHaveBeenCalled();
 
-      expect(inputEl).toBeTruthy();
-      // autoFocus 属性が DOM に付与されていないこと（FocusTrap blur 連鎖 regression 防止）。
-      expect(inputEl).not.toHaveAttribute('autofocus');
+      // スパイを元に戻して他のテストに影響を与えない。
+      focusSpy.mockRestore();
     });
   });
 
