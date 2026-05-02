@@ -16,14 +16,18 @@ import (
 // 値は internal/seed パッケージの定数と完全一致させる。
 // 後方互換性維持のため testutil パッケージ内に定数を再エクスポートする。
 const (
-	TenantAID        = seed.TenantAID
-	TenantBID        = seed.TenantBID
-	UserAdminID      = seed.UserAdminID
-	UserApproverID   = seed.UserApproverID
-	UserMemberID     = seed.UserMemberID
-	UserAccountingID = seed.UserAccountingID
+	TenantAID         = seed.TenantAID
+	TenantBID         = seed.TenantBID
+	UserAdminID       = seed.UserAdminID
+	UserApproverID    = seed.UserApproverID
+	UserMemberID      = seed.UserMemberID
+	UserAccountingID  = seed.UserAccountingID
 	UserMemberBID     = seed.UserMemberBID
 	UserMemberEmptyID = seed.UserMemberEmptyID
+	// SMK-104 用: テナント B Approver。
+	UserApproverBID = seed.UserApproverBID
+	// SMK-105 用: テナント A 第二 Approver。
+	UserApprover2ID = seed.UserApprover2ID
 
 	// レポートフィクスチャ UUID（テナント A）。
 	ReportDraftID      = seed.ReportDraftID
@@ -37,6 +41,9 @@ const (
 	ReportTenantBDraftID     = seed.ReportTenantBDraftID
 	ReportTenantBSubmittedID = seed.ReportTenantBSubmittedID
 	ReportTenantBApprovedID  = seed.ReportTenantBApprovedID
+
+	// SMK-105 用: テナント A 第二 Approver (UserApprover2ID) が承認したレポート。
+	ReportApprovedByApprover2ID = seed.ReportApprovedByApprover2ID
 
 	// 経費項目フィクスチャ UUID。
 	ItemDraftID     = seed.ItemDraftID
@@ -198,16 +205,16 @@ func CreateReport(t *testing.T, pool *pgxpool.Pool, tenantID, userID uuid.UUID, 
 	id := uuid.New()
 	now := time.Now().UTC()
 	params := map[string]interface{}{
-		"title":         "Factory Report",
-		"period_start":  time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
-		"period_end":    time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC),
-		"status":        string(domain.ReportStatusDraft),
-		"total_amount":  0,
-		"submitted_at":  (*time.Time)(nil),
-		"approved_by":   (*uuid.UUID)(nil),
-		"approved_at":   (*time.Time)(nil),
-		"rejected_by":   (*uuid.UUID)(nil),
-		"rejected_at":   (*time.Time)(nil),
+		"title":        "Factory Report",
+		"period_start": time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC),
+		"period_end":   time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC),
+		"status":       string(domain.ReportStatusDraft),
+		"total_amount": 0,
+		"submitted_at": (*time.Time)(nil),
+		"approved_by":  (*uuid.UUID)(nil),
+		"approved_at":  (*time.Time)(nil),
+		"rejected_by":  (*uuid.UUID)(nil),
+		"rejected_at":  (*time.Time)(nil),
 	}
 	for _, o := range opts {
 		o(params)

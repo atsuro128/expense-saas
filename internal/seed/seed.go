@@ -26,14 +26,18 @@ var receiptSampleJPEG []byte
 // 標準フィクスチャの固定 UUID（test_strategy.md §4.2 参照）。
 // testutil パッケージの定数と完全一致させる。
 const (
-	TenantAID        = "aaaaaaaa-0001-0001-0001-000000000001"
-	TenantBID        = "bbbbbbbb-0002-0002-0002-000000000002"
-	UserAdminID      = "aaaaaaaa-1111-1111-1111-000000000001"
-	UserApproverID   = "aaaaaaaa-2222-2222-2222-000000000002"
+	TenantAID         = "aaaaaaaa-0001-0001-0001-000000000001"
+	TenantBID         = "bbbbbbbb-0002-0002-0002-000000000002"
+	UserAdminID       = "aaaaaaaa-1111-1111-1111-000000000001"
+	UserApproverID    = "aaaaaaaa-2222-2222-2222-000000000002"
 	UserMemberID      = "aaaaaaaa-3333-3333-3333-000000000003"
 	UserAccountingID  = "aaaaaaaa-4444-4444-4444-000000000004"
 	UserMemberBID     = "bbbbbbbb-3333-3333-3333-000000000003"
 	UserMemberEmptyID = "aaaaaaaa-3333-3333-3333-000000000004"
+	// SMK-104 用: テナント B Approver。
+	UserApproverBID = "bbbbbbbb-2222-2222-2222-000000000022"
+	// SMK-105 用: テナント A 第二 Approver。
+	UserApprover2ID = "aaaaaaaa-2222-2222-2222-000000000023"
 
 	// レポートフィクスチャ UUID（テナント A）。
 	ReportDraftID      = "cccccccc-0001-0001-0001-000000000001"
@@ -55,6 +59,9 @@ const (
 	ReportTenantBSubmittedID = "eeeeeeee-0002-0002-0002-000000000002"
 	ReportTenantBApprovedID  = "eeeeeeee-0003-0003-0003-000000000003"
 
+	// SMK-105 用: テナント A 第二 Approver (UserApprover2ID) が承認したレポート。
+	ReportApprovedByApprover2ID = "cccccccc-9999-9999-9999-000000000099"
+
 	// 経費項目フィクスチャ UUID。
 	ItemDraftID     = "dddddddd-0001-0001-0001-000000000001"
 	ItemSubmittedID = "dddddddd-0002-0002-0002-000000000002"
@@ -62,11 +69,11 @@ const (
 	// 追加 expense_items UUID（issue-087 対応）。
 	// approved / rejected / 追加 paid レポートの total_amount を 0 円以外にするために使用する。
 	// 命名規則: eeeeeeee-000N-000N-000N-000000000001（N=連番）
-	ItemApprovedID    = "eeeeeeee-0002-0002-0002-000000000001"
-	ItemRejectedID    = "eeeeeeee-0003-0003-0003-000000000001"
-	ItemPaid2026Feb1  = "eeeeeeee-0004-0004-0004-000000000001"
-	ItemPaid2026Apr1  = "eeeeeeee-0005-0005-0005-000000000001"
-	ItemPaid2026Mar1  = "eeeeeeee-0006-0006-0006-000000000001"
+	ItemApprovedID   = "eeeeeeee-0002-0002-0002-000000000001"
+	ItemRejectedID   = "eeeeeeee-0003-0003-0003-000000000001"
+	ItemPaid2026Feb1 = "eeeeeeee-0004-0004-0004-000000000001"
+	ItemPaid2026Apr1 = "eeeeeeee-0005-0005-0005-000000000001"
+	ItemPaid2026Mar1 = "eeeeeeee-0006-0006-0006-000000000001"
 
 	// 添付ファイルフィクスチャ UUID。
 	// AttachmentSubmittedID は SMK-037（ダウンロード確認）用に reportSubmitted に紐付く。
@@ -168,6 +175,10 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		{UserAccountingID, "test-accounting@example.com", "Test Accounting"},
 		{UserMemberBID, "test-member-b@example.com", "Test Member B"},
 		{UserMemberEmptyID, "test-member-empty@example.com", "Test Member Empty"},
+		// SMK-104 用: テナント B Approver。
+		{UserApproverBID, "test-approver-b@example.com", "Test Approver B"},
+		// SMK-105 用: テナント A 第二 Approver。
+		{UserApprover2ID, "test-approver2@example.com", "Test Approver Two"},
 	}
 	for _, u := range users {
 		if _, err := conn.Exec(ctx,
@@ -192,6 +203,10 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		{TenantAID, UserAccountingID, domain.RoleAccounting},
 		{TenantBID, UserMemberBID, domain.RoleMember},
 		{TenantAID, UserMemberEmptyID, domain.RoleMember},
+		// SMK-104 用: テナント B Approver のメンバーシップ。
+		{TenantBID, UserApproverBID, domain.RoleApprover},
+		// SMK-105 用: テナント A 第二 Approver のメンバーシップ。
+		{TenantAID, UserApprover2ID, domain.RoleApprover},
 	}
 	for _, m := range memberships {
 		if _, err := conn.Exec(ctx,
@@ -597,28 +612,92 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 
 	// 経費レポート（テナント B）投入。
 	memberBID := uuid.MustParse(UserMemberBID)
-	type tenantBReportRow struct {
-		id     string
-		status domain.ReportStatus
-		title  string
+	approverBID := uuid.MustParse(UserApproverBID)
+
+	// テナント B 下書きレポート。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportTenantBDraftID), tenantBID, memberBID,
+		"テナントB下書きレポート", periodStart, periodEnd, string(domain.ReportStatusDraft), 0,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: テナントB レポート挿入失敗 [%s]: %w", ReportTenantBDraftID, err)
 	}
-	reportsB := []tenantBReportRow{
-		{ReportTenantBDraftID, domain.ReportStatusDraft, "テナントB下書きレポート"},
-		{ReportTenantBSubmittedID, domain.ReportStatusSubmitted, "テナントB提出済みレポート"},
-		{ReportTenantBApprovedID, domain.ReportStatusApproved, "テナントB承認済みレポート"},
+
+	// テナント B 提出済みレポート。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportTenantBSubmittedID), tenantBID, memberBID,
+		"テナントB提出済みレポート", periodStart, periodEnd, string(domain.ReportStatusSubmitted), 0,
+		memberBID, ts202603,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: テナントB レポート挿入失敗 [%s]: %w", ReportTenantBSubmittedID, err)
 	}
-	for _, rep := range reportsB {
-		if _, err := conn.Exec(ctx,
-			`INSERT INTO expense_reports
-			 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount, created_at, updated_at)
-			 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-			 ON CONFLICT (report_id) DO NOTHING`,
-			uuid.MustParse(rep.id), tenantBID, memberBID,
-			rep.title, periodStart, periodEnd, string(rep.status), 0,
-			now, now,
-		); err != nil {
-			return fmt.Errorf("seed: テナントB レポート挿入失敗 [%s]: %w", rep.id, err)
-		}
+
+	// テナント B 承認済みレポート（SMK-104 用: テナント B Approver が承認した状態）。
+	// approved_by に UserApproverBID をセットし、テナント B 側の処理済みレポートとして機能させる。
+	//
+	// INSERT は他のフィクスチャと同様に ON CONFLICT DO NOTHING とする（新規環境での投入用）。
+	// origin/master の seed 済み環境では approved_by / approved_at が NULL のまま残るため、
+	// INSERT 後に補完 UPDATE を実行して冪等性を確保する（既存行のみ対象）。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, approved_by, approved_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportTenantBApprovedID), tenantBID, memberBID,
+		"テナントB承認済みレポート", periodStart, periodEnd, string(domain.ReportStatusApproved), 0,
+		memberBID, ts202603,
+		approverBID, ts202603,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: テナントB レポート挿入失敗 [%s]: %w", ReportTenantBApprovedID, err)
+	}
+	// 補完 UPDATE: ON CONFLICT DO NOTHING で INSERT がスキップされた既存行（approved_by が NULL の行）に
+	// submitted_by / submitted_at / approved_by / approved_at を補完する。
+	// WHERE 句で approved_by IS NULL を条件にすることで、補完済みの行には影響しない（冪等）。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports
+		 SET submitted_by = $2,
+		     submitted_at = $3,
+		     approved_by  = $4,
+		     approved_at  = $5,
+		     updated_at   = $6
+		 WHERE report_id = $1
+		   AND (approved_by IS NULL OR approved_at IS NULL)`,
+		uuid.MustParse(ReportTenantBApprovedID),
+		memberBID, ts202603,
+		approverBID, ts202603,
+		now,
+	); err != nil {
+		return fmt.Errorf("seed: テナントB 承認済みレポート補完 UPDATE 失敗 [%s]: %w", ReportTenantBApprovedID, err)
+	}
+
+	// テナント A 第二 Approver (UserApprover2ID) が承認したレポート（SMK-105 用）。
+	// 「同テナント内の別 Approver が処理したレポート」を再現するための前提データ。
+	approver2ID := uuid.MustParse(UserApprover2ID)
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, approved_by, approved_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		uuid.MustParse(ReportApprovedByApprover2ID), tenantAID, memberID,
+		"テスト承認済みレポート（第二Approver処理）", periodStart, periodEnd, string(domain.ReportStatusApproved), 0,
+		memberID, ts202603,
+		approver2ID, ts202603,
+		now, now,
+	); err != nil {
+		return fmt.Errorf("seed: レポート挿入失敗 [%s]: %w", ReportApprovedByApprover2ID, err)
 	}
 
 	return nil

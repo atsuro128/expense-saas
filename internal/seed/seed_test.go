@@ -154,6 +154,163 @@ func TestSeed_PaidReportPaidAtNotNull(t *testing.T) {
 	}
 }
 
+// TestSeed_ReportTenantBApproved_BackfillExistingRow は、旧 seed 済み環境（approved_by / approved_at が NULL）
+// で seed.Run を再実行した場合に、ReportTenantBApprovedID の approved_by / approved_at が
+// UserApproverBID / now で補完されることを検証する。
+// issue-166 regression テスト: 補完 UPDATE が削除されると FAIL する。
+func TestSeed_ReportTenantBApproved_BackfillExistingRow(t *testing.T) {
+	pool := testutil.SetupTestDB(t)
+	testutil.CleanupTables(t, pool)
+
+	ctx := context.Background()
+
+	conn, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("DB 接続取得失敗: %v", err)
+	}
+
+	// 旧 seed 相当の状態を作る。
+	// テナント B / ユーザー / メンバーシップのみを最小限投入し、
+	// ReportTenantBApprovedID は approved_by / approved_at を NULL のまま INSERT する。
+	// （ON CONFLICT DO NOTHING で seed.Run がスキップするよう事前に行を用意する）
+
+	now := time.Now().UTC()
+	periodStart := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2026, 3, 31, 0, 0, 0, 0, time.UTC)
+	ts202603 := time.Date(2026, 3, 15, 10, 0, 0, 0, time.UTC)
+
+	// テナント B 投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO tenants (tenant_id, company_name, created_at, updated_at) VALUES ($1, $2, $3, $4)
+		 ON CONFLICT (tenant_id) DO NOTHING`,
+		seed.TenantBID, "Test Company B", now, now,
+	); err != nil {
+		conn.Release()
+		t.Fatalf("テナント B 挿入失敗: %v", err)
+	}
+
+	// テナント B メンバー（UserMemberBID）投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO users (user_id, email, name, password_hash, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6)
+		 ON CONFLICT (user_id) DO NOTHING`,
+		seed.UserMemberBID, "test-member-b@example.com", "Test Member B", "dummy_hash", now, now,
+	); err != nil {
+		conn.Release()
+		t.Fatalf("ユーザー（MemberB）挿入失敗: %v", err)
+	}
+
+	// テナント B メンバーシップ投入。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO tenant_memberships (tenant_id, user_id, role, created_at, updated_at) VALUES ($1, $2, $3, $4, $5)
+		 ON CONFLICT (tenant_id, user_id) DO NOTHING`,
+		seed.TenantBID, seed.UserMemberBID, "member", now, now,
+	); err != nil {
+		conn.Release()
+		t.Fatalf("メンバーシップ（MemberB）挿入失敗: %v", err)
+	}
+
+	// 旧 seed 相当: ReportTenantBApprovedID を approved_by / approved_at = NULL で投入する。
+	// approved_by 列を指定しないことで NULL のまま挿入する（旧 seed の動作を模倣）。
+	if _, err := conn.Exec(ctx,
+		`INSERT INTO expense_reports
+		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
+		  submitted_by, submitted_at, created_at, updated_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+		 ON CONFLICT (report_id) DO NOTHING`,
+		seed.ReportTenantBApprovedID, seed.TenantBID, seed.UserMemberBID,
+		"テナントB承認済みレポート", periodStart, periodEnd, "approved", 0,
+		seed.UserMemberBID, ts202603,
+		now, now,
+	); err != nil {
+		conn.Release()
+		t.Fatalf("旧 seed 相当の ReportTenantBApprovedID 挿入失敗: %v", err)
+	}
+
+	// 挿入直後に approved_by が NULL であることを確認する（旧 seed 状態の前提検証）。
+	var approvedByBefore *string
+	if err := conn.QueryRow(ctx,
+		`SELECT approved_by::text FROM expense_reports WHERE report_id = $1`,
+		seed.ReportTenantBApprovedID,
+	).Scan(&approvedByBefore); err != nil {
+		conn.Release()
+		t.Fatalf("approved_by 初期状態取得失敗: %v", err)
+	}
+	if approvedByBefore != nil {
+		conn.Release()
+		t.Fatalf("テスト前提条件違反: approved_by が NULL であるべきですが %s が設定されています", *approvedByBefore)
+	}
+
+	// レポート件数（seed.Run 前）を記録する。
+	var countBefore int
+	if err := conn.QueryRow(ctx,
+		`SELECT COUNT(*) FROM expense_reports WHERE deleted_at IS NULL`,
+	).Scan(&countBefore); err != nil {
+		conn.Release()
+		t.Fatalf("seed.Run 前のレポート件数取得失敗: %v", err)
+	}
+
+	conn.Release()
+
+	// seed.Run を実行する（S3 クライアントは nil でスキップ）。
+	if err := seed.Run(ctx, pool, nil); err != nil {
+		t.Fatalf("seed.Run に失敗しました: %v", err)
+	}
+
+	// 検証用コネクションを取得する。
+	conn2, err := pool.Acquire(ctx)
+	if err != nil {
+		t.Fatalf("DB 接続取得失敗（検証用）: %v", err)
+	}
+	defer conn2.Release()
+
+	// アサーション 1: approved_by が UserApproverBID に補完されていること。
+	var approvedByAfter *string
+	var approvedAtAfter *time.Time
+	if err := conn2.QueryRow(ctx,
+		`SELECT approved_by::text, approved_at FROM expense_reports WHERE report_id = $1`,
+		seed.ReportTenantBApprovedID,
+	).Scan(&approvedByAfter, &approvedAtAfter); err != nil {
+		t.Fatalf("seed.Run 後の approved_by / approved_at 取得失敗: %v", err)
+	}
+
+	if approvedByAfter == nil {
+		t.Errorf("approved_by が補完されていません: NULL のままです（%s に補完されるべき）", seed.UserApproverBID)
+	} else if *approvedByAfter != seed.UserApproverBID {
+		t.Errorf("approved_by の補完値が不正です: got=%s, want=%s", *approvedByAfter, seed.UserApproverBID)
+	}
+
+	// アサーション 2: approved_at が NOT NULL に補完されていること。
+	if approvedAtAfter == nil {
+		t.Errorf("approved_at が補完されていません: NULL のままです（NOT NULL に補完されるべき）")
+	}
+
+	// アサーション 3: レポート件数が増えていないこと（補完であって新規追加ではない）。
+	var countAfter int
+	if err := conn2.QueryRow(ctx,
+		`SELECT COUNT(*) FROM expense_reports WHERE deleted_at IS NULL`,
+	).Scan(&countAfter); err != nil {
+		t.Fatalf("seed.Run 後のレポート件数取得失敗: %v", err)
+	}
+
+	if countAfter < countBefore {
+		// seed.Run で他のフィクスチャが新規追加されるため countAfter >= countBefore が正常。
+		// countAfter < countBefore は行が削除されるケースであり異常。
+		t.Errorf("seed.Run 後にレポート件数が減少しました: before=%d, after=%d", countBefore, countAfter)
+	}
+
+	// より厳密な確認: ReportTenantBApprovedID の report_id に対応する行が 1 件だけ存在すること。
+	var reportCount int
+	if err := conn2.QueryRow(ctx,
+		`SELECT COUNT(*) FROM expense_reports WHERE report_id = $1`,
+		seed.ReportTenantBApprovedID,
+	).Scan(&reportCount); err != nil {
+		t.Fatalf("ReportTenantBApprovedID の件数取得失敗: %v", err)
+	}
+	if reportCount != 1 {
+		t.Errorf("ReportTenantBApprovedID のレポートが %d 件存在します（1 件であるべき）", reportCount)
+	}
+}
+
 // TestSeed_Idempotent は seed.Run を 2 回実行しても重複が発生しないことを検証する。
 // 冪等性: ON CONFLICT DO NOTHING により再実行でデータが増えないこと。
 func TestSeed_Idempotent(t *testing.T) {
