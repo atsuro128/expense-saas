@@ -644,6 +644,10 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 
 	// テナント B 承認済みレポート（SMK-104 用: テナント B Approver が承認した状態）。
 	// approved_by に UserApproverBID をセットし、テナント B 側の処理済みレポートとして機能させる。
+	//
+	// INSERT は他のフィクスチャと同様に ON CONFLICT DO NOTHING とする（新規環境での投入用）。
+	// origin/master の seed 済み環境では approved_by / approved_at が NULL のまま残るため、
+	// INSERT 後に補完 UPDATE を実行して冪等性を確保する（既存行のみ対象）。
 	if _, err := conn.Exec(ctx,
 		`INSERT INTO expense_reports
 		 (report_id, tenant_id, user_id, title, period_start, period_end, status, total_amount,
@@ -657,6 +661,25 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		now, now,
 	); err != nil {
 		return fmt.Errorf("seed: テナントB レポート挿入失敗 [%s]: %w", ReportTenantBApprovedID, err)
+	}
+	// 補完 UPDATE: ON CONFLICT DO NOTHING で INSERT がスキップされた既存行（approved_by が NULL の行）に
+	// submitted_by / submitted_at / approved_by / approved_at を補完する。
+	// WHERE 句で approved_by IS NULL を条件にすることで、補完済みの行には影響しない（冪等）。
+	if _, err := conn.Exec(ctx,
+		`UPDATE expense_reports
+		 SET submitted_by = $2,
+		     submitted_at = $3,
+		     approved_by  = $4,
+		     approved_at  = $5,
+		     updated_at   = $6
+		 WHERE report_id = $1
+		   AND (approved_by IS NULL OR approved_at IS NULL)`,
+		uuid.MustParse(ReportTenantBApprovedID),
+		memberBID, ts202603,
+		approverBID, ts202603,
+		now,
+	); err != nil {
+		return fmt.Errorf("seed: テナントB 承認済みレポート補完 UPDATE 失敗 [%s]: %w", ReportTenantBApprovedID, err)
 	}
 
 	// テナント A 第二 Approver (UserApprover2ID) が承認したレポート（SMK-105 用）。
