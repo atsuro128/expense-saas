@@ -1,6 +1,6 @@
 // AppDataGrid の単体テスト。
-// ADG-001〜006 に対応する（issue #147 再オープン D-1 対応 PR #102 追加テスト、
-// ADG-005a/b / ADG-006 は issue #154 / #160 対応）。
+// ADG-001〜007 に対応する（issue #147 再オープン D-1 対応 PR #102 追加テスト、
+// ADG-005a/b / ADG-006 は issue #154 / #160 対応、ADG-007 は issue #160 再対応）。
 // AppDataGrid の slots 合成挙動（{...rest} 展開順序修正後）を検証する。
 //
 // Traceability: 新規接頭辞 ADG- を新設（既存ドキュメントに ADG- 採番なし）
@@ -11,14 +11,15 @@
 // ADG-005a → 'ADG-005a: rows=[] 時に DataGrid に minHeight: 361 が適用される'
 // ADG-005b → 'ADG-005b: rows>0 時に DataGrid に minHeight が適用されない'（余白防止）
 // ADG-006 → 'ADG-006: ルート Box に overflowX: auto が適用される'
+// ADG-007 → '#160 再対応: AppDataGrid Box に minWidth: 0 が渡されている'
 //
 // MUI X DataGrid の ESM import 解決問題を回避するため @mui/x-data-grid をモックする。
 // モックは slots / rows / loading を受け取り、MUI DataGrid の動作を最小限再現する。
 //
-// @mui/material/Box もモックする（ADG-006 回帰防止）。
+// @mui/material/Box もモックする（ADG-006 / ADG-007 回帰防止）。
 // MUI Box の sx は Emotion により動的 CSS クラスに変換されるため jsdom では
 // getComputedStyle / toHaveStyle による sx 値の検証が不安定である。
-// Box モックは sx の overflowX / minHeight を data-* 属性として展開し、
+// Box モックは sx の overflowX / minWidth を data-* 属性として展開し、
 // テストが実値を直接アサートできるようにする。
 
 import React from 'react';
@@ -27,6 +28,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // @mui/material/Box をモックする。
 // sx の overflowX を data-overflow-x 属性に展開することで ADG-006 の実値検証を可能にする。
+// sx の minWidth を data-min-width 属性に展開することで ADG-007 の実値検証を可能にする。
 // data-testid="appdatagrid-root" を設定し、ルート要素を特定できるようにする。
 vi.mock('@mui/material/Box', () => ({
   default: ({
@@ -41,6 +43,7 @@ vi.mock('@mui/material/Box', () => ({
     <div
       data-testid="appdatagrid-root"
       data-overflow-x={typeof sx?.overflowX === 'string' ? sx.overflowX : undefined}
+      data-min-width={sx?.minWidth !== undefined ? String(sx.minWidth) : undefined}
       {...rest}
     >
       {children}
@@ -265,6 +268,28 @@ describe('AppDataGrid', () => {
     // querySelectorAll で属性値を直接検索する（Box モックの data-overflow-x 属性）。
     const overflowBoxes = container.querySelectorAll('[data-overflow-x="auto"]');
     expect(overflowBoxes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  // ADG-007: ルート Box に minWidth: 0 が適用されている（issue #160 再対応）。
+  // 親が display: flex の場合、flex item の min-width 既定値 auto によって Box が
+  // コンテンツ幅（726px）に追従して膨張し overflowX: 'auto' が発火しない CSS Flexbox の罠を回避する。
+  // @mui/material/Box をモックして sx.minWidth を data-min-width 属性に展開し、
+  // AppDataGrid が minWidth: 0 を渡していることを直接検証する。
+  // jsdom 環境では実際の Flexbox レイアウト挙動は再現できないが、
+  // 「sx に minWidth: 0 が渡される」事実を回帰防止として固定することが目的。
+  it('ADG-007: ルート Box に minWidth: 0 が適用される', () => {
+    // ADG-007
+    const { container } = render(
+      <AppDataGrid
+        columns={TEST_COLUMNS}
+        rows={[]}
+        emptyMessage="空です"
+      />,
+    );
+    // data-min-width="0" を持つ要素が DOM 内に存在することを検証する。
+    // querySelectorAll で属性値を直接検索する（Box モックの data-min-width 属性）。
+    const minWidthBoxes = container.querySelectorAll('[data-min-width="0"]');
+    expect(minWidthBoxes.length).toBeGreaterThanOrEqual(1);
   });
 
   // ADG-004: slots.footer と slots.noRowsOverlay の両方を渡し、rows=[] の場合:
