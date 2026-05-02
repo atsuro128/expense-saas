@@ -398,7 +398,7 @@ func TestGetDashboard_Accounting_MemberFieldsPresent(t *testing.T) {
 
 // TestGetDashboard_Accounting_PendingPaymentCount は Accounting の pending_payment_count が正しく返ることを検証する。
 // DSH-011 に対応する。
-// フィクスチャ: テナントA に approved が 1 件存在する。
+// フィクスチャ: テナントA に approved が 2 件存在する。
 func TestGetDashboard_Accounting_PendingPaymentCount(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -416,8 +416,8 @@ func TestGetDashboard_Accounting_PendingPaymentCount(t *testing.T) {
 	if resp.Data.PendingPaymentCount == nil {
 		t.Fatal("pending_payment_count が null です")
 	}
-	// フィクスチャの approved レポートが 1 件。
-	if got, want := *resp.Data.PendingPaymentCount, 1; got != want {
+	// フィクスチャの approved レポートが 2 件。
+	if got, want := *resp.Data.PendingPaymentCount, 2; got != want {
 		t.Errorf("pending_payment_count: got %d, want %d", got, want)
 	}
 }
@@ -507,7 +507,7 @@ func TestGetDashboard_Admin_TenantCounts(t *testing.T) {
 
 // TestGetDashboard_Admin_TenantMemberCount は Admin の tenant_member_count が正しく返ることを検証する。
 // DSH-015 に対応する。
-// フィクスチャ: テナントA に 5 名のメンバーが存在する。
+// フィクスチャ: テナントA に 6 名のメンバーが存在する。
 func TestGetDashboard_Admin_TenantMemberCount(t *testing.T) {
 	srv, _ := setupDashboardTest(t)
 
@@ -525,7 +525,7 @@ func TestGetDashboard_Admin_TenantMemberCount(t *testing.T) {
 	if resp.Data.TenantMemberCount == nil {
 		t.Fatal("tenant_member_count が null です")
 	}
-	if got, want := *resp.Data.TenantMemberCount, 5; got != want {
+	if got, want := *resp.Data.TenantMemberCount, 6; got != want {
 		t.Errorf("tenant_member_count: got %d, want %d", got, want)
 	}
 }
