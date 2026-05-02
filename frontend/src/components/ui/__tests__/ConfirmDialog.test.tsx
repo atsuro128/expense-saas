@@ -409,6 +409,42 @@ describe('ConfirmDialog', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // #162 再対応: autoFocus による focus() 副作用が発生しないことの検証
+  // jsdom では React の autoFocus prop が DOM 属性として残らないため、
+  // toHaveAttribute('autofocus') では autoFocus 再追加を検知できない。
+  // 代わりに HTMLTextAreaElement.prototype.focus をスパイし、
+  // 初期レンダー時に focus() が呼ばれないことを検証する。
+  // これにより autoFocus を再追加したときに CI で確実に FAIL できる。
+  // ---------------------------------------------------------------------------
+
+  describe('#162 再対応: TextField の autoFocus 不採用を focus spy で検証', () => {
+    it('initial render では textarea に focus() が呼ばれない（autoFocus 不採用の検証）', () => {
+      // HTMLTextAreaElement.prototype.focus をスパイして呼び出しを追跡する。
+      const focusSpy = vi.spyOn(HTMLTextAreaElement.prototype, 'focus');
+
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          inputField={{
+            label: '却下理由',
+            required: true,
+            maxLength: 1000,
+            multiline: true,
+            errorMessage: '却下理由を入力してください',
+          }}
+        />,
+      );
+
+      // autoFocus が設定されていると jsdom が focus() を呼び出す。
+      // autoFocus を削除した状態では focus() が呼ばれないことを確認する。
+      expect(focusSpy).not.toHaveBeenCalled();
+
+      // スパイを元に戻して他のテストに影響を与えない。
+      focusSpy.mockRestore();
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // 確認ボタン押下
   // ---------------------------------------------------------------------------
 

@@ -191,7 +191,6 @@ export default function ConfirmDialog({
         <DialogContentText>{displayMessage}</DialogContentText>
         {displayInputField && (
           <TextField
-            autoFocus
             margin="normal"
             label={displayInputField.label}
             placeholder={displayInputField.placeholder}
