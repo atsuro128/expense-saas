@@ -32,7 +32,10 @@ export default function AppDataGrid({
 }: AppDataGridProps) {
   return (
     // overflowX: 'auto' で列幅合計が画面幅を超える場合に横スクロールを許可する（issue #160 対応）。
-    <Box sx={{ width: '100%', overflowX: 'auto' }}>
+    // minWidth: 0 で親 flex container 内での min-width: auto 膨張を抑止する（issue #160 再対応）。
+    // 親が display: flex のとき flex item の min-width 既定値は auto（コンテンツ幅に追従）であり、
+    // Box が 726px に膨張して overflowX: 'auto' が発火しない CSS Flexbox の罠を回避する。
+    <Box sx={{ width: '100%', minWidth: 0, overflowX: 'auto' }}>
       <DataGrid
         {...rest}
         columns={columns}
