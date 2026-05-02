@@ -409,6 +409,41 @@ describe('ConfirmDialog', () => {
   });
 
   // ---------------------------------------------------------------------------
+  // #162 再対応: autoFocus 属性が DOM に存在しないことの検証
+  // jsdom では autoFocus → FocusTrap blur 連鎖は発火しないため実機 regression を直接検証できない。
+  // 代わりに「autoFocus 属性が input 要素に出ていないこと」を検証することで、
+  // 誰かが autoFocus を再追加した際に CI で気付けるようにする。
+  // ---------------------------------------------------------------------------
+
+  describe('#162 再対応: TextField に autoFocus 属性が付与されていない', () => {
+    it('required=true の inputField ありでダイアログを open したとき、input 要素に autofocus 属性が存在しない', () => {
+      render(
+        <ConfirmDialog
+          {...defaultProps}
+          inputField={{
+            label: '却下理由',
+            required: true,
+            maxLength: 1000,
+            multiline: true,
+            errorMessage: '却下理由を入力してください',
+          }}
+        />,
+      );
+
+      // MUI TextField の内部 input/textarea 要素を取得する。
+      // multiline=true の場合は textarea で描画される。
+      const inputEl =
+        screen.queryByRole('textbox', { name: /却下理由/ }) ??
+        document.querySelector('textarea[aria-label]') ??
+        document.querySelector('textarea');
+
+      expect(inputEl).toBeTruthy();
+      // autoFocus 属性が DOM に付与されていないこと（FocusTrap blur 連鎖 regression 防止）。
+      expect(inputEl).not.toHaveAttribute('autofocus');
+    });
+  });
+
+  // ---------------------------------------------------------------------------
   // 確認ボタン押下
   // ---------------------------------------------------------------------------
 
