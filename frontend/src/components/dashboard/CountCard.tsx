@@ -36,8 +36,10 @@ export default function CountCard({
     <Card
       sx={{
         cursor: href ? 'pointer' : 'default',
-        borderTop: accentColor !== 'default' ? `3px solid` : undefined,
-        borderColor: accentColor !== 'default' ? `${accentColor}.main` : undefined,
+        // borderTop を常時確保することで default カードと色付きカードの高さを揃える（issue #168）。
+        // default 時は transparent にすることで見た目上は「ボーダーなし」を維持する。
+        borderTop: '3px solid',
+        borderColor: accentColor !== 'default' ? `${accentColor}.main` : 'transparent',
       }}
     >
       <CardContent>
