@@ -76,6 +76,8 @@ export default function DashboardPage() {
   }
 
   const isAdmin = role === 'admin';
+  // Member 単独（Approver / Accounting は専用ブロックで処理するため除外）。
+  const isMemberOnly = role === 'member';
   const isMemberLike = role === 'member' || role === 'approver' || role === 'accounting';
   const isApprover = role === 'approver';
   const isAccounting = role === 'accounting';
@@ -107,18 +109,26 @@ export default function DashboardPage() {
         onClose={() => setRedirectToast((prev) => ({ ...prev, open: false }))}
       />
 
-      {/* Member / Approver / Accounting: 自分のレポートカード */}
-      {isMemberLike && (
-        <MyReportCountCards
-          draftCount={dashboard.my_draft_count ?? 0}
-          submittedCount={dashboard.my_submitted_count ?? 0}
-          rejectedCount={dashboard.my_rejected_count ?? 0}
-        />
+      {/* Member 単独: 自分のレポートカード 3 枚を単一 Grid に配置する（issue #169）。*/}
+      {isMemberOnly && (
+        <Grid container spacing={2} data-testid="my-report-count-cards">
+          <MyReportCountCards
+            draftCount={dashboard.my_draft_count ?? 0}
+            submittedCount={dashboard.my_submitted_count ?? 0}
+            rejectedCount={dashboard.my_rejected_count ?? 0}
+          />
+        </Grid>
       )}
 
-      {/* Approver: 承認待ちカード。MyReportCountCards と同じ Grid レイアウト・余白で配置する */}
+      {/* Approver: MyReportCountCards 3 枚 + 承認待ち 1 枚 = 計 4 枚を単一 Grid に配置する（issue #169）。
+          Admin と同様に spacing={2} (16px) の行間で 3+1 折り返しレイアウトを実現する。 */}
       {isApprover && (
-        <Grid container spacing={2} data-testid="approver-action-cards">
+        <Grid container spacing={2} data-testid="approver-cards-row">
+          <MyReportCountCards
+            draftCount={dashboard.my_draft_count ?? 0}
+            submittedCount={dashboard.my_submitted_count ?? 0}
+            rejectedCount={dashboard.my_rejected_count ?? 0}
+          />
           <Grid size={{ xs: 12, sm: 4 }}>
             <CountCard
               label="承認待ち"
@@ -130,9 +140,15 @@ export default function DashboardPage() {
         </Grid>
       )}
 
-      {/* Accounting: 支払待ちカード。MyReportCountCards と同じ Grid レイアウト・余白で配置する */}
+      {/* Accounting: MyReportCountCards 3 枚 + 支払待ち 1 枚 = 計 4 枚を単一 Grid に配置する（issue #169）。
+          Admin と同様に spacing={2} (16px) の行間で 3+1 折り返しレイアウトを実現する。 */}
       {isAccounting && (
-        <Grid container spacing={2} data-testid="accounting-action-cards">
+        <Grid container spacing={2} data-testid="accounting-cards-row">
+          <MyReportCountCards
+            draftCount={dashboard.my_draft_count ?? 0}
+            submittedCount={dashboard.my_submitted_count ?? 0}
+            rejectedCount={dashboard.my_rejected_count ?? 0}
+          />
           <Grid size={{ xs: 12, sm: 4 }}>
             <CountCard
               label="支払待ち"

@@ -166,9 +166,9 @@ describe('DashboardPage', () => {
   it('DSH-FE-003: Approver ロールで承認待ちカードと MonthlySummaryTable が表示される', () => {
     renderDashboard('approver', mockDashboardApprover);
 
-    // MyReportCountCards が表示されること。
-    // RecentReportList のステータスチップと区別するため、MyReportCountCards 領域に絞ってクエリする。
-    const countCardsSection = screen.getByTestId('my-report-count-cards');
+    // MyReportCountCards が表示されること（issue #169: Approver は approver-cards-row 単一 Grid 内に統合）。
+    // RecentReportList のステータスチップと区別するため、単一 Grid コンテナ領域に絞ってクエリする。
+    const countCardsSection = screen.getByTestId('approver-cards-row');
     expect(within(countCardsSection).getByText('下書き')).toBeInTheDocument();
 
     // 承認待ちカードが表示されること。
@@ -194,9 +194,9 @@ describe('DashboardPage', () => {
   it('DSH-FE-004: Accounting ロールで支払待ちカードと MonthlySummaryTable が表示される', () => {
     renderDashboard('accounting', mockDashboardAccounting);
 
-    // MyReportCountCards が表示されること。
-    // RecentReportList のステータスチップと区別するため、MyReportCountCards 領域に絞ってクエリする。
-    const countCardsSection = screen.getByTestId('my-report-count-cards');
+    // MyReportCountCards が表示されること（issue #169: Accounting は accounting-cards-row 単一 Grid 内に統合）。
+    // RecentReportList のステータスチップと区別するため、単一 Grid コンテナ領域に絞ってクエリする。
+    const countCardsSection = screen.getByTestId('accounting-cards-row');
     expect(within(countCardsSection).getByText('下書き')).toBeInTheDocument();
 
     // 支払待ちカードが表示されること。
@@ -240,28 +240,38 @@ describe('DashboardPage', () => {
     expect(screen.queryByText('支払待ち')).not.toBeInTheDocument();
   });
 
-  // DSH-FE-003b: Approver の承認待ちカードが Grid レイアウトコンテナ（approver-action-cards）内に配置されること。
-  it('DSH-FE-003b: Approver の承認待ちカードが Grid レイアウトコンテナ内に配置される', () => {
+  // DSH-FE-003b: Approver の承認待ちカードと MyReportCountCards が単一 Grid コンテナ（approver-cards-row）内に配置されること（issue #169）。
+  it('DSH-FE-003b: Approver の承認待ちカードと自分のレポートカードが単一 Grid コンテナ内に配置される', () => {
     renderDashboard('approver', mockDashboardApprover);
 
-    // data-testid="approver-action-cards" の Grid コンテナが存在すること。
-    const actionCardsContainer = screen.getByTestId('approver-action-cards');
-    expect(actionCardsContainer).toBeInTheDocument();
+    // data-testid="approver-cards-row" の単一 Grid コンテナが存在すること（issue #169: Admin と同一構造）。
+    const cardsRow = screen.getByTestId('approver-cards-row');
+    expect(cardsRow).toBeInTheDocument();
 
-    // コンテナ内に承認待ちラベルが存在すること（MyReportCountCards と同じ Grid 構造）。
-    expect(within(actionCardsContainer).getByText('承認待ち')).toBeInTheDocument();
+    // コンテナ内に承認待ちラベルが存在すること（MyReportCountCards と同じ Grid 内に収まる）。
+    expect(within(cardsRow).getByText('承認待ち')).toBeInTheDocument();
+
+    // コンテナ内に MyReportCountCards の 3 枚が含まれること。
+    expect(within(cardsRow).getByText('下書き')).toBeInTheDocument();
+    expect(within(cardsRow).getByText('提出中')).toBeInTheDocument();
+    expect(within(cardsRow).getByText('却下')).toBeInTheDocument();
   });
 
-  // DSH-FE-004b: Accounting の支払待ちカードが Grid レイアウトコンテナ（accounting-action-cards）内に配置されること。
-  it('DSH-FE-004b: Accounting の支払待ちカードが Grid レイアウトコンテナ内に配置される', () => {
+  // DSH-FE-004b: Accounting の支払待ちカードと MyReportCountCards が単一 Grid コンテナ（accounting-cards-row）内に配置されること（issue #169）。
+  it('DSH-FE-004b: Accounting の支払待ちカードと自分のレポートカードが単一 Grid コンテナ内に配置される', () => {
     renderDashboard('accounting', mockDashboardAccounting);
 
-    // data-testid="accounting-action-cards" の Grid コンテナが存在すること。
-    const actionCardsContainer = screen.getByTestId('accounting-action-cards');
-    expect(actionCardsContainer).toBeInTheDocument();
+    // data-testid="accounting-cards-row" の単一 Grid コンテナが存在すること（issue #169: Admin と同一構造）。
+    const cardsRow = screen.getByTestId('accounting-cards-row');
+    expect(cardsRow).toBeInTheDocument();
 
-    // コンテナ内に支払待ちラベルが存在すること（MyReportCountCards と同じ Grid 構造）。
-    expect(within(actionCardsContainer).getByText('支払待ち')).toBeInTheDocument();
+    // コンテナ内に支払待ちラベルが存在すること（MyReportCountCards と同じ Grid 内に収まる）。
+    expect(within(cardsRow).getByText('支払待ち')).toBeInTheDocument();
+
+    // コンテナ内に MyReportCountCards の 3 枚が含まれること。
+    expect(within(cardsRow).getByText('下書き')).toBeInTheDocument();
+    expect(within(cardsRow).getByText('提出中')).toBeInTheDocument();
+    expect(within(cardsRow).getByText('却下')).toBeInTheDocument();
   });
 
   // DSH-FE-NEW-A1: Admin ロールで TenantStatusCards の 5 枚カードが data-testid="tenant-status-cards" 配下に描画されること（issue #164）。
