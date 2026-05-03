@@ -83,7 +83,7 @@ const COLUMNS: GridColDef[] = [
     field: 'current_status',
     headerName: '現在ステータス',
     flex: 1,
-    minWidth: 140,
+    minWidth: 170,
     // StatusChip でバッジ表示する（approved=緑「承認済み」/ rejected=赤「却下」/ paid=紫「支払済み」）。
     renderCell: (params) => (
       <StatusChip status={params.row.current_status as ReportStatus} />
