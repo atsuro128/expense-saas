@@ -116,32 +116,36 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* Approver: 承認待ちカード。MyReportCountCards と同じ Grid レイアウト・余白で配置する */}
+      {/* Approver: 承認待ちカード。MyReportCountCards との行間余白も Admin と統一する（issue #169 対応） */}
       {isApprover && (
-        <Grid container spacing={2} data-testid="approver-action-cards">
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <CountCard
-              label="承認待ち"
-              count={dashboard.pending_approval_count ?? 0}
-              href="/approvals"
-              accentColor="info"
-            />
+        <Box sx={{ mt: 2 }}>
+          <Grid container spacing={2} data-testid="approver-action-cards">
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <CountCard
+                label="承認待ち"
+                count={dashboard.pending_approval_count ?? 0}
+                href="/approvals"
+                accentColor="info"
+              />
+            </Grid>
           </Grid>
-        </Grid>
+        </Box>
       )}
 
-      {/* Accounting: 支払待ちカード。MyReportCountCards と同じ Grid レイアウト・余白で配置する */}
+      {/* Accounting: 支払待ちカード。MyReportCountCards との行間余白も Admin と統一する（issue #169 対応） */}
       {isAccounting && (
-        <Grid container spacing={2} data-testid="accounting-action-cards">
-          <Grid size={{ xs: 12, sm: 4 }}>
-            <CountCard
-              label="支払待ち"
-              count={dashboard.pending_payment_count ?? 0}
-              href="/payments"
-              accentColor="success"
-            />
+        <Box sx={{ mt: 2 }}>
+          <Grid container spacing={2} data-testid="accounting-action-cards">
+            <Grid size={{ xs: 12, sm: 4 }}>
+              <CountCard
+                label="支払待ち"
+                count={dashboard.pending_payment_count ?? 0}
+                href="/payments"
+                accentColor="success"
+              />
+            </Grid>
           </Grid>
-        </Grid>
+        </Box>
       )}
 
       {/* Admin: テナント全体ステータスカード + メンバー数 */}
