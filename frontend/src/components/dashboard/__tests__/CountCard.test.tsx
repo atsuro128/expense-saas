@@ -113,9 +113,10 @@ describe('CountCard', () => {
     },
   );
 
-  // DSH-FE-014: accentColor="default" のとき borderTop 用のスタイルが適用されないこと。
+  // DSH-FE-014: accentColor="default" のとき borderColor が transparent となり、
+  // カードの高さは info などの色付きカードと同じになること（issue #168 対応）。
   // default と info で生成される CSS クラスが異なることを検証する。
-  it('DSH-FE-014: accentColor="default" で borderTop 用の追加スタイルが適用されない', () => {
+  it('DSH-FE-014: accentColor="default" で borderColor が transparent となり高さが揃う', () => {
     const { container: defaultContainer } = renderWithProviders(
       <CountCard label="下書き" count={2} accentColor="default" />,
     );
@@ -124,7 +125,7 @@ describe('CountCard', () => {
     );
     const defaultCard = defaultContainer.querySelector('.MuiCard-root') as HTMLElement;
     const infoCard = infoContainer.querySelector('.MuiCard-root') as HTMLElement;
-    // default と info で異なる CSS クラスが適用されること（borderTop/borderColor の有無）。
+    // default（transparent）と info（info.main）で異なる CSS クラスが適用されること。
     expect(defaultCard.className).not.toBe(infoCard.className);
   });
 
