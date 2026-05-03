@@ -54,7 +54,7 @@ const COLUMNS: GridColDef[] = [
     field: 'totalAmount',
     headerName: '合計金額',
     flex: 1,
-    minWidth: 100,
+    minWidth: 130,
     // 金額を 3 桁カンマ区切りで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
@@ -62,7 +62,7 @@ const COLUMNS: GridColDef[] = [
     field: 'status',
     headerName: 'ステータス',
     flex: 1,
-    minWidth: 100,
+    minWidth: 120,
     // StatusChip コンポーネントで色分け表示する。
     renderCell: (params) => <StatusChip status={params.value as ReportStatus} />,
   },
