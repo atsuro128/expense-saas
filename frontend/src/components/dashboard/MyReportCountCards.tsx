@@ -1,6 +1,10 @@
 // 自分のレポートステータス別件数カード群コンポーネント。
 // Member / Approver / Accounting ロールで表示する。
 // 55_ui_component/screens/dashboard.md §MyReportCountCards 準拠。
+//
+// このコンポーネントは Grid item 群のみを返す（Fragment）。
+// 外側の Grid container は DashboardPage 側で管理し、
+// Approver / Accounting が 4 枚カードを単一 Grid 内に並べられるようにする（issue #169）。
 
 import Grid from '@mui/material/Grid2';
 import CountCard from './CountCard';
@@ -15,7 +19,8 @@ export interface MyReportCountCardsProps {
 }
 
 /**
- * MyReportCountCards は自分のレポートをステータス別に集計した 3 枚のカードを表示する。
+ * MyReportCountCards は自分のレポートをステータス別に集計した 3 枚の Grid item を返す。
+ * 外側の Grid container は呼び出し元（DashboardPage）で管理する。
  */
 export default function MyReportCountCards({
   draftCount,
@@ -23,7 +28,7 @@ export default function MyReportCountCards({
   rejectedCount,
 }: MyReportCountCardsProps) {
   return (
-    <Grid container spacing={2} data-testid="my-report-count-cards">
+    <>
       <Grid size={{ xs: 12, sm: 4 }}>
         <CountCard label="下書き" count={draftCount} href="/reports?status=draft" />
       </Grid>
@@ -33,6 +38,6 @@ export default function MyReportCountCards({
       <Grid size={{ xs: 12, sm: 4 }}>
         <CountCard label="却下" count={rejectedCount} accentColor="error" href="/reports?status=rejected" />
       </Grid>
-    </Grid>
+    </>
   );
 }
