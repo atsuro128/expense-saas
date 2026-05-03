@@ -56,7 +56,7 @@ const COLUMNS: GridColDef[] = [
     field: 'total_amount',
     headerName: '合計金額',
     flex: 1,
-    minWidth: 100,
+    minWidth: 130,
     // 金額を ¥ プレフィックス付きで表示する。
     valueFormatter: (value: number) => `¥${value.toLocaleString()}`,
   },
@@ -64,7 +64,7 @@ const COLUMNS: GridColDef[] = [
     field: 'decision',
     headerName: '処理結果',
     flex: 1,
-    minWidth: 100,
+    minWidth: 120,
     // 処理結果バッジ（承認=緑、却下=赤）を表示する。
     renderCell: (params) => (
       <DecisionBadge decision={params.row.decision as 'approved' | 'rejected'} />
@@ -83,7 +83,7 @@ const COLUMNS: GridColDef[] = [
     field: 'current_status',
     headerName: '現在ステータス',
     flex: 1,
-    minWidth: 130,
+    minWidth: 140,
     // StatusChip でバッジ表示する（approved=緑「承認済み」/ rejected=赤「却下」/ paid=紫「支払済み」）。
     renderCell: (params) => (
       <StatusChip status={params.row.current_status as ReportStatus} />
