@@ -45,12 +45,22 @@ export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormPr
     <form onSubmit={handleSubmit(handleValidSubmit)} noValidate>
       <FormAlert message={apiError} severity="error" />
       {/* required: HTML5 required 属性を input にのみ付与（issue #140 案 A）。*/}
+      {/*
+       * type="text" + inputMode="email" の組み合わせ（issue #171 追加対応）。
+       * type="email" のままにすると Chromium/Edge の Autofill API 経路（連絡先帳メアド候補）に
+       * 流れ、autoComplete="username" によるパスワードマネージャー候補表示が抑制される。
+       * type="text" にすることでパスワードマネージャー候補表示経路に乗せつつ、
+       * inputMode="email" でモバイル端末の @ キー付きキーボードを維持する。
+       * HTML5 type=email ネイティブ検証は LoginForm が noValidate を設定済みのため実害なし。
+       * Zod (loginSchema) でクライアントサイドバリデーションを実施しているため問題なし。
+       */}
       <AppTextField
         {...register('email')}
         name="email"
         id="email"
         label="メールアドレス"
-        type="email"
+        type="text"
+        inputProps={{ inputMode: 'email' }}
         autoComplete="username"
         required
         disabled={isPending}
