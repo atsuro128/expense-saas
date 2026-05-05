@@ -523,38 +523,6 @@ export default function ReportDetailPage() {
     }
   };
 
-  /**
-   * 「保存して続けて追加」処理。
-   * 成功後は formKey をインクリメントして ItemSlidePanel を再マウントし、フォームをリセットする。
-   */
-  const handleItemSaveAndContinue = (data: ItemFormValues) => {
-    setItemApiError(null);
-    createItem.mutate(
-      {
-        reportId: report.id,
-        expense_date: data.expenseDate,
-        amount: data.amount,
-        category_id: data.categoryId,
-        description: data.description,
-      },
-      {
-        onSuccess: () => {
-          // formKey をインクリメントして ItemSlidePanel を再マウントし、フォームをリセットする。
-          setSelectedItem(null);
-          setFormKey((prev) => prev + 1);
-          lastModeRef.current = 'add';
-          setPanelState('add');
-          setToast({ open: true, severity: 'success', message: '明細を追加しました' });
-        },
-        onError: (err) => {
-          // client.ts 層でマッピング済みの err.message をそのまま使う。
-          const message = err instanceof Error ? err.message : '明細の追加に失敗しました';
-          setItemApiError(message);
-        },
-      },
-    );
-  };
-
   const isItemPending = createItem.isPending || updateItem.isPending;
 
   // ReportActionBar に渡す pendingAction。ワークフロー操作のペンディング状態を文字列として渡す。
@@ -625,7 +593,10 @@ export default function ReportDetailPage() {
         onClose={() => setPanelState('closed')}
         onSaveSuccess={() => setPanelState('closed')}
         onSaveAndContinue={() => {
+          // issue #170 修正: formKey インクリメントを移植（旧 handleItemSaveAndContinue から移動）。
+          // 子の handleAddModeSubmit で POST 完了後にここが呼ばれ、フォームを再マウントする。
           setSelectedItem(null);
+          setFormKey((prev) => prev + 1);
           lastModeRef.current = 'add';
           setPanelState('add');
         }}
@@ -641,7 +612,6 @@ export default function ReportDetailPage() {
         apiError={itemApiError}
         isPending={isItemPending}
         onItemSubmit={handleItemSubmit}
-        onItemSaveAndContinue={handleItemSaveAndContinue}
         reportPeriodStart={report.period_start}
         reportPeriodEnd={report.period_end}
       />

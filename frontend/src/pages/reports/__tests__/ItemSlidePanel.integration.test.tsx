@@ -908,6 +908,25 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
   });
 });
 
+// =============================================================================
+// issue #170 回帰テスト: ReportDetailPage 経由のテストに置換済み（codex 指摘 PR #132 対応）
+// =============================================================================
+// ItemSlidePanel 単体テストでは旧バグ（親の ReportDetailPage.handleItemSaveAndContinue 経由の
+// 2 回目 POST）を再現できない。onItemSaveAndContinue を渡さなければ else { onSaveAndContinueProp() }
+// 経路のみ通り、旧実装でも POST 1 回で済むため回帰防止にならない。
+//
+// 旧バグ再現確認結果（2026-05-05 実施）:
+//   ReportDetailPage.tsx に handleItemSaveAndContinue を復活させ（createItem.mutate を再呼び出し）、
+//   ItemSlidePanel.tsx に onItemSaveAndContinue 分岐を復活させた状態で
+//   ITM-FE-109 / ITM-FE-110 を実行したところ、postItemsCallCount が 2 となり両テストが FAIL した
+//   (expected 1 received 2)。正しい実装に戻すと PASS することも確認済み。
+//
+// 代替テスト: frontend/src/pages/reports/__tests__/ReportDetailPage.duplicate-item-prevention.test.tsx
+//   - ITM-FE-109: does_not_double_post_when_save_and_add_clicked_without_attachments
+//   - ITM-FE-110: does_not_double_post_when_save_and_add_clicked_with_attachments
+// =============================================================================
+
+
 // issue #134 回帰テスト: ItemSlidePanel 追加モード保存での err.message 画面表示テストは削除。
 // fetch モックで useCreateItem 経由の ApiClientError 発生を再現しようとしたが、jsdom 環境下で
 // setItemApiError 経由の DOM 反映が安定しないため、回帰検証としては不安定だった。
