@@ -51,6 +51,7 @@ export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormPr
         id="email"
         label="メールアドレス"
         type="email"
+        autoComplete="username"
         required
         disabled={isPending}
         errorMessage={errors.email?.message}
@@ -62,6 +63,7 @@ export default function LoginForm({ onSubmit, apiError, isPending }: LoginFormPr
         id="password"
         label="パスワード"
         type="password"
+        autoComplete="current-password"
         required
         disabled={isPending}
         errorMessage={errors.password?.message}

@@ -130,6 +130,28 @@ describe('LoginForm', () => {
     ).toBeInTheDocument();
   });
 
+  // AUTH-FE-077: ログインフォームのメールアドレス欄に autoComplete="username" が付与されていること（issue #171）。
+  it('AUTH-FE-077: sets_autocomplete_username_on_email_field', () => {
+    render(
+      <MemoryRouter>
+        <LoginForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('メールアドレス')).toHaveAttribute('autocomplete', 'username');
+  });
+
+  // AUTH-FE-078: ログインフォームのパスワード欄に autoComplete="current-password" が付与されていること（issue #171）。
+  it('AUTH-FE-078: sets_autocomplete_current_password_on_password_field', () => {
+    render(
+      <MemoryRouter>
+        <LoginForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('パスワード')).toHaveAttribute('autocomplete', 'current-password');
+  });
+
   // AUTH-FE-020: isPending=true のとき全フィールドとボタンが disabled になること。
   it('AUTH-FE-020: isPending=true のとき全フィールドとボタンが disabled になる', () => {
     render(
