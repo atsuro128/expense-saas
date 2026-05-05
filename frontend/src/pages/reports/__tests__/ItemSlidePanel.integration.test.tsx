@@ -908,6 +908,228 @@ describe('ItemSlidePanel 追加モード 保存時順次アップロード（ATT
   });
 });
 
+// =============================================================================
+// issue #170 回帰テスト: 「保存して続けて追加」で POST が 1 回のみであることを検証する
+// =============================================================================
+
+describe('ItemSlidePanel 「保存して続けて追加」重複登録防止（issue #170）', () => {
+  let originalFetch: typeof globalThis.fetch;
+
+  beforeEach(() => {
+    originalFetch = globalThis.fetch;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    vi.restoreAllMocks();
+  });
+
+  // issue #170: 「保存して続けて追加」押下後に POST /api/reports/{reportId}/items が 1 回のみ呼ばれる。
+  // 旧実装では子の handleAddModeSubmit + 親の handleItemSaveAndContinue から
+  // createItem.mutate が 2 回呼ばれ、重複登録が発生していた。
+  // 修正後は子の handleAddModeSubmit のみが POST を行い、親への再 mutate は廃止されている。
+  it('issue #170: 「保存して続けて追加」押下後に POST items が 1 回のみ呼ばれる', async () => {
+    const user = userEvent.setup();
+    const { Wrapper } = createWrapper();
+    const onSaveAndContinue = vi.fn();
+
+    // POST /api/reports/rpt-1/items の呼び出し回数を記録する。
+    let postItemsCallCount = 0;
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+      if (
+        method === 'POST' &&
+        (url as string).includes('/api/reports/rpt-1/items') &&
+        !(url as string).includes('/attachments')
+      ) {
+        postItemsCallCount++;
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-170-test',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-20',
+              amount: 3000,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: 'issue170 再現テスト',
+              attachments: [],
+              created_at: '2026-04-20T00:00:00Z',
+              updated_at: '2026-04-20T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      // GET 等はデフォルト空レスポンス。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          data: [],
+          pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+        }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={() => undefined}
+        onSaveSuccess={vi.fn()}
+        onSaveAndContinue={onSaveAndContinue}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-20');
+    await user.type(screen.getByLabelText(/金額/), '3000');
+    const categorySelect = screen.getByRole('combobox', { name: /カテゴリ/ });
+    await user.click(categorySelect);
+    await user.click(screen.getByRole('option', { name: '交通費' }));
+    await user.type(screen.getByLabelText(/摘要/), 'issue170 再現テスト');
+
+    // 「保存して続けて追加」ボタンをクリックする。
+    const saveAndContinueButton = screen.getByRole('button', { name: /保存して続けて追加/ });
+    await user.click(saveAndContinueButton);
+
+    // onSaveAndContinue が呼ばれるまで待機する。
+    await waitFor(() => {
+      expect(onSaveAndContinue).toHaveBeenCalledTimes(1);
+    });
+
+    // POST /api/reports/rpt-1/items が 1 回のみ呼ばれていること（重複防止）。
+    // 旧実装では子の handleAddModeSubmit + 親の handleItemSaveAndContinue から 2 回呼ばれていた。
+    expect(postItemsCallCount).toBe(1);
+  });
+
+  // issue #170: 添付ファイルあり「保存して続けて追加」でも POST items が 1 回のみ呼ばれる。
+  // 添付ファイルがある場合でも順次アップロード経路（handleAddModeSubmit 内）のみが走ることを確認する。
+  it('issue #170: 添付ファイルあり「保存して続けて追加」でも POST items は 1 回のみ', async () => {
+    const user = userEvent.setup();
+    const { Wrapper } = createWrapper();
+    const onSaveAndContinue = vi.fn();
+
+    let postItemsCallCount = 0;
+    let postAttachmentsCallCount = 0;
+
+    globalThis.fetch = vi.fn().mockImplementation(async (url: string, opts?: RequestInit) => {
+      const method = (opts?.method ?? 'GET').toUpperCase();
+      if (
+        method === 'POST' &&
+        (url as string).includes('/api/reports/rpt-1/items') &&
+        !(url as string).includes('/attachments')
+      ) {
+        postItemsCallCount++;
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'item-170-attach',
+              report_id: 'rpt-1',
+              expense_date: '2026-04-20',
+              amount: 5000,
+              category: { id: 'cat-001', code: 'transportation', name_ja: '交通費', sort_order: 1 },
+              description: '添付あり重複テスト',
+              attachments: [],
+              created_at: '2026-04-20T00:00:00Z',
+              updated_at: '2026-04-20T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      if (method === 'POST' && (url as string).includes('/attachments')) {
+        postAttachmentsCallCount++;
+        return {
+          ok: true,
+          status: 201,
+          headers: { get: () => null },
+          json: async () => ({
+            data: {
+              id: 'att-170-1',
+              item_id: 'item-170-attach',
+              file_name: 'receipt.jpg',
+              file_size: 1024,
+              mime_type: 'image/jpeg',
+              created_at: '2026-04-20T00:00:00Z',
+            },
+          }),
+        } as unknown as Response;
+      }
+      // GET 等はデフォルト空レスポンス。
+      return {
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        json: async () => ({
+          data: [],
+          pagination: { current_page: 1, per_page: 20, total_count: 0, total_pages: 0 },
+        }),
+      } as unknown as Response;
+    });
+
+    render(
+      <ItemSlidePanel
+        open={true}
+        mode="add"
+        item={null}
+        reportId="rpt-1"
+        reportStatus="draft"
+        isOwner={true}
+        onClose={() => undefined}
+        onSaveSuccess={vi.fn()}
+        onSaveAndContinue={onSaveAndContinue}
+        categories={[{ value: 'cat-001', label: '交通費' }]}
+      />,
+      { wrapper: Wrapper },
+    );
+
+    // 追加モードで AttachmentArea が描画されるまで待機する。
+    await waitFor(() => {
+      expect(screen.getByTestId('attachment-area')).toBeInTheDocument();
+    });
+
+    // 添付ファイル 1 件をローカル保留する。
+    const fileInput = screen.getByTestId('attachment-file-input');
+    const jpegFile = createMockFile('receipt.jpg', 1024, 'image/jpeg');
+    await user.upload(fileInput, jpegFile);
+
+    // フォームを入力する。
+    await user.type(screen.getByLabelText(/日付/), '2026-04-20');
+    await user.type(screen.getByLabelText(/金額/), '5000');
+    const categorySelect = screen.getByRole('combobox', { name: /カテゴリ/ });
+    await user.click(categorySelect);
+    await user.click(screen.getByRole('option', { name: '交通費' }));
+    await user.type(screen.getByLabelText(/摘要/), '添付あり重複テスト');
+
+    // 「保存して続けて追加」ボタンをクリックする。
+    const saveAndContinueButton = screen.getByRole('button', { name: /保存して続けて追加/ });
+    await user.click(saveAndContinueButton);
+
+    // onSaveAndContinue が呼ばれるまで待機する。
+    await waitFor(() => {
+      expect(onSaveAndContinue).toHaveBeenCalledTimes(1);
+    });
+
+    // POST items が 1 回のみ呼ばれていること（重複防止）。
+    expect(postItemsCallCount).toBe(1);
+    // 添付アップロードは 1 回呼ばれていること（順次アップロード経路が機能している）。
+    expect(postAttachmentsCallCount).toBe(1);
+  });
+});
+
 // issue #134 回帰テスト: ItemSlidePanel 追加モード保存での err.message 画面表示テストは削除。
 // fetch モックで useCreateItem 経由の ApiClientError 発生を再現しようとしたが、jsdom 環境下で
 // setItemApiError 経由の DOM 反映が安定しないため、回帰検証としては不安定だった。
