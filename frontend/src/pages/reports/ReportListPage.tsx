@@ -201,29 +201,35 @@ export default function ReportListPage() {
           selectDisplayProps={{ 'data-testid': 'report-list-filter-status' }}
         />
 
-        {/* 開始日フィルタ */}
-        <TextField
-          type="date"
-          size="small"
-          label="開始日"
-          InputLabelProps={{ shrink: true }}
-          inputProps={{ 'data-testid': 'report-list-filter-from', 'aria-label': '開始日' }}
-          value={from}
-          onChange={(e) => handleFromChange(e.target.value)}
-          sx={{ width: 170 }}
-        />
+        {/* 期間（開始日 + 終了日）グループ。
+         * 内側 Box でラップして「開始日と終了日は意味的にセット」を表現する。
+         * flexWrap で極小幅でも overflow しないよう保護。
+         */}
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+          {/* 開始日フィルタ */}
+          <TextField
+            type="date"
+            size="small"
+            label="開始日"
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ 'data-testid': 'report-list-filter-from', 'aria-label': '開始日' }}
+            value={from}
+            onChange={(e) => handleFromChange(e.target.value)}
+            sx={{ width: 160 }}
+          />
 
-        {/* 終了日フィルタ */}
-        <TextField
-          type="date"
-          size="small"
-          label="終了日"
-          InputLabelProps={{ shrink: true }}
-          inputProps={{ 'data-testid': 'report-list-filter-to', 'aria-label': '終了日' }}
-          value={to}
-          onChange={(e) => handleToChange(e.target.value)}
-          sx={{ width: 170 }}
-        />
+          {/* 終了日フィルタ */}
+          <TextField
+            type="date"
+            size="small"
+            label="終了日"
+            InputLabelProps={{ shrink: true }}
+            inputProps={{ 'data-testid': 'report-list-filter-to', 'aria-label': '終了日' }}
+            value={to}
+            onChange={(e) => handleToChange(e.target.value)}
+            sx={{ width: 160 }}
+          />
+        </Box>
       </Box>
 
       {/* テーブル領域: ローディング中はスケルトン表示、完了後は ReportListTable を表示（issue 116 対応） */}

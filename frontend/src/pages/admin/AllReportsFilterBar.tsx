@@ -84,32 +84,38 @@ export default function AllReportsFilterBar({
         sx={{ width: 140 }}
       />
 
-      {/* 期間（開始日）フィルタ */}
-      <AppDatePicker
-        name="from"
-        label="期間（開始日）"
-        value={filters.from}
-        onChange={(value) => onFilterChange({ ...filters, from: value })}
-        fullWidth={false}
-        sx={{ width: 170 }}
-      />
-
-      {/* 期間（終了日）フィルタ。
-       * バリデーションエラーは AppDatePicker の helperText（errorMessage props）で
-       * フィールド直下に表示する（M-1 対応）。
-       * helperText はフィールド内部に含まれるため flex item として独立せず、
-       * 申請者フィルタが次行に押し出される問題が発生しない。
-       * 別途 <p role="alert"> は削除し、二重表示問題を解消する。
+      {/* 期間（開始日 + 終了日）グループ。
+       * 内側 Box でラップして「開始日と終了日は意味的にセット」を表現する。
+       * flexWrap で極小幅でも overflow しないよう保護。
        */}
-      <AppDatePicker
-        name="to"
-        label="期間（終了日）"
-        value={filters.to}
-        onChange={(value) => onFilterChange({ ...filters, to: value })}
-        errorMessage={dateError}
-        fullWidth={false}
-        sx={{ width: 170 }}
-      />
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+        {/* 期間（開始日）フィルタ */}
+        <AppDatePicker
+          name="from"
+          label="期間（開始日）"
+          value={filters.from}
+          onChange={(value) => onFilterChange({ ...filters, from: value })}
+          fullWidth={false}
+          sx={{ width: 160 }}
+        />
+
+        {/* 期間（終了日）フィルタ。
+         * バリデーションエラーは AppDatePicker の helperText（errorMessage props）で
+         * フィールド直下に表示する（M-1 対応）。
+         * helperText はフィールド内部に含まれるため flex item として独立せず、
+         * 申請者フィルタが次行に押し出される問題が発生しない。
+         * 別途 <p role="alert"> は削除し、二重表示問題を解消する。
+         */}
+        <AppDatePicker
+          name="to"
+          label="期間（終了日）"
+          value={filters.to}
+          onChange={(value) => onFilterChange({ ...filters, to: value })}
+          errorMessage={dateError}
+          fullWidth={false}
+          sx={{ width: 160 }}
+        />
+      </Box>
 
       {/* 申請者フィルタ */}
       <AppSelect
