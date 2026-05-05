@@ -99,6 +99,17 @@ describe('PasswordResetRequestForm', () => {
     expect(screen.getByText('サーバーエラーが発生しました')).toBeInTheDocument();
   });
 
+  // AUTH-FE-081: パスワードリセット要求フォームのメールアドレス欄に autoComplete="email" が付与されていること（issue #171）。
+  it('AUTH-FE-081: sets_autocomplete_email_on_email_field', () => {
+    render(
+      <MemoryRouter>
+        <PasswordResetRequestForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('メールアドレス')).toHaveAttribute('autocomplete', 'email');
+  });
+
   // AUTH-FE-053: isPending=true のとき全フィールドとボタンが disabled になること。
   it('AUTH-FE-053: isPending=true のとき全フィールドとボタンが disabled になる', () => {
     render(

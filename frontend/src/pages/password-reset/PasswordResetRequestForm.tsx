@@ -58,6 +58,7 @@ export default function PasswordResetRequestForm({
         id="email"
         label="メールアドレス"
         type="email"
+        autoComplete="email"
         required
         disabled={isPending}
         errorMessage={errors.email?.message}

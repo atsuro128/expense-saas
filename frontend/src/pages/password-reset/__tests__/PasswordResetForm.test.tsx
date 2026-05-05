@@ -125,6 +125,28 @@ describe('PasswordResetForm', () => {
     expect(screen.getByText('サーバーエラーが発生しました')).toBeInTheDocument();
   });
 
+  // AUTH-FE-082: パスワードリセット実行フォームの新しいパスワード欄に autoComplete="new-password" が付与されていること（issue #171）。
+  it('AUTH-FE-082: sets_autocomplete_new_password_on_new_password_field', () => {
+    render(
+      <MemoryRouter>
+        <PasswordResetForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('新しいパスワード')).toHaveAttribute('autocomplete', 'new-password');
+  });
+
+  // AUTH-FE-083: パスワードリセット実行フォームの確認用パスワード欄に autoComplete="new-password" が付与されていること（issue #171）。
+  it('AUTH-FE-083: sets_autocomplete_new_password_on_confirm_password_field', () => {
+    render(
+      <MemoryRouter>
+        <PasswordResetForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('確認用パスワード')).toHaveAttribute('autocomplete', 'new-password');
+  });
+
   // AUTH-FE-070: isPending=true のとき全フィールドとボタンが disabled になること。
   it('AUTH-FE-070: isPending=true のとき全フィールドとボタンが disabled になる', () => {
     render(

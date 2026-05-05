@@ -58,6 +58,7 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
         id="new_password"
         label="新しいパスワード"
         type="password"
+        autoComplete="new-password"
         required
         disabled={isPending}
         errorMessage={errors.new_password?.message}
@@ -69,6 +70,7 @@ export default function PasswordResetForm({ onSubmit, apiError, isPending }: Pas
         id="confirm_password"
         label="確認用パスワード"
         type="password"
+        autoComplete="new-password"
         required
         disabled={isPending}
         errorMessage={errors.confirm_password?.message}
