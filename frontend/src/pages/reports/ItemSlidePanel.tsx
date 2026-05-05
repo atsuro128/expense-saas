@@ -5,6 +5,8 @@
 // ATT-FE-079〜083: 追加モードの順次アップロード制御（issue #115）。
 // issue #132: 保存成功後の dirty state リセット漏れ修正（beforeunload リスナ残存バグ）。
 // issue #132 codex blocker: 保存成功後に AttachmentAreaAddMode を再マウントして内部 pendingFiles をクリアする。
+// issue #170: 「保存して続けて追加」で POST が 2 回走る blocker を修正。
+//   onItemSaveAndContinue prop を廃止し、子の handleAddModeSubmit で完結させる。
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import Box from '@mui/material/Box';
@@ -82,8 +84,6 @@ export interface ItemSlidePanelProps {
   sequentialUploadProgress?: { completed: number; total: number };
   /** フォーム送信コールバック */
   onItemSubmit?: (data: ItemFormValues) => void;
-  /** 「保存して続けて追加」フォームコールバック */
-  onItemSaveAndContinue?: (data: ItemFormValues) => void;
 }
 
 /** 添付ファイルアップロード API のレスポンス型。 */
@@ -150,7 +150,6 @@ function ItemSlidePanelBody({
   isSequentialUploading: isSequentialUploadingProp = false,
   sequentialUploadProgress: sequentialUploadProgressProp,
   onItemSubmit,
-  onItemSaveAndContinue,
   reportPeriodStart,
   reportPeriodEnd,
   onTransitionExited,
@@ -478,21 +477,20 @@ function ItemSlidePanelBody({
     }
   };
 
-  // 「保存して続けて追加」ハンドラ（blocker 1 対応）。
+  // 「保存して続けて追加」ハンドラ（issue #170 修正）。
   // add モードでは handleAddModeSubmit を通すことで pendingFiles の順次アップロードが確実に実行される。
   // afterSubmit: フォームリセット + 続けて追加準備（onSaveAndContinueProp）
-  // edit モードでは従来どおり onItemSaveAndContinue / onSaveAndContinueProp に委譲する。
+  // edit モードでは onSaveAndContinueProp に委譲する。
+  // issue #170 修正: onItemSaveAndContinue prop を廃止し、常に onSaveAndContinueProp に一本化する。
+  //   旧実装では onItemSaveAndContinue 経由で親 ReportDetailPage.handleItemSaveAndContinue の
+  //   createItem.mutate が 2 回目の POST を発行していたため重複登録が発生していた。
   const handleSaveAndContinue =
     mode === 'add'
       ? (data: ItemFormValues) => {
           void handleAddModeSubmit(data, () => {
             // 「保存して続けて追加」の後続処理: フォームリセット + 次の明細入力準備。
-            // onItemSaveAndContinue が指定されている場合はそちらを呼ぶ（テスト用 override）。
-            if (onItemSaveAndContinue) {
-              onItemSaveAndContinue(data);
-            } else {
-              onSaveAndContinueProp();
-            }
+            // 子の handleAddModeSubmit で POST は完了済みのため、親への再 mutate は行わない。
+            onSaveAndContinueProp();
           });
         }
       : undefined;
