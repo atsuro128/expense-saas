@@ -185,6 +185,28 @@ describe('SignupForm', () => {
     expect(screen.getByText('このメールアドレスは既に登録されています')).toBeInTheDocument();
   });
 
+  // AUTH-FE-079: サインアップフォームのメールアドレス欄に autoComplete="email" が付与されていること（issue #171）。
+  it('AUTH-FE-079: sets_autocomplete_email_on_email_field', () => {
+    render(
+      <MemoryRouter>
+        <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('メールアドレス')).toHaveAttribute('autocomplete', 'email');
+  });
+
+  // AUTH-FE-080: サインアップフォームのパスワード欄に autoComplete="new-password" が付与されていること（issue #171）。
+  it('AUTH-FE-080: sets_autocomplete_new_password_on_password_field', () => {
+    render(
+      <MemoryRouter>
+        <SignupForm onSubmit={() => {}} apiError={null} isPending={false} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByLabelText('パスワード')).toHaveAttribute('autocomplete', 'new-password');
+  });
+
   // AUTH-FE-039: isPending=true のとき全フィールドとボタンが disabled になること。
   it('AUTH-FE-039: isPending=true のとき全フィールドとボタンが disabled になる', () => {
     render(

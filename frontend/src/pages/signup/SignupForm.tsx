@@ -73,6 +73,7 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
         id="email"
         label="メールアドレス"
         type="email"
+        autoComplete="email"
         required
         disabled={isPending}
         errorMessage={errors.email?.message}
@@ -84,6 +85,7 @@ export default function SignupForm({ onSubmit, apiError, isPending }: SignupForm
         id="password"
         label="パスワード"
         type="password"
+        autoComplete="new-password"
         required
         disabled={isPending}
         errorMessage={errors.password?.message}
