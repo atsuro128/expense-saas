@@ -131,6 +131,9 @@ describe('LoginForm', () => {
   });
 
   // AUTH-FE-077: ログインフォームのメールアドレス欄に autoComplete="username" が付与されていること（issue #171）。
+  // また type="text" + inputMode="email" で実装されていること（issue #171 追加対応）。
+  // type="email" のままでは Chromium/Edge の Autofill API 経路に流れ、
+  // パスワードマネージャー候補表示が抑制されるため type="text" に変更している。
   it('AUTH-FE-077: sets_autocomplete_username_on_email_field', () => {
     render(
       <MemoryRouter>
@@ -138,7 +141,12 @@ describe('LoginForm', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByLabelText('メールアドレス')).toHaveAttribute('autocomplete', 'username');
+    const emailInput = screen.getByLabelText('メールアドレス');
+    expect(emailInput).toHaveAttribute('autocomplete', 'username');
+    // type="text" であること（パスワードマネージャー候補表示経路のため email から変更）。
+    expect(emailInput).toHaveAttribute('type', 'text');
+    // inputmode="email" であること（モバイルで @ キー付きキーボードを維持）。
+    expect(emailInput).toHaveAttribute('inputmode', 'email');
   });
 
   // AUTH-FE-078: ログインフォームのパスワード欄に autoComplete="current-password" が付与されていること（issue #171）。
