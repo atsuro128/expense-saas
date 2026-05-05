@@ -2,8 +2,10 @@
 // ステータス・期間（開始日・終了日）・申請者のフィルタ入力を提供する。
 // 開始日が終了日より後の場合はバリデーションエラーを表示する。
 // 共通コンポーネント AppSelect / AppDatePicker を使用する。
+// flex-wrap レイアウトで mobile では自動折り返し（issue #165 対応）。
 // 55_ui_component/screens/admin-all-reports.md §AllReportsFilterBar 参照。
 
+import Box from '@mui/material/Box';
 import AppSelect from '../../components/ui/AppSelect';
 import AppDatePicker from '../../components/ui/AppDatePicker';
 import type { UserSummary } from '../../api/types';
@@ -67,7 +69,10 @@ export default function AllReportsFilterBar({
   ];
 
   return (
-    <div data-testid="all-reports-filter-bar">
+    <Box
+      data-testid="all-reports-filter-bar"
+      sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}
+    >
       {/* ステータスフィルタ */}
       <AppSelect
         name="status"
@@ -75,6 +80,8 @@ export default function AllReportsFilterBar({
         options={STATUS_OPTIONS}
         value={filters.status}
         onChange={(value) => onFilterChange({ ...filters, status: value })}
+        fullWidth={false}
+        sx={{ width: 140 }}
       />
 
       {/* 期間（開始日）フィルタ */}
@@ -83,21 +90,26 @@ export default function AllReportsFilterBar({
         label="期間（開始日）"
         value={filters.from}
         onChange={(value) => onFilterChange({ ...filters, from: value })}
+        fullWidth={false}
+        sx={{ width: 170 }}
       />
 
-      {/* 期間（終了日）フィルタ。バリデーションエラーをフィールド直下に表示する。 */}
+      {/* 期間（終了日）フィルタ。
+       * バリデーションエラーは AppDatePicker の helperText（errorMessage props）で
+       * フィールド直下に表示する（M-1 対応）。
+       * helperText はフィールド内部に含まれるため flex item として独立せず、
+       * 申請者フィルタが次行に押し出される問題が発生しない。
+       * 別途 <p role="alert"> は削除し、二重表示問題を解消する。
+       */}
       <AppDatePicker
         name="to"
         label="期間（終了日）"
         value={filters.to}
         onChange={(value) => onFilterChange({ ...filters, to: value })}
         errorMessage={dateError}
+        fullWidth={false}
+        sx={{ width: 170 }}
       />
-      {dateError && (
-        <p role="alert" data-testid="date-error">
-          {dateError}
-        </p>
-      )}
 
       {/* 申請者フィルタ */}
       <AppSelect
@@ -107,8 +119,10 @@ export default function AllReportsFilterBar({
         value={filters.submitterId}
         onChange={(value) => onFilterChange({ ...filters, submitterId: value })}
         disabled={membersLoading}
+        fullWidth={false}
+        sx={{ width: 200 }}
       />
       {membersLoading && <span data-testid="members-loading">読み込み中...</span>}
-    </div>
+    </Box>
   );
 }

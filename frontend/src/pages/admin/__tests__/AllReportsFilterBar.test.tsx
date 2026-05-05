@@ -16,9 +16,13 @@ vi.mock('../../../components/ui/AppSelect', () => ({
 }));
 vi.mock('../../../components/ui/AppDatePicker', () => ({
   // value/onChange 型が string に統一されたことを反映する（null 不使用）。
+  // errorMessage が渡された場合は helperText としてフィールド直下に表示する（M-1 対応）。
   default: (props: { label: string; value: string; onChange: (v: string) => void; errorMessage?: string }) => (
     <div>
       <input type="date" aria-label={props.label} value={props.value} onChange={(e) => props.onChange(e.target.value)} />
+      {props.errorMessage && (
+        <span role="alert" data-testid="date-error">{props.errorMessage}</span>
+      )}
     </div>
   ),
 }));
@@ -194,5 +198,45 @@ describe('AllReportsFilterBar', () => {
     const allOption = statusSelect.querySelector('option[value=""]');
     expect(allOption).toBeInTheDocument();
     expect(allOption).toHaveTextContent('全て');
+  });
+
+  // TNT-FE-054: フィルタエリアのコンテナ要素が MUI Box で flex-wrap レイアウトを持つこと（issue #165）。
+  it('TNT-FE-054: all-reports-filter-bar コンテナが存在し 4 つのフィルタ要素が描画される', () => {
+    render(
+      <AllReportsFilterBar
+        filters={defaultFilters}
+        onFilterChange={mockOnFilterChange}
+        members={mockMembers}
+        membersLoading={false}
+      />
+    );
+
+    // data-testid="all-reports-filter-bar" のコンテナが描画されること。
+    const filterBar = screen.getByTestId('all-reports-filter-bar');
+    expect(filterBar).toBeInTheDocument();
+
+    // flex-wrap レイアウトの検証。
+    // JSDOM 環境では emotion の sx prop は計算済み CSS にならないため、
+    // window.getComputedStyle での flexWrap 検証は機能しない（W-1 JSDOM 制約）。
+    // 代わりにコンテナ存在と各フィルタ要素の DOM 存在・親子関係を検証して
+    // flex-wrap 構造の意図（sx={{ display: 'flex', flexWrap: 'wrap' }}）を粗く担保する。
+    // 実 CSS の flex-wrap 検証は E2E テスト（Playwright 等）で行うこと。
+
+    // コンテナ内に 4 つのフィルタ要素（ステータス・開始日・終了日・申請者）が存在すること。
+    const statusSelect = screen.getByRole('combobox', { name: 'ステータス' });
+    const fromInput = screen.getByLabelText('期間（開始日）');
+    const toInput = screen.getByLabelText('期間（終了日）');
+    const submitterSelect = screen.getByRole('combobox', { name: '申請者' });
+
+    expect(statusSelect).toBeInTheDocument();
+    expect(fromInput).toBeInTheDocument();
+    expect(toInput).toBeInTheDocument();
+    expect(submitterSelect).toBeInTheDocument();
+
+    // 各フィルタ要素が filterBar コンテナ内に含まれること（DOM 親子関係を検証）。
+    expect(filterBar).toContainElement(statusSelect);
+    expect(filterBar).toContainElement(fromInput);
+    expect(filterBar).toContainElement(toInput);
+    expect(filterBar).toContainElement(submitterSelect);
   });
 });

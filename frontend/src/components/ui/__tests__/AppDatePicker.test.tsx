@@ -131,4 +131,38 @@ describe('AppDatePicker', () => {
 
     expect(screen.getByLabelText('テスト日付')).toBeDisabled();
   });
+
+  // ADT-008: fullWidth={false} を渡したとき、MuiFormControl-fullWidth クラスが付かないこと（issue #165 AppDatePicker fullWidth Props 化検証）。
+  it('ADT-008: fullWidth={false} のとき MuiFormControl-fullWidth クラスが input の親要素に付かない', () => {
+    const { container } = render(
+      <AppDatePicker
+        name="testDate"
+        label="テスト日付"
+        value=""
+        onChange={() => undefined}
+        fullWidth={false}
+      />
+    );
+
+    // MUI TextField は fullWidth=false のとき root の div に MuiFormControl-fullWidth クラスを付与しない。
+    const formControl = container.querySelector('.MuiFormControl-root');
+    expect(formControl).toBeInTheDocument();
+    expect(formControl).not.toHaveClass('MuiFormControl-fullWidth');
+  });
+
+  // ADT-009: fullWidth prop 未指定（デフォルト）のとき、後方互換として MuiFormControl-fullWidth クラスが付くこと（issue #165）。
+  it('ADT-009: fullWidth 未指定（デフォルト true）のとき MuiFormControl-fullWidth クラスが付く', () => {
+    const { container } = render(
+      <AppDatePicker
+        name="testDate"
+        label="テスト日付"
+        value=""
+        onChange={() => undefined}
+      />
+    );
+
+    const formControl = container.querySelector('.MuiFormControl-root');
+    expect(formControl).toBeInTheDocument();
+    expect(formControl).toHaveClass('MuiFormControl-fullWidth');
+  });
 });

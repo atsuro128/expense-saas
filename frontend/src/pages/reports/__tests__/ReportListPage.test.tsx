@@ -402,6 +402,52 @@ describe('ReportListPage', () => {
     });
   });
 
+  // RPT-FE-117: フィルタエリアが flex-wrap レイアウトで構成され、各フィルタ要素が存在すること（issue #165）。
+  // フィルタエリアの Box が data-testid="report-list-filter" で取得でき、
+  // ステータス・開始日・終了日の各入力要素が含まれること。
+  it('RPT-FE-117: フィルタエリアが flex-wrap 構造で描画され、各フィルタ要素が存在する', async () => {
+    mockUseMyReports.mockReturnValue({
+      data: {
+        data: mockReports,
+        pagination: { current_page: 1, per_page: 20, total_count: 3, total_pages: 1 },
+      },
+      isLoading: false,
+      isError: false,
+      error: null,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } as any);
+
+    renderPage('/reports');
+
+    // data-testid="report-list-filter" のコンテナが描画されること。
+    const filterBox = screen.getByTestId('report-list-filter');
+    expect(filterBox).toBeInTheDocument();
+
+    // flex-wrap レイアウトの検証。
+    // JSDOM 環境では emotion の sx prop は計算済み CSS にならないため、
+    // window.getComputedStyle での flexWrap 検証は機能しない（W-1 JSDOM 制約）。
+    // 代わりにコンテナ要素の存在と各フィルタ要素の DOM 存在を検証することで
+    // flex-wrap 構造の意図（sx={{ display: 'flex', flexWrap: 'wrap' }}）を粗く担保する。
+    // 実 CSS の flex-wrap 検証は E2E テスト（Playwright 等）で行うこと。
+
+    // ステータスフィルタ（AppSelect）が存在すること。
+    expect(screen.getByTestId('report-list-filter-status')).toBeInTheDocument();
+
+    // 開始日フィルタが存在すること。
+    // input[type="date"] は JSDOM で role="textbox" として認識されないため data-testid で取得する（B-1 対応）。
+    const fromInput = screen.getByTestId('report-list-filter-from');
+    expect(fromInput).toBeInTheDocument();
+
+    // 終了日フィルタが存在すること。
+    // 同様に data-testid で取得する（B-1 対応）。
+    const toInput = screen.getByTestId('report-list-filter-to');
+    expect(toInput).toBeInTheDocument();
+
+    // フィルタ要素が filterBox コンテナ内に含まれること（DOM 親子関係を検証）。
+    expect(filterBox).toContainElement(fromInput);
+    expect(filterBox).toContainElement(toInput);
+  });
+
   // REGRESSION-ReportListPage-1: codex 指摘の回帰防止テスト。
   // 初期状態（status=''）でステータスフィルタの combobox 内に「すべて」が表示されること。
   // AppSelect の displayEmpty={!!placeholder} 変更（PR #55）で「すべて」が消える回帰を検出する。
