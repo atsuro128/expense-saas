@@ -177,10 +177,13 @@ export default function ReportListPage() {
         </Button>
       </Box>
 
-      {/* フィルター（ローディング中も常時表示。初期値は URL クエリから取得済み） */}
+      {/* フィルター（ローディング中も常時表示。初期値は URL クエリから取得済み）
+       * flex-wrap で mobile では自動折り返し（issue #165 対応）。
+       * 各要素に固定幅を指定して PC では横並び、375px では 2 列以上に折り返す。
+       */}
       <Box
         data-testid="report-list-filter"
-        sx={{ display: 'flex', gap: 2, mb: 2, alignItems: 'center' }}
+        sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}
       >
         {/*
          * ステータスフィルタ。
@@ -194,6 +197,7 @@ export default function ReportListPage() {
           value={status}
           onChange={handleStatusChange}
           fullWidth={false}
+          sx={{ width: 140 }}
           selectDisplayProps={{ 'data-testid': 'report-list-filter-status' }}
         />
 
@@ -206,6 +210,7 @@ export default function ReportListPage() {
           inputProps={{ 'data-testid': 'report-list-filter-from', 'aria-label': '開始日' }}
           value={from}
           onChange={(e) => handleFromChange(e.target.value)}
+          sx={{ width: 170 }}
         />
 
         {/* 終了日フィルタ */}
@@ -217,6 +222,7 @@ export default function ReportListPage() {
           inputProps={{ 'data-testid': 'report-list-filter-to', 'aria-label': '終了日' }}
           value={to}
           onChange={(e) => handleToChange(e.target.value)}
+          sx={{ width: 170 }}
         />
       </Box>
 
