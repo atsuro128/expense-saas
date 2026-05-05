@@ -95,10 +95,11 @@ export default function AllReportsFilterBar({
       />
 
       {/* 期間（終了日）フィルタ。
-       * バリデーションエラーは AppDatePicker の helperText（errorMessage）で
-       * フィールド直下に表示する。
-       * flex 配置でも helperText はフィールド内部に含まれるため崩れない。
-       * 別途 <p role="alert"> も維持して既存テストと互換性を保つ。
+       * バリデーションエラーは AppDatePicker の helperText（errorMessage props）で
+       * フィールド直下に表示する（M-1 対応）。
+       * helperText はフィールド内部に含まれるため flex item として独立せず、
+       * 申請者フィルタが次行に押し出される問題が発生しない。
+       * 別途 <p role="alert"> は削除し、二重表示問題を解消する。
        */}
       <AppDatePicker
         name="to"
@@ -109,11 +110,6 @@ export default function AllReportsFilterBar({
         fullWidth={false}
         sx={{ width: 170 }}
       />
-      {dateError && (
-        <p role="alert" data-testid="date-error">
-          {dateError}
-        </p>
-      )}
 
       {/* 申請者フィルタ */}
       <AppSelect

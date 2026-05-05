@@ -423,16 +423,29 @@ describe('ReportListPage', () => {
     const filterBox = screen.getByTestId('report-list-filter');
     expect(filterBox).toBeInTheDocument();
 
+    // flex-wrap レイアウトの検証。
+    // JSDOM 環境では emotion の sx prop は計算済み CSS にならないため、
+    // window.getComputedStyle での flexWrap 検証は機能しない（W-1 JSDOM 制約）。
+    // 代わりにコンテナ要素の存在と各フィルタ要素の DOM 存在を検証することで
+    // flex-wrap 構造の意図（sx={{ display: 'flex', flexWrap: 'wrap' }}）を粗く担保する。
+    // 実 CSS の flex-wrap 検証は E2E テスト（Playwright 等）で行うこと。
+
     // ステータスフィルタ（AppSelect）が存在すること。
     expect(screen.getByTestId('report-list-filter-status')).toBeInTheDocument();
 
-    // 開始日フィルタが存在すること（aria-label で取得）。
-    const fromInput = screen.getByRole('textbox', { name: '開始日' });
+    // 開始日フィルタが存在すること。
+    // input[type="date"] は JSDOM で role="textbox" として認識されないため data-testid で取得する（B-1 対応）。
+    const fromInput = screen.getByTestId('report-list-filter-from');
     expect(fromInput).toBeInTheDocument();
 
-    // 終了日フィルタが存在すること（aria-label で取得）。
-    const toInput = screen.getByRole('textbox', { name: '終了日' });
+    // 終了日フィルタが存在すること。
+    // 同様に data-testid で取得する（B-1 対応）。
+    const toInput = screen.getByTestId('report-list-filter-to');
     expect(toInput).toBeInTheDocument();
+
+    // フィルタ要素が filterBox コンテナ内に含まれること（DOM 親子関係を検証）。
+    expect(filterBox).toContainElement(fromInput);
+    expect(filterBox).toContainElement(toInput);
   });
 
   // REGRESSION-ReportListPage-1: codex 指摘の回帰防止テスト。
