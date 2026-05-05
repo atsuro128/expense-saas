@@ -3,6 +3,7 @@
 // テスト時に document.querySelector('input[name="..."]') でアクセス可能にする。
 // ui-guidelines.md §7 準拠。
 
+import type { SxProps, Theme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 
 export interface AppDatePickerProps {
@@ -22,6 +23,17 @@ export interface AppDatePickerProps {
   required?: boolean;
   /** 無効化 */
   disabled?: boolean;
+  /**
+   * TextField の fullWidth を制御する。
+   * デフォルト true（後方互換性維持）。
+   * フィルタエリア等で幅を制限したい場合は false を指定する。
+   */
+  fullWidth?: boolean;
+  /**
+   * TextField に渡す MUI sx prop。
+   * フィルタエリアで width を指定する場合に使用する（例: `sx={{ width: 170 }}`）。
+   */
+  sx?: SxProps<Theme>;
 }
 
 /**
@@ -39,6 +51,8 @@ export default function AppDatePicker({
   errorMessage,
   required = false,
   disabled = false,
+  fullWidth = true,
+  sx,
 }: AppDatePickerProps) {
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     // 空文字をそのまま返す（null 変換しない）。
@@ -55,10 +69,11 @@ export default function AppDatePicker({
       onChange={handleChange}
       onBlur={onBlur}
       size="small"
-      fullWidth
+      fullWidth={fullWidth}
       disabled={disabled}
       error={!!errorMessage}
       helperText={errorMessage}
+      sx={sx}
       slotProps={{
         inputLabel: { shrink: true },
         // required は input 要素にのみ設定し、ラベルへの「*」付与を避ける。

@@ -2,6 +2,7 @@
 // size="small" と fullWidth をデフォルト化し、空選択肢のプレースホルダーを統一する。
 
 import type { HTMLAttributes } from 'react';
+import type { SxProps, Theme } from '@mui/material/styles';
 import FormControl from '@mui/material/FormControl';
 import FormHelperText from '@mui/material/FormHelperText';
 import InputLabel from '@mui/material/InputLabel';
@@ -62,6 +63,11 @@ export interface AppSelectProps {
    * HTMLAttributes に加えてカスタムデータ属性（data-*）を受け付ける。
    */
   selectDisplayProps?: HTMLAttributes<HTMLDivElement> & { [key: string]: unknown };
+  /**
+   * FormControl に渡す MUI sx prop。
+   * フィルタエリアで width を指定する場合に使用する（例: `sx={{ width: 140 }}`）。
+   */
+  sx?: SxProps<Theme>;
 }
 
 /**
@@ -91,6 +97,7 @@ export default function AppSelect({
   fullWidth = true,
   selectDisplayProps,
   onBlur,
+  sx,
 }: AppSelectProps) {
   const labelId = `${name}-label`;
 
@@ -129,6 +136,7 @@ export default function AppSelect({
       fullWidth={fullWidth}
       error={!!errorMessage}
       disabled={disabled}
+      sx={sx}
     >
       <InputLabel id={labelId} shrink={shouldShrink}>
         {label}

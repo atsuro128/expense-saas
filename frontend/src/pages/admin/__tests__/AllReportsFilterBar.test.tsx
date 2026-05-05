@@ -195,4 +195,26 @@ describe('AllReportsFilterBar', () => {
     expect(allOption).toBeInTheDocument();
     expect(allOption).toHaveTextContent('全て');
   });
+
+  // TNT-FE-054: フィルタエリアのコンテナ要素が MUI Box で flex-wrap レイアウトを持つこと（issue #165）。
+  it('TNT-FE-054: all-reports-filter-bar コンテナが存在し 4 つのフィルタ要素が描画される', () => {
+    render(
+      <AllReportsFilterBar
+        filters={defaultFilters}
+        onFilterChange={mockOnFilterChange}
+        members={mockMembers}
+        membersLoading={false}
+      />
+    );
+
+    // data-testid="all-reports-filter-bar" のコンテナが描画されること。
+    const filterBar = screen.getByTestId('all-reports-filter-bar');
+    expect(filterBar).toBeInTheDocument();
+
+    // コンテナ内に 4 つのフィルタ要素（ステータス・開始日・終了日・申請者）が存在すること。
+    expect(screen.getByRole('combobox', { name: 'ステータス' })).toBeInTheDocument();
+    expect(screen.getByLabelText('期間（開始日）')).toBeInTheDocument();
+    expect(screen.getByLabelText('期間（終了日）')).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: '申請者' })).toBeInTheDocument();
+  });
 });
