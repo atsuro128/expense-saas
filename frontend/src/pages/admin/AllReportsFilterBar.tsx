@@ -71,7 +71,7 @@ export default function AllReportsFilterBar({
   return (
     <Box
       data-testid="all-reports-filter-bar"
-      sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}
+      sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, mb: 2 }}
     >
       {/* ステータスフィルタ */}
       <AppSelect
