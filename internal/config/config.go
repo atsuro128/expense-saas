@@ -2,18 +2,22 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
+	"strconv"
 )
 
 // Config は環境変数から読み込んだアプリケーション設定を保持する。
 type Config struct {
-	DatabaseURL        string // DATABASE_URL（必須）
-	AppDatabaseURL     string // APP_DATABASE_URL（必須）
-	JWTPrivateKeyPath  string // JWT_PRIVATE_KEY_PATH
-	JWTPublicKeyPath   string // JWT_PUBLIC_KEY_PATH
-	CORSAllowedOrigins string // CORS_ALLOWED_ORIGINS
-	LogLevel           string // LOG_LEVEL（デフォルト: "info"）
-	Port               string // PORT（デフォルト: "8080"）
+	DatabaseURL              string // DATABASE_URL（必須）
+	AppDatabaseURL           string // APP_DATABASE_URL（必須）
+	JWTPrivateKeyPath        string // JWT_PRIVATE_KEY_PATH
+	JWTPublicKeyPath         string // JWT_PUBLIC_KEY_PATH
+	CORSAllowedOrigins       string // CORS_ALLOWED_ORIGINS
+	LogLevel                 string // LOG_LEVEL（デフォルト: "info"）
+	Port                     string // PORT（デフォルト: "8080"）
+	LoginRateLimitPerMinute  int    // LOGIN_RATE_LIMIT_PER_MINUTE（デフォルト: 5）
+	UnauthRateLimitPerMinute int    // UNAUTH_RATE_LIMIT_PER_MINUTE（デフォルト: 20）
 }
 
 // LoadConfig は環境変数から設定を読み込み、Config を返す。
@@ -49,13 +53,47 @@ func LoadConfig() (*Config, error) {
 		port = "8080"
 	}
 
+	// ログインエンドポイントのレート制限値（security.md §4.4）。
+	// 未設定または空文字の場合はデフォルト値 5 を使用する。
+	loginRateLimit, err := parsePositiveIntEnv("LOGIN_RATE_LIMIT_PER_MINUTE", 5)
+	if err != nil {
+		return nil, err
+	}
+
+	// 未認証エンドポイントのグローバル IP レート制限値（security.md §4.4）。
+	// 未設定または空文字の場合はデフォルト値 20 を使用する。
+	unauthRateLimit, err := parsePositiveIntEnv("UNAUTH_RATE_LIMIT_PER_MINUTE", 20)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
-		DatabaseURL:        databaseURL,
-		AppDatabaseURL:     appDatabaseURL,
-		JWTPrivateKeyPath: jwtPrivateKeyPath,
-		JWTPublicKeyPath:  jwtPublicKeyPath,
-		CORSAllowedOrigins: os.Getenv("CORS_ALLOWED_ORIGINS"),
-		LogLevel:           logLevel,
-		Port:               port,
+		DatabaseURL:              databaseURL,
+		AppDatabaseURL:           appDatabaseURL,
+		JWTPrivateKeyPath:        jwtPrivateKeyPath,
+		JWTPublicKeyPath:         jwtPublicKeyPath,
+		CORSAllowedOrigins:       os.Getenv("CORS_ALLOWED_ORIGINS"),
+		LogLevel:                 logLevel,
+		Port:                     port,
+		LoginRateLimitPerMinute:  loginRateLimit,
+		UnauthRateLimitPerMinute: unauthRateLimit,
 	}, nil
+}
+
+// parsePositiveIntEnv は環境変数 key を正の整数としてパースして返す。
+// 未設定または空文字の場合は defaultVal を返す。
+// 不正値（非数値・0・負数）の場合はエラーを返す。
+func parsePositiveIntEnv(key string, defaultVal int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return defaultVal, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %s must be an integer: %w", key, err)
+	}
+	if v <= 0 {
+		return 0, fmt.Errorf("environment variable %s must be a positive integer, got %d", key, v)
+	}
+	return v, nil
 }
