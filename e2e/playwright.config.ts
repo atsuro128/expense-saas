@@ -33,9 +33,11 @@ export default defineConfig({
   workers: 1,
 
   // レポーター設定。
+  // JSON reporter を追加することで指揮役がテスト結果を構造化形式で参照可能にする。
   reporter: [
     ['list'],
     ['html', { outputFolder: '../playwright-report', open: 'never' }],
+    ['json', { outputFile: '../test-results/results.json' }],
   ],
 
   // 全テスト共通の設定。

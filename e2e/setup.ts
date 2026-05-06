@@ -53,6 +53,13 @@ export type AccountRole = keyof typeof TEST_ACCOUNTS;
 export async function loginAs(page: Page, role: AccountRole): Promise<void> {
   const account = TEST_ACCOUNTS[role];
 
+  // ログイン前に sessionStorage をクリアして前テストのセッションが残らないようにする。
+  // フロントエンドは sessionStorage にトークンを保持し（stores/auth.ts 参照）、
+  // トークンが残っていると /login が /dashboard へリダイレクトされてフォームが表示されない。
+  await page.evaluate(() => {
+    sessionStorage.clear();
+  });
+
   // ログインページに遷移する。
   await page.goto('/login');
 
@@ -102,15 +109,16 @@ export async function getAccessToken(
 
 /**
  * ログアウト処理を行う。
- * ブラウザのローカルストレージをクリアして /login にリダイレクトする。
+ * sessionStorage をクリアして /login にリダイレクトする。
+ * フロントエンドは sessionStorage にトークンを保持するため（stores/auth.ts 参照）、
+ * sessionStorage.clear() で確実にセッションをリセットする。
  *
  * @param page - Playwright の Page オブジェクト。
  */
 export async function logout(page: Page): Promise<void> {
-  // ローカルストレージのトークンをクリアする（AuthStore のキー）。
+  // sessionStorage のトークンをクリアする（stores/auth.ts のキー: auth.access_token / auth.refresh_token）。
   await page.evaluate(() => {
-    localStorage.removeItem('access_token');
-    localStorage.removeItem('refresh_token');
+    sessionStorage.clear();
   });
 
   // /login にリダイレクトする。

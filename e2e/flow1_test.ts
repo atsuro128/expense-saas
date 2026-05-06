@@ -90,9 +90,9 @@ test('CRS-055: フロー1 - 申請 → 承認 → 支払完了', async ({ page, 
     // レポート詳細ページにいることを確認する。
     await expect(page).toHaveURL(new RegExp(`/reports/${reportId}$`));
 
-    // 「明細を追加」ボタンをクリックしてスライドパネルを開く。
-    // ItemListHeader の「明細を追加」ボタンをクリックする。
-    await page.locator('button', { hasText: '明細を追加' }).click();
+    // 「明細追加」ボタンをクリックしてスライドパネルを開く。
+    // ItemListHeader の「明細追加」ボタンをクリックする（実際のボタンテキストに合わせる）。
+    await page.locator('button', { hasText: '明細追加' }).click();
 
     // スライドパネルが開くのを待つ（ItemSlidePanel の Drawer）。
     await page.waitForSelector('[role="presentation"]', { timeout: 10_000 });

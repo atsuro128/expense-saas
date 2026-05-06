@@ -65,8 +65,8 @@ test('CRS-066: フロー2 - 却下 → 再申請', async ({ page, request }) => 
     originalReportId = extractReportIdFromUrl(page);
     expect(originalReportId).toBeTruthy();
 
-    // 明細追加スライドパネルを開く。
-    await page.locator('button', { hasText: '明細を追加' }).click();
+    // 明細追加スライドパネルを開く（実際のボタンテキストに合わせる）。
+    await page.locator('button', { hasText: '明細追加' }).click();
     await page.waitForSelector('[role="presentation"]', { timeout: 10_000 });
 
     // 明細を入力する。
@@ -421,8 +421,9 @@ async function getCategoryId(
     throw new Error(`カテゴリ一覧取得に失敗しました: ${resp.status()}`);
   }
 
-  const body = await resp.json() as Array<{ id: string; code: string }>;
-  const category = body.find((c) => c.code === code);
+  // GET /api/categories は { data: [...] } 形式で返す（category.go の RespondJSON 参照）。
+  const body = await resp.json() as { data: Array<{ id: string; code: string }> };
+  const category = body.data.find((c) => c.code === code);
   if (!category) {
     throw new Error(`カテゴリが見つかりません: ${code}`);
   }
