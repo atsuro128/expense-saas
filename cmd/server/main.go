@@ -162,7 +162,7 @@ func main() {
 	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Logger)
-	r.Use(middleware.RateLimitByIP(bgCtx, 20, time.Minute))
+	r.Use(middleware.RateLimitByIP(bgCtx, cfg.UnauthRateLimitPerMinute, time.Minute))
 
 	// 9. 認証不要なルート。
 	r.Group(func(pub chi.Router) {
@@ -171,7 +171,7 @@ func main() {
 		pub.Post("/api/auth/signup", authHandler.Signup)
 		// ログイン専用レートリミット（security.md §3.3: 5 req/min/IP）。
 		// 公開ルート全体の 20 req/min より厳しい制限を個別に適用する。
-		pub.With(middleware.RateLimitByIP(bgCtx, 5, time.Minute)).Post("/api/auth/login", authHandler.Login)
+		pub.With(middleware.RateLimitByIP(bgCtx, cfg.LoginRateLimitPerMinute, time.Minute)).Post("/api/auth/login", authHandler.Login)
 		pub.Post("/api/auth/refresh", authHandler.RefreshToken)
 		pub.Post("/api/auth/logout", authHandler.Logout)
 		pub.Post("/api/auth/password-reset", authHandler.RequestPasswordReset)

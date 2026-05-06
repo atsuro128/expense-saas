@@ -156,6 +156,10 @@ services:
       AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-minioadmin}
       S3_BUCKET: ${S3_BUCKET:-expense-saas-receipts-dev}
       AWS_REGION: ${AWS_REGION:-ap-northeast-1}
+      # レート制限値（開発・E2E 環境用に緩和、issue #172）
+      # 本番（env 未設定）はデフォルト値: ログイン 5/min、未認証 20/min
+      LOGIN_RATE_LIMIT_PER_MINUTE: ${LOGIN_RATE_LIMIT_PER_MINUTE:-100}
+      UNAUTH_RATE_LIMIT_PER_MINUTE: ${UNAUTH_RATE_LIMIT_PER_MINUTE:-200}
     volumes:
       - ./keys:/app/keys:ro
 
