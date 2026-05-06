@@ -120,7 +120,12 @@ test('CRS-066: フロー2 - 却下 → 再申請', async ({ page, request }) => 
     // サイドバーのナビゲーションリンク（RouterLink → <a href="/approvals">）をクリックして
     // SPA 内ナビゲーションを使用することで auth.ts のメモリキャッシュを維持する
     // （screens.md §4.3 サイドナビゲーション準拠）。
-    await page.locator('a[href="/approvals"]').click();
+    //
+    // getByRole + exact: true でサイドナビの「承認待ち」リンクに絞る。
+    // ダッシュボードの CountCard（href="/approvals"）はラベル「承認待ち」＋件数テキストを含む
+    // ため、exact: true での完全一致によりサイドナビのみにマッチする
+    // （screens.md §4.3 サイドナビゲーション準拠）。
+    await page.getByRole('link', { name: '承認待ち', exact: true }).click();
     await page.waitForURL(/\/approvals/, { timeout: 10_000 });
     await page.waitForSelector('[data-testid="pending-approvals-page"]', { timeout: 15_000 });
 

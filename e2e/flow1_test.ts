@@ -183,7 +183,12 @@ test('CRS-055: フロー1 - 申請 → 承認 → 支払完了', async ({ page, 
     // サイドバーのナビゲーションリンク（RouterLink → <a href="/approvals">）をクリックして
     // SPA 内ナビゲーションを使用することで auth.ts のメモリキャッシュを維持する
     // （screens.md §4.3 サイドナビゲーション準拠）。
-    await page.locator('a[href="/approvals"]').click();
+    //
+    // getByRole + exact: true でサイドナビの「承認待ち」リンクに絞る。
+    // ダッシュボードの CountCard（href="/approvals"）はラベル「承認待ち」＋件数テキストを含む
+    // ため、exact: true での完全一致によりサイドナビのみにマッチする
+    // （screens.md §4.3 サイドナビゲーション準拠）。
+    await page.getByRole('link', { name: '承認待ち', exact: true }).click();
     await page.waitForURL(/\/approvals/, { timeout: 10_000 });
 
     // ページが表示されるのを待つ。
@@ -253,7 +258,12 @@ test('CRS-055: フロー1 - 申請 → 承認 → 支払完了', async ({ page, 
     // サイドバーのナビゲーションリンク（RouterLink → <a href="/payments">）をクリックして
     // SPA 内ナビゲーションを使用することで auth.ts のメモリキャッシュを維持する
     // （screens.md §4.3 サイドナビゲーション準拠）。
-    await page.locator('a[href="/payments"]').click();
+    //
+    // getByRole + exact: true でサイドナビの「支払待ち」リンクに絞る。
+    // ダッシュボードの CountCard（href="/payments"）はラベル「支払待ち」＋件数テキストを含む
+    // ため、exact: true での完全一致によりサイドナビのみにマッチする
+    // （screens.md §4.3 サイドナビゲーション準拠）。
+    await page.getByRole('link', { name: '支払待ち', exact: true }).click();
     await page.waitForURL(/\/payments/, { timeout: 10_000 });
 
     // ページが表示されるのを待つ。
