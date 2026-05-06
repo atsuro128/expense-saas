@@ -53,14 +53,21 @@ export type AccountRole = keyof typeof TEST_ACCOUNTS;
 export async function loginAs(page: Page, role: AccountRole): Promise<void> {
   const account = TEST_ACCOUNTS[role];
 
-  // ログイン前に sessionStorage をクリアして前テストのセッションが残らないようにする。
+  // まず origin に到達するために /login に遷移する。
+  // page が about:blank のままだと Same-Origin Policy により sessionStorage へのアクセスが
+  // SecurityError で拒否されるため、storage クリアより先に goto を実行する必要がある。
+  await page.goto('/login');
+
+  // origin 上で sessionStorage をクリアして前テストのセッションが残らないようにする。
   // フロントエンドは sessionStorage にトークンを保持し（stores/auth.ts 参照）、
   // トークンが残っていると /login が /dashboard へリダイレクトされてフォームが表示されない。
   await page.evaluate(() => {
     sessionStorage.clear();
   });
 
-  // ログインページに遷移する。
+  // クリア後に再度 /login に遷移する。
+  // 既ログイン状態のまま最初の goto をした場合、ダッシュボードにリダイレクトされている
+  // 可能性があるため、clears 後に再度 /login へ誘導してフォームを確実に表示させる。
   await page.goto('/login');
 
   // ログインフォームに入力する。
@@ -116,12 +123,18 @@ export async function getAccessToken(
  * @param page - Playwright の Page オブジェクト。
  */
 export async function logout(page: Page): Promise<void> {
-  // sessionStorage のトークンをクリアする（stores/auth.ts のキー: auth.access_token / auth.refresh_token）。
+  // まず origin に到達するために /login に遷移する。
+  // page が about:blank のままだと Same-Origin Policy により sessionStorage へのアクセスが
+  // SecurityError で拒否されるため、storage クリアより先に goto を実行する必要がある。
+  // ログイン済みの場合は /dashboard へリダイレクトされることがあるが、goto 自体は成功する。
+  await page.goto('/login');
+
+  // origin 上で sessionStorage のトークンをクリアする（stores/auth.ts のキー: auth.access_token / auth.refresh_token）。
   await page.evaluate(() => {
     sessionStorage.clear();
   });
 
-  // /login にリダイレクトする。
+  // クリア後に再度 /login に遷移して、ログアウト後の状態（ログインフォーム表示）を確認する。
   await page.goto('/login');
   await page.waitForURL('**/login', { timeout: 10_000 });
 }
