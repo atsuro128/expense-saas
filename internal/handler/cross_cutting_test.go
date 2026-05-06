@@ -130,7 +130,8 @@ func TestTenantIsolation_UpdateReport_OtherTenant_404(t *testing.T) {
 	srv, _ := setupCrossCuttingTest(t)
 
 	url := "/api/reports/" + testutil.ReportTenantBDraftID
-	body := bytes.NewBufferString(`{"title":"cross-tenant-update","period_start":"2026-03-01","period_end":"2026-03-31"}`)
+	// updated_at はバリデーションを通過させるためのダミー値（実値不要: テナント越境は認可チェックで 404 になる）。
+	body := bytes.NewBufferString(`{"title":"cross-tenant-update","period_start":"2026-03-01","period_end":"2026-03-31","updated_at":"2026-03-01T00:00:00Z"}`)
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	rec := srv.Execute(req)
@@ -209,11 +210,13 @@ func TestTenantIsolation_UpdateItem_OtherTenant_404(t *testing.T) {
 	itemBID := testutil.CreateItem(t, pool, tenantBID, reportBID, catID)
 
 	url := "/api/reports/" + reportBID.String() + "/items/" + itemBID.String()
+	// updated_at はバリデーションを通過させるためのダミー値（実値不要: テナント越境は認可チェックで 404 になる）。
 	body := bytes.NewBufferString(fmt.Sprintf(`{
 		"expense_date":"2026-03-10",
 		"amount":2000,
 		"category_id":"%s",
-		"description":"cross-tenant-item-update"
+		"description":"cross-tenant-item-update",
+		"updated_at":"2026-03-01T00:00:00Z"
 	}`, catID.String()))
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserMemberID, testutil.TenantAID, "member")
@@ -450,13 +453,17 @@ func TestRBAC_Admin_CanEditOwnReport(t *testing.T) {
 		testutil.WithReportStatus(domain.ReportStatusDraft),
 	)
 
+	// 楽観的ロック検証を通すため、DB から実際の updated_at を取得する。
+	adminReportUpdatedAt := getReportUpdatedAt(t, pool, adminReportID.String())
+
 	// Admin のトークンで自分のレポートを更新する。
 	url := "/api/reports/" + adminReportID.String()
-	body := bytes.NewBufferString(`{
+	body := bytes.NewBufferString(fmt.Sprintf(`{
 		"title":"Admin own report (updated)",
 		"period_start":"2026-03-01",
-		"period_end":"2026-03-31"
-	}`)
+		"period_end":"2026-03-31",
+		"updated_at":"%s"
+	}`, adminReportUpdatedAt))
 	req := srv.AuthRequest(t, http.MethodPut, url, body,
 		testutil.UserAdminID, testutil.TenantAID, "admin")
 	rec := srv.Execute(req)
