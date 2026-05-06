@@ -291,28 +291,49 @@ func TestRateLimit_AuthenticatedRequests_ExceedsLimit_429(t *testing.T) {
 	}
 }
 
-// CRS-077: 未認証リクエストのレート制限超過 → 429 Too Many Requests。
-// 認証なしで POST /api/auth/login に unauthLimit+1 回連続送信し、429 が返ることを確認する。
-// security.md §4.1: 未認証リクエスト 20 req/min/IP。
-// newRateLimitedTestServer で global ミドルウェアとして RateLimitByIP(unauthLimit) を適用しているため、
-// 本番（cmd/server/main.go:165）と同じ IP ベース global 経路を経由して制限が発動する。
+// CRS-077: 未認証リクエストのグローバル IP 制限超過 → 429 Too Many Requests。
+// security.md §4.1: 未認証リクエスト 20 req/min/IP（global RateLimitByIP で実現）。
+//
+// 設計上の制限経路の分離:
+//   - global ミドルウェア: RateLimitByIP(unauthLimit) — 全ルートに適用（CRS-077 の検証対象）
+//   - ログイン専用: RateLimitByIP(loginLimit) — /api/auth/login にのみ追加適用（CRS-078 の検証対象）
+//
+// CRS-077 は global IP 制限（unauthLimit）を検証する。ログイン専用制限（CRS-078）との経路分離を
+// 明確にするため、ログイン専用制限が二重適用されない /health エンドポイントを使用する。
+// unauthLimit=5（小さく）、loginLimit=100（大きく）として、unauthLimit+1 回目の 429 が
+// global RateLimitByIP(unauthLimit) で発生することを保証する。
 func TestRateLimit_Unauthenticated_Login_ExceedsLimit_429(t *testing.T) {
-	// テスト用に制限値を小さくして高速化する。
-	const loginLimit = 3
-	srv, _ := setupRateLimitTest(t, 100, 20, loginLimit, 10)
+	// unauthLimit=5（小さく）: global IP 制限を低い値に設定してすぐ発動させる。
+	// loginLimit=100（大きく）: ログイン専用制限が先に発動しないようにして経路を分離する。
+	// /health エンドポイントを使用: global RateLimitByIP(unauthLimit) のみ適用され、
+	//   /api/auth/login の二重適用（ログイン専用制限）を受けないため、
+	//   unauthLimit+1 回目の 429 が必ず global IP 制限で発生することを保証できる。
+	const unauthLimit = 5
+	srv, _ := setupRateLimitTest(t, 100, unauthLimit, 100, 10)
 
-	var lastRec *httptest.ResponseRecorder
-	for i := 0; i <= loginLimit; i++ {
-		body := bytes.NewBufferString(`{"email":"nonexistent@example.com","password":"WrongPass1!"}`)
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/api/auth/login", body)
+	// unauthLimit 回目までは 200 OK が返ること（global IP 制限内）。
+	for i := 0; i < unauthLimit; i++ {
+		req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
 		if err != nil {
 			t.Fatalf("TestRateLimit_Unauthenticated_Login_ExceedsLimit_429: request creation error: %v", err)
 		}
-		req.Header.Set("Content-Type", "application/json")
-		lastRec = srv.execute(req)
+		rec := srv.execute(req)
+		// 制限内なので 200 OK が返ること（CRS-077: global IP 制限の正常経路確認）。
+		if rec.Code != http.StatusOK {
+			t.Errorf("TestRateLimit_Unauthenticated_Login_ExceedsLimit_429: request %d: got %d, want %d（制限内は 200 OK）",
+				i+1, rec.Code, http.StatusOK)
+		}
 	}
 
-	// loginLimit+1 回目は 429 Too Many Requests が返る（CRS-077）。
+	// unauthLimit+1 回目: global RateLimitByIP(unauthLimit=5) で 429 が返ること（CRS-077）。
+	// この 429 はログイン専用制限（loginLimit=100 に設定）ではなく、
+	// global IP 制限（unauthLimit=5）で発生していることを示す。
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/health", nil)
+	if err != nil {
+		t.Fatalf("TestRateLimit_Unauthenticated_Login_ExceedsLimit_429: request creation error: %v", err)
+	}
+	lastRec := srv.execute(req)
+
 	testutil.AssertStatus(t, lastRec, http.StatusTooManyRequests)
 	testutil.AssertErrorCode(t, lastRec, "RATE_LIMIT_EXCEEDED")
 
@@ -322,15 +343,21 @@ func TestRateLimit_Unauthenticated_Login_ExceedsLimit_429(t *testing.T) {
 }
 
 // CRS-078: ログイン試行のレート制限超過 → 429 Too Many Requests。
-// POST /api/auth/login を loginLimit+1 回送信し、429 が返ることを確認する。
+// POST /api/auth/login を loginLimit+1 回送信し、loginLimit 回目までは 401 が返り、
+// loginLimit+1 回目（i==loginLimit）で 429 が返ることを確認する。
 // security.md §4.1: ログイン試行 5 req/min/IP（テストでは 3 で代用）。
+//
+// 各リクエストの期待ステータス:
+//   - i < loginLimit: 401 INVALID_CREDENTIALS（認証情報不正 → ログイン専用制限内）
+//   - i == loginLimit（loginLimit+1 回目）: 429 RATE_LIMIT_EXCEEDED + Retry-After
 func TestRateLimit_LoginAttempts_ExceedsLimit_429(t *testing.T) {
-	// テスト用に制限値を小さくして高速化する。
+	// loginLimit=3（小さく）: ログイン専用制限を低い値に設定する。
+	// unauthLimit=100（大きく）: global IP 制限が先に発動して干渉しないようにする。
+	// これにより i==loginLimit の 429 がログイン専用制限で発生することを保証する。
 	const loginLimit = 3
-	srv, _ := setupRateLimitTest(t, 100, 20, loginLimit, 10)
+	srv, _ := setupRateLimitTest(t, 100, 100, loginLimit, 10)
 
-	var last429Seen bool
-	for i := 0; i <= loginLimit; i++ {
+	for i := 0; i < loginLimit; i++ {
 		body := bytes.NewBufferString(`{"email":"nonexistent@example.com","password":"WrongPass1!"}`)
 		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/api/auth/login", body)
 		if err != nil {
@@ -338,27 +365,47 @@ func TestRateLimit_LoginAttempts_ExceedsLimit_429(t *testing.T) {
 		}
 		req.Header.Set("Content-Type", "application/json")
 		rec := srv.execute(req)
-		if rec.Code == http.StatusTooManyRequests {
-			last429Seen = true
-			// Retry-After ヘッダーを確認する。
-			if rec.Header().Get("Retry-After") == "" {
-				t.Error("TestRateLimit_LoginAttempts_ExceedsLimit_429: Retry-After ヘッダーが含まれていない（CRS-078）")
-			}
+		// loginLimit 回目までは 401 INVALID_CREDENTIALS が返ること（ログイン専用制限内）。
+		if rec.Code != http.StatusUnauthorized {
+			t.Errorf("TestRateLimit_LoginAttempts_ExceedsLimit_429: request %d: got %d, want %d（制限内は 401）",
+				i+1, rec.Code, http.StatusUnauthorized)
 		}
 	}
 
-	if !last429Seen {
-		t.Error("TestRateLimit_LoginAttempts_ExceedsLimit_429: loginLimit 超過後に 429 が返っていない（CRS-078）")
+	// loginLimit+1 回目（i==loginLimit）: ログイン専用 RateLimitByIP(loginLimit=3) で 429 が返ること（CRS-078）。
+	// unauthLimit=100 に設定しているため、global IP 制限の干渉を受けずにログイン専用制限のみが発動する。
+	body := bytes.NewBufferString(`{"email":"nonexistent@example.com","password":"WrongPass1!"}`)
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, "/api/auth/login", body)
+	if err != nil {
+		t.Fatalf("TestRateLimit_LoginAttempts_ExceedsLimit_429: request creation error: %v", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+	lastRec := srv.execute(req)
+
+	testutil.AssertStatus(t, lastRec, http.StatusTooManyRequests)
+	testutil.AssertErrorCode(t, lastRec, "RATE_LIMIT_EXCEEDED")
+
+	if lastRec.Header().Get("Retry-After") == "" {
+		t.Error("TestRateLimit_LoginAttempts_ExceedsLimit_429: Retry-After ヘッダーが含まれていない（CRS-078）")
 	}
 }
 
 // CRS-079: ファイルアップロードのレート制限超過 → 429 Too Many Requests。
-// POST .../attachments を uploadLimit+1 回送信し、429 が返ることを確認する。
+// POST .../attachments を uploadLimit+1 回送信し、uploadLimit 回目までは 201/422 が返り、
+// uploadLimit+1 回目（i==uploadLimit）で 429 が返ることを確認する。
 // security.md §4.1: ファイルアップロード 10 req/min/user_id（テストでは 3 で代用）。
+//
+// 各リクエストの期待ステータス:
+//   - i < uploadLimit: 201 Created または 422（バリデーション等）。アップロード専用制限内。
+//   - i == uploadLimit（uploadLimit+1 回目）: 429 RATE_LIMIT_EXCEEDED + Retry-After
 func TestRateLimit_FileUpload_ExceedsLimit_429(t *testing.T) {
-	// テスト用に制限値を小さくして高速化する。
+	// uploadLimit=3（小さく）: アップロード専用制限を低い値に設定する。
+	// authLimit=100（大きく）: 認証済みユーザー制限が先に発動して干渉しないようにする。
+	// unauthLimit=100（大きく）: global IP 制限が先に発動して干渉しないようにする。
+	// loginLimit=100（大きく）: ログイン専用制限の干渉を排除する。
+	// これにより i==uploadLimit の 429 がアップロード専用制限のみで発生することを保証する。
 	const uploadLimit = 3
-	srv, pool := setupRateLimitTest(t, 100, 20, 5, uploadLimit)
+	srv, pool := setupRateLimitTest(t, 100, 100, 100, uploadLimit)
 
 	// アップロード先のレポートと明細を用意する（report_draft + item_draft を使用）。
 	reportID := testutil.ReportDraftID
@@ -366,8 +413,8 @@ func TestRateLimit_FileUpload_ExceedsLimit_429(t *testing.T) {
 
 	uploadURL := fmt.Sprintf("/api/reports/%s/items/%s/attachments", reportID, itemID)
 
-	var last429Seen bool
-	for i := 0; i <= uploadLimit; i++ {
+	// uploadLimit 回目までは 201 Created または 422 が返ること（アップロード専用制限内）。
+	for i := 0; i < uploadLimit; i++ {
 		// ダミーの JPEG ファイル（1KB）をアップロードする。
 		jpegContent := makeJPEGContentForRateLimitTest()
 		body := &bytes.Buffer{}
@@ -389,17 +436,42 @@ func TestRateLimit_FileUpload_ExceedsLimit_429(t *testing.T) {
 		req.Header.Set("Content-Type", writer.FormDataContentType())
 		rec := srv.execute(req)
 
-		if rec.Code == http.StatusTooManyRequests {
-			last429Seen = true
-			if rec.Header().Get("Retry-After") == "" {
-				t.Error("TestRateLimit_FileUpload_ExceedsLimit_429: Retry-After ヘッダーが含まれていない（CRS-079）")
-			}
+		// 制限内なので 201 Created または 422 が返ること（CRS-079）。
+		// 422 はバリデーションエラー（同一ファイル名の重複等）で発生する場合がある。
+		if rec.Code != http.StatusCreated && rec.Code != http.StatusUnprocessableEntity {
+			t.Errorf("TestRateLimit_FileUpload_ExceedsLimit_429: request %d: got %d, want 201 or 422（制限内）",
+				i+1, rec.Code)
 		}
 	}
 
+	// uploadLimit+1 回目（i==uploadLimit）: アップロード専用 RateLimitByUser(uploadLimit=3) で 429 が返ること（CRS-079）。
+	// authLimit=100 / unauthLimit=100 / loginLimit=100 に設定しているため、他制限の干渉を受けない。
+	jpegContent := makeJPEGContentForRateLimitTest()
+	body := &bytes.Buffer{}
+	writer := multipart.NewWriter(body)
+	part, err := writer.CreatePart(textproto.MIMEHeader{
+		"Content-Disposition": []string{fmt.Sprintf(`form-data; name="file"; filename="test-%d.jpg"`, uploadLimit)},
+		"Content-Type":        []string{"image/jpeg"},
+	})
+	if err != nil {
+		t.Fatalf("TestRateLimit_FileUpload_ExceedsLimit_429: CreatePart error: %v", err)
+	}
+	if _, err := part.Write(jpegContent); err != nil {
+		t.Fatalf("TestRateLimit_FileUpload_ExceedsLimit_429: Write error: %v", err)
+	}
+	writer.Close()
+
+	req := srv.authRequest(t, http.MethodPost, uploadURL, body,
+		testutil.UserMemberID, testutil.TenantAID, "member")
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	lastRec := srv.execute(req)
+
 	_ = pool // pool はフィクスチャ投入で使用済み
-	if !last429Seen {
-		t.Error("TestRateLimit_FileUpload_ExceedsLimit_429: uploadLimit 超過後に 429 が返っていない（CRS-079）")
+	testutil.AssertStatus(t, lastRec, http.StatusTooManyRequests)
+	testutil.AssertErrorCode(t, lastRec, "RATE_LIMIT_EXCEEDED")
+
+	if lastRec.Header().Get("Retry-After") == "" {
+		t.Error("TestRateLimit_FileUpload_ExceedsLimit_429: Retry-After ヘッダーが含まれていない（CRS-079）")
 	}
 }
 
@@ -417,20 +489,30 @@ func makeJPEGContentForRateLimitTest() []byte {
 
 // CRS-080: レート制限超過時のレスポンスボディが RATE_LIMIT_EXCEEDED コードを含む。
 // security.md §5.2 準拠のエラーレスポンス形式の確認。
+// 制限内リクエストが 200 OK、limit+1 回目が 429 であることも確認する。
 func TestRateLimit_ResponseBody_ContainsRetryAfter(t *testing.T) {
-	// テスト用に制限値を小さくして高速化する。
+	// authLimit=2（小さく）: 制限超過を素早く発動させる。
+	// unauthLimit=100（大きく）: global IP 制限の干渉を排除する。
+	// loginLimit=100 / uploadLimit=100: 他制限の干渉を排除する。
 	const limit = 2
-	srv, _ := setupRateLimitTest(t, limit, 20, 5, 10)
+	srv, _ := setupRateLimitTest(t, limit, 100, 100, 100)
 
-	// 制限値を超えるリクエストを送信する。
-	var lastRec *httptest.ResponseRecorder
-	for i := 0; i <= limit; i++ {
+	// limit 回目までは 200 OK が返ること（制限内）。
+	for i := 0; i < limit; i++ {
 		req := srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
 			testutil.UserMemberID, testutil.TenantAID, "member")
-		lastRec = srv.execute(req)
+		rec := srv.execute(req)
+		if rec.Code != http.StatusOK {
+			t.Errorf("TestRateLimit_ResponseBody_ContainsRetryAfter: request %d: got %d, want %d（制限内は 200 OK）",
+				i+1, rec.Code, http.StatusOK)
+		}
 	}
 
-	// 最後のレスポンスが 429 であることを確認する。
+	// limit+1 回目: 429 が返ること。
+	lastRec := srv.execute(srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
+		testutil.UserMemberID, testutil.TenantAID, "member"))
+
+	// limit+1 回目のレスポンスが 429 であることを確認する。
 	testutil.AssertStatus(t, lastRec, http.StatusTooManyRequests)
 
 	// レスポンスボディの形式確認（security.md §5.2 準拠）。
