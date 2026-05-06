@@ -130,10 +130,14 @@ func newRateLimitedTestServer(
 	ctx := context.Background()
 
 	// ルーター（レート制限ミドルウェア付き）。
+	// cmd/server/main.go:165 と同様に、グローバルに IP ベースのレート制限を適用する。
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	// 本番（cmd/server/main.go:165）の global ミドルウェア配置を再現する。
+	// 未認証エンドポイントを含む全ルートに IP ベースのレート制限が適用される（CRS-077）。
+	r.Use(middleware.RateLimitByIP(ctx, unauthLimit, window))
 
-	// 未認証ルート（未認証レート制限 + ログイン専用レート制限を適用）。
+	// 未認証ルート（グローバル未認証レート制限 + ログイン専用レート制限を適用）。
 	r.Group(func(pub chi.Router) {
 		pub.Get("/health", handler.NewHealthHandler(pool))
 		pub.Post("/api/auth/signup", authHandler.Signup)
@@ -142,16 +146,12 @@ func newRateLimitedTestServer(
 		pub.Post("/api/auth/password-reset", authHandler.RequestPasswordReset)
 		pub.Put("/api/auth/password-reset/{token}", authHandler.ExecutePasswordReset)
 
-		// ログインエンドポイントは未認証レート制限 + ログイン専用レート制限（二重）を適用する。
+		// ログインエンドポイントはグローバル IP 制限 + ログイン専用レート制限（二重）を適用する。
 		// security.md §4.4: ログインエンドポイントには専用の 5 req/min/IP を適用。
 		pub.With(
 			middleware.RateLimitByIP(ctx, loginLimit, window),
 		).Post("/api/auth/login", authHandler.Login)
 	})
-
-	// 未認証リクエスト全般のレート制限（全公開ルートに適用）。
-	// テストシナリオでは login エンドポイントのみ検証するため、login ルートにのみ適用。
-	_ = unauthLimit // 未認証リクエスト全般の制限値（ログインと同じ IP ベース）
 
 	// 認証済みグループ（認証済みレート制限を適用）。
 	r.Group(func(priv chi.Router) {
@@ -292,9 +292,10 @@ func TestRateLimit_AuthenticatedRequests_ExceedsLimit_429(t *testing.T) {
 }
 
 // CRS-077: 未認証リクエストのレート制限超過 → 429 Too Many Requests。
-// 認証なしで GET /api/auth/login に unauthLimit+1 回連続送信し、429 が返ることを確認する。
-// security.md §4.1: 未認証リクエスト 20 req/min/IP（テストでは loginLimit で代用）。
-// 注意: unauthLimit は login ルートのみに適用されるため、loginLimit で代替する。
+// 認証なしで POST /api/auth/login に unauthLimit+1 回連続送信し、429 が返ることを確認する。
+// security.md §4.1: 未認証リクエスト 20 req/min/IP。
+// newRateLimitedTestServer で global ミドルウェアとして RateLimitByIP(unauthLimit) を適用しているため、
+// 本番（cmd/server/main.go:165）と同じ IP ベース global 経路を経由して制限が発動する。
 func TestRateLimit_Unauthenticated_Login_ExceedsLimit_429(t *testing.T) {
 	// テスト用に制限値を小さくして高速化する。
 	const loginLimit = 3
@@ -524,8 +525,15 @@ func TestRateLimit_DifferentUsers_IndependentLimits(t *testing.T) {
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	recMemberOver := srv.execute(reqMemberOver)
 
-	// userMember は制限超過で 429 になる可能性がある（ここではステータス記録のみ）。
-	_ = recMemberOver
+	// userMember は制限超過で 429 Too Many Requests が返ること（CRS-082）。
+	testutil.AssertStatus(t, recMemberOver, http.StatusTooManyRequests)
+
+	// userAccounting は userMember のカウンターに影響されず、まだ制限に達していないため 200 OK が返ること。
+	// user_id ベースのレート制限の独立性を確認する（CRS-082）。
+	reqAccountingAfter := srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
+		testutil.UserAccountingID, testutil.TenantAID, "accounting")
+	recAccountingAfter := srv.execute(reqAccountingAfter)
+	testutil.AssertStatus(t, recAccountingAfter, http.StatusOK)
 }
 
 // =============================================================================
@@ -764,10 +772,12 @@ func TestResponseTime_FileUpload_5MB_Under5s(t *testing.T) {
 	t.Logf("TestResponseTime_FileUpload_5MB_Under5s: elapsed=%.2fms, status=%d（CRS-088）",
 		float64(elapsed)/float64(time.Millisecond), rec.Code)
 
-	// 201 Created または 422（バリデーションエラー）を許容する。
+	// 201 Created または 422（バリデーションエラー）を期待する。
 	// テスト環境（インメモリ S3 モック）では実際のストレージ通信なしでアップロード処理が行われる。
+	// cross-cutting.md §4 CRS-088: アップロード完了まで 5 秒以下であること（ステータス検証を含む）。
 	if rec.Code != http.StatusCreated && rec.Code != http.StatusUnprocessableEntity {
-		t.Logf("TestResponseTime_FileUpload_5MB_Under5s: status=%d (body: %s)", rec.Code, rec.Body.String())
+		t.Errorf("TestResponseTime_FileUpload_5MB_Under5s: unexpected status %d, want 201 or 422 (body: %s)（CRS-088）",
+			rec.Code, rec.Body.String())
 	}
 
 	// 5 秒閾値の確認（CRS-088）。
