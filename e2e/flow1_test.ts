@@ -177,8 +177,13 @@ test('CRS-055: フロー1 - 申請 → 承認 → 支払完了', async ({ page, 
   // CRS-061: 承認待ち一覧表示
   // ------------------------------------------------------------
   await test.step('CRS-061: 承認待ち一覧に提出済みレポートが表示される', async () => {
-    // 承認待ち一覧ページに遷移する（AppSidebar または CountCard のリンクから）。
-    await page.goto('/approvals');
+    // 承認待ち一覧ページに遷移する。
+    // page.goto() は SPA を再ロードするため auth.ts のメモリキャッシュがリセットされ
+    // PrivateRoute が未認証と誤判定する可能性がある。
+    // サイドバーのナビゲーションリンク（RouterLink → <a href="/approvals">）をクリックして
+    // SPA 内ナビゲーションを使用することで auth.ts のメモリキャッシュを維持する
+    // （screens.md §4.3 サイドナビゲーション準拠）。
+    await page.locator('a[href="/approvals"]').click();
     await page.waitForURL(/\/approvals/, { timeout: 10_000 });
 
     // ページが表示されるのを待つ。
@@ -243,7 +248,12 @@ test('CRS-055: フロー1 - 申請 → 承認 → 支払完了', async ({ page, 
   // ------------------------------------------------------------
   await test.step('CRS-064: 支払対象一覧に承認済みレポートが表示される', async () => {
     // 支払待ち一覧ページに遷移する。
-    await page.goto('/payments');
+    // page.goto() は SPA を再ロードするため auth.ts のメモリキャッシュがリセットされ
+    // PrivateRoute が未認証と誤判定する可能性がある。
+    // サイドバーのナビゲーションリンク（RouterLink → <a href="/payments">）をクリックして
+    // SPA 内ナビゲーションを使用することで auth.ts のメモリキャッシュを維持する
+    // （screens.md §4.3 サイドナビゲーション準拠）。
+    await page.locator('a[href="/payments"]').click();
     await page.waitForURL(/\/payments/, { timeout: 10_000 });
 
     // ページが表示されるのを待つ。

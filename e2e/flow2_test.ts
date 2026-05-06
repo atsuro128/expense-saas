@@ -115,7 +115,12 @@ test('CRS-066: フロー2 - 却下 → 再申請', async ({ page, request }) => 
     await expect(page).toHaveURL(/\/dashboard/);
 
     // 承認待ち一覧に遷移する。
-    await page.goto('/approvals');
+    // page.goto() は SPA を再ロードするため auth.ts のメモリキャッシュがリセットされ
+    // PrivateRoute が未認証と誤判定する可能性がある。
+    // サイドバーのナビゲーションリンク（RouterLink → <a href="/approvals">）をクリックして
+    // SPA 内ナビゲーションを使用することで auth.ts のメモリキャッシュを維持する
+    // （screens.md §4.3 サイドナビゲーション準拠）。
+    await page.locator('a[href="/approvals"]').click();
     await page.waitForURL(/\/approvals/, { timeout: 10_000 });
     await page.waitForSelector('[data-testid="pending-approvals-page"]', { timeout: 15_000 });
 
@@ -130,7 +135,11 @@ test('CRS-066: フロー2 - 却下 → 再申請', async ({ page, request }) => 
     await page.waitForSelector('[role="dialog"]', { timeout: 10_000 });
 
     // 却下理由を入力する（ConfirmDialog の inputField: 却下理由フィールド）。
-    const reasonInput = page.locator('[role="dialog"] textarea, [role="dialog"] input[type="text"]').last();
+    // ConfirmDialog は MUI TextField（multiline=true）を使用する（report-detail.md §D4 準拠）。
+    // MUI TextField は内部で aria-hidden かつ readonly な hidden textarea を生成することがある。
+    // そのため readonly または aria-hidden な textarea を除外したセレクタを使い、
+    // ユーザーが実際に入力可能な textarea のみを選択する。
+    const reasonInput = page.locator('[role="dialog"] textarea:not([readonly]):not([aria-hidden="true"])');
     await reasonInput.fill(REJECTION_REASON);
 
     // 「却下する」ボタンをクリックする。

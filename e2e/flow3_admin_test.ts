@@ -79,8 +79,12 @@ test('CRS-075: Admin でテナント情報ページにアクセスできる', as
   await page.waitForURL(/\/settings\/tenant/, { timeout: 10_000 });
 
   // TenantPage がロードされるのを待つ。
-  // ページタイトル「テナント情報」が表示されることを確認する。
-  await expect(page.locator('text=テナント情報')).toBeVisible({ timeout: 15_000 });
+  // ページタイトル「テナント情報」が h1 要素として表示されることを確認する。
+  // admin-tenant.md §5 でページタイトルは「テナント情報」と規定されており、
+  // PageTitle コンポーネントが <h1> として出力する。
+  // text=テナント情報 はサイドナビリンク・h1・PhaseNotice など複数要素にヒットするため
+  // getByRole('heading', ...) で h1 に絞る（strict mode 準拠）。
+  await expect(page.getByRole('heading', { name: 'テナント情報' })).toBeVisible({ timeout: 15_000 });
 
   // テナント情報カードが表示されることを確認する。
   // TenantInfoCard には tenant_id / tenant_name / created_at 等が表示される。
