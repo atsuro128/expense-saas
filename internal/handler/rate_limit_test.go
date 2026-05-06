@@ -494,13 +494,19 @@ func TestRateLimit_RateLimitHeaders_Present(t *testing.T) {
 // 互いのカウンターに影響しないことを確認する。
 // security.md §4.2: user_id ベースのレート制限は独立。
 func TestRateLimit_DifferentUsers_IndependentLimits(t *testing.T) {
-	// テスト用に制限値を小さくして高速化する（独立性を検証するため borderline 近くまで送信）。
+	// テスト用に制限値を設定する。
+	// authLimit（user 制限）= 5: userMember が limit 回送信後に超過することを確認する。
+	// unauthLimit（IP 制限）= 100: IP 制限は user 制限の 20 倍に設定し、
+	//   user 独立性検証中に IP 制限が先に発動しないようにする。
+	//   warning-1 の本番再現意図（global ミドルウェア配置）は維持しつつ、
+	//   このテストでは IP 制限を意図的に緩めることで user 独立性検証に集中できる。
 	const limit = 5
-	srv, _ := setupRateLimitTest(t, limit, 20, 5, 10)
+	srv, _ := setupRateLimitTest(t, limit, 100, 5, 10)
 
-	// userMember と userAccounting がそれぞれ limit 回リクエストを送信する。
-	// limit 回目まではいずれも 200 OK であること（互いに影響しないこと）を確認する。
-	for i := 0; i < limit; i++ {
+	// userMember は limit 回、userAccounting は limit-1 回リクエストを送信する。
+	// ループを limit-1 回にすることで、accounting は user limit に到達しない状態を維持する。
+	// （limit 回ループすると accounting も limit に達し、ループ後の検証で 429 になってしまう）
+	for i := 0; i < limit-1; i++ {
 		reqMember := srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
 			testutil.UserMemberID, testutil.TenantAID, "member")
 		recMember := srv.execute(reqMember)
@@ -509,18 +515,23 @@ func TestRateLimit_DifferentUsers_IndependentLimits(t *testing.T) {
 			testutil.UserAccountingID, testutil.TenantAID, "accounting")
 		recAccounting := srv.execute(reqAccounting)
 
-		// どちらも制限内なので 200 OK が返ること（CRS-082）。
-		if recMember.Code != http.StatusOK && recMember.Code != http.StatusTooManyRequests {
+		// 制限内なので 200 OK が返ること（CRS-082）。
+		if recMember.Code != http.StatusOK {
 			t.Errorf("TestRateLimit_DifferentUsers_IndependentLimits: userMember request %d: unexpected status %d", i+1, recMember.Code)
 		}
-		if recAccounting.Code != http.StatusOK && recAccounting.Code != http.StatusTooManyRequests {
+		if recAccounting.Code != http.StatusOK {
 			t.Errorf("TestRateLimit_DifferentUsers_IndependentLimits: userAccounting request %d: unexpected status %d", i+1, recAccounting.Code)
 		}
 	}
 
-	// userMember が limit 回到達してもまだ余裕がある userAccounting は 200 OK であること。
-	// レート制限はユーザー単位で独立しているため、互いのカウントに影響しない（CRS-082）。
-	// ここでは userMember を limit+1 回目（超過）まで送信し、userAccounting はまだ OK であることを確認する。
+	// userMember を limit 回目（最後の許容リクエスト）まで送信して制限に到達させる。
+	// この時点で member は 通算 limit 回送信済み、accounting は limit-1 回送信済み。
+	reqMemberFinal := srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
+		testutil.UserMemberID, testutil.TenantAID, "member")
+	srv.execute(reqMemberFinal)
+
+	// userMember を limit+1 回目（超過）まで送信する。
+	// userAccounting は limit-1 回送信済みなので、user 制限にはまだ余裕がある。
 	reqMemberOver := srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
 		testutil.UserMemberID, testutil.TenantAID, "member")
 	recMemberOver := srv.execute(reqMemberOver)
@@ -528,8 +539,8 @@ func TestRateLimit_DifferentUsers_IndependentLimits(t *testing.T) {
 	// userMember は制限超過で 429 Too Many Requests が返ること（CRS-082）。
 	testutil.AssertStatus(t, recMemberOver, http.StatusTooManyRequests)
 
-	// userAccounting は userMember のカウンターに影響されず、まだ制限に達していないため 200 OK が返ること。
-	// user_id ベースのレート制限の独立性を確認する（CRS-082）。
+	// userAccounting は userMember のカウンターに影響されず、limit-1 回しか送信していないため
+	// 200 OK が返ること。user_id ベースのレート制限の独立性を確認する（CRS-082）。
 	reqAccountingAfter := srv.authRequest(t, http.MethodGet, "/api/dashboard", nil,
 		testutil.UserAccountingID, testutil.TenantAID, "accounting")
 	recAccountingAfter := srv.execute(reqAccountingAfter)
