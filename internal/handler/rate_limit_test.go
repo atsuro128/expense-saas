@@ -488,7 +488,7 @@ func makeJPEGContentForRateLimitTest() []byte {
 }
 
 // CRS-080: レート制限超過時のレスポンスボディが RATE_LIMIT_EXCEEDED コードを含む。
-// security.md §5.2 準拠のエラーレスポンス形式の確認。
+// security.md §8.2 準拠のエラーレスポンス形式の確認。
 // 制限内リクエストが 200 OK、limit+1 回目が 429 であることも確認する。
 func TestRateLimit_ResponseBody_ContainsRetryAfter(t *testing.T) {
 	// authLimit=2（小さく）: 制限超過を素早く発動させる。
@@ -515,7 +515,7 @@ func TestRateLimit_ResponseBody_ContainsRetryAfter(t *testing.T) {
 	// limit+1 回目のレスポンスが 429 であることを確認する。
 	testutil.AssertStatus(t, lastRec, http.StatusTooManyRequests)
 
-	// レスポンスボディの形式確認（security.md §5.2 準拠）。
+	// レスポンスボディの形式確認（security.md §8.2 準拠）。
 	var body struct {
 		Error struct {
 			Code    string `json:"code"`
