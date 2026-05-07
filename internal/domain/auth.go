@@ -183,6 +183,9 @@ func (v *JWTVerifier) parseToken(tokenString string) (*gojwt.Token, *jwtClaims, 
 		gojwt.WithIssuedAt(),
 		gojwt.WithIssuer("expense-saas"),
 		gojwt.WithExpirationRequired(),
+		// クロックスキュー許容: exp / nbf / iat に 60 秒の leeway を適用する（security.md §2.1）。
+		// Docker / モバイル端末等の時刻ずれ（観測値: ~18 秒）を吸収する。
+		gojwt.WithLeeway(60*time.Second),
 	)
 	return token, claims, err
 }
