@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
@@ -78,7 +79,14 @@ func (v *Verifier) Verify(tokenString string) (*Claims, error) {
 			return nil, fmt.Errorf("unexpected kid: %v", t.Header["kid"])
 		}
 		return v.publicKey, nil
-	}, jwt.WithIssuedAt(), jwt.WithIssuer("expense-saas"), jwt.WithExpirationRequired())
+	},
+		jwt.WithIssuedAt(),
+		jwt.WithIssuer("expense-saas"),
+		jwt.WithExpirationRequired(),
+		// クロックスキュー許容: exp / nbf / iat に 60 秒の leeway を適用する（security.md §2.1）。
+		// domain.JWTVerifier と同一の leeway を middleware 経路にも適用する（issue #173）。
+		jwt.WithLeeway(60*time.Second),
+	)
 	if err != nil {
 		return nil, err
 	}
