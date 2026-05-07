@@ -22,6 +22,10 @@ dist/
 coverage/
 *.tsbuildinfo
 
+# Playwright E2E
+playwright-report/
+test-results/
+
 # OS
 .DS_Store
 Thumbs.db
