@@ -672,9 +672,9 @@ func makeRefreshTokenWithClaims(t *testing.T, priv *rsa.PrivateKey, iat, exp tim
 	return signed
 }
 
-// AUTH-024: アクセストークンの iat が 30 秒未来でも leeway 内なので検証が成功すること。
+// AUTH-081: アクセストークンの iat が 30 秒未来でも leeway 内なので検証が成功すること。
 func TestVerifyAccessToken_IatFuture30s_Allowed(t *testing.T) {
-	// AUTH-024
+	// AUTH-081
 	priv := generateRSAKey(t)
 	v := newVerifier(priv)
 
@@ -693,9 +693,9 @@ func TestVerifyAccessToken_IatFuture30s_Allowed(t *testing.T) {
 	}
 }
 
-// AUTH-025: アクセストークンの iat が 61 秒未来の場合 leeway を超えるため ErrInvalidToken が返ること。
+// AUTH-082: アクセストークンの iat が 61 秒未来の場合 leeway を超えるため ErrInvalidToken が返ること。
 func TestVerifyAccessToken_IatFuture61s_Rejected(t *testing.T) {
-	// AUTH-025
+	// AUTH-082
 	priv := generateRSAKey(t)
 	v := newVerifier(priv)
 
@@ -711,9 +711,9 @@ func TestVerifyAccessToken_IatFuture61s_Rejected(t *testing.T) {
 	}
 }
 
-// AUTH-026: アクセストークンの exp が 30 秒過去でも leeway 内なので検証が成功すること。
+// AUTH-083: アクセストークンの exp が 30 秒過去でも leeway 内なので検証が成功すること。
 func TestVerifyAccessToken_ExpPast30s_Allowed(t *testing.T) {
-	// AUTH-026
+	// AUTH-083
 	priv := generateRSAKey(t)
 	v := newVerifier(priv)
 
@@ -732,9 +732,9 @@ func TestVerifyAccessToken_ExpPast30s_Allowed(t *testing.T) {
 	}
 }
 
-// AUTH-027: アクセストークンの exp が 61 秒過去の場合 leeway を超えるため ErrTokenExpired が返ること。
+// AUTH-084: アクセストークンの exp が 61 秒過去の場合 leeway を超えるため ErrTokenExpired が返ること。
 func TestVerifyAccessToken_ExpPast61s_Rejected(t *testing.T) {
-	// AUTH-027
+	// AUTH-084
 	priv := generateRSAKey(t)
 	v := newVerifier(priv)
 
@@ -750,9 +750,9 @@ func TestVerifyAccessToken_ExpPast61s_Rejected(t *testing.T) {
 	}
 }
 
-// AUTH-028: リフレッシュトークンの iat が 30 秒未来でも leeway 内なので検証が成功すること。
+// AUTH-085: リフレッシュトークンの iat が 30 秒未来でも leeway 内なので検証が成功すること。
 func TestVerifyRefreshToken_IatFuture30s_Allowed(t *testing.T) {
-	// AUTH-028
+	// AUTH-085
 	priv := generateRSAKey(t)
 	v := newVerifier(priv)
 
@@ -771,9 +771,9 @@ func TestVerifyRefreshToken_IatFuture30s_Allowed(t *testing.T) {
 	}
 }
 
-// AUTH-029: リフレッシュトークンの exp が 30 秒過去でも leeway 内なので検証が成功すること。
+// AUTH-086: リフレッシュトークンの exp が 30 秒過去でも leeway 内なので検証が成功すること。
 func TestVerifyRefreshToken_ExpPast30s_Allowed(t *testing.T) {
-	// AUTH-029
+	// AUTH-086
 	priv := generateRSAKey(t)
 	v := newVerifier(priv)
 
@@ -789,5 +789,41 @@ func TestVerifyRefreshToken_ExpPast30s_Allowed(t *testing.T) {
 	}
 	if claims != nil && claims.UserID != testUserID {
 		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+}
+
+// AUTH-087: リフレッシュトークンの iat が 61 秒未来の場合 leeway を超えるため ErrInvalidToken が返ること。
+func TestVerifyRefreshToken_IatFuture61s_Rejected(t *testing.T) {
+	// AUTH-087
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// iat を 61 秒未来に設定する（leeway 60 秒を超えるため拒否される）。
+	iat := now.Add(61 * time.Second)
+	exp := now.Add(7 * 24 * time.Hour)
+	signed := makeRefreshTokenWithClaims(t, priv, iat, exp)
+
+	_, err := v.VerifyRefreshToken(signed)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
+	}
+}
+
+// AUTH-088: リフレッシュトークンの exp が 61 秒過去の場合 leeway を超えるため ErrTokenExpired が返ること。
+func TestVerifyRefreshToken_ExpPast61s_Rejected(t *testing.T) {
+	// AUTH-088
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// exp を 61 秒過去に設定する（leeway 60 秒を超えるため拒否される）。
+	iat := now.Add(-7 * 24 * time.Hour)
+	exp := now.Add(-61 * time.Second)
+	signed := makeRefreshTokenWithClaims(t, priv, iat, exp)
+
+	_, err := v.VerifyRefreshToken(signed)
+	if !errors.Is(err, domain.ErrTokenExpired) {
+		t.Errorf("ErrTokenExpired を期待しましたが got: %v", err)
 	}
 }
