@@ -609,3 +609,185 @@ func TestVerifyRefreshToken_WrongTokenType(t *testing.T) {
 		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
 	}
 }
+
+// =============================================================================
+// 1.3 クロックスキュー許容（leeway 60 秒）テスト（security.md §2.1）
+// =============================================================================
+
+// makeAccessTokenWithClaims は iat / exp を直接指定してアクセストークンを生成するヘルパー。
+// 既存の GenerateAccessToken では iat/exp が time.Now() 固定のため、
+// leeway テスト用に claims を手動組み立てして署名する。
+func makeAccessTokenWithClaims(t *testing.T, priv *rsa.PrivateKey, iat, exp time.Time) string {
+	t.Helper()
+	type testClaims struct {
+		TenantID  string `json:"tenant_id"`
+		Role      string `json:"role"`
+		TokenType string `json:"token_type"`
+		gojwt.RegisteredClaims
+	}
+	claims := testClaims{
+		TenantID:  testTenantID.String(),
+		Role:      string(testRole),
+		TokenType: "access",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			Subject:   testUserID.String(),
+			IssuedAt:  gojwt.NewNumericDate(iat),
+			ExpiresAt: gojwt.NewNumericDate(exp),
+			ID:        uuid.New().String(),
+		},
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = "expense-saas-key-1"
+	signed, err := tok.SignedString(priv)
+	if err != nil {
+		t.Fatalf("アクセストークン署名に失敗しました: %v", err)
+	}
+	return signed
+}
+
+// makeRefreshTokenWithClaims は iat / exp を直接指定してリフレッシュトークンを生成するヘルパー。
+func makeRefreshTokenWithClaims(t *testing.T, priv *rsa.PrivateKey, iat, exp time.Time) string {
+	t.Helper()
+	type testClaims struct {
+		TokenType string `json:"token_type"`
+		gojwt.RegisteredClaims
+	}
+	claims := testClaims{
+		TokenType: "refresh",
+		RegisteredClaims: gojwt.RegisteredClaims{
+			Issuer:    "expense-saas",
+			Subject:   testUserID.String(),
+			IssuedAt:  gojwt.NewNumericDate(iat),
+			ExpiresAt: gojwt.NewNumericDate(exp),
+			ID:        uuid.New().String(),
+		},
+	}
+	tok := gojwt.NewWithClaims(gojwt.SigningMethodRS256, claims)
+	tok.Header["kid"] = "expense-saas-key-1"
+	signed, err := tok.SignedString(priv)
+	if err != nil {
+		t.Fatalf("リフレッシュトークン署名に失敗しました: %v", err)
+	}
+	return signed
+}
+
+// AUTH-024: アクセストークンの iat が 30 秒未来でも leeway 内なので検証が成功すること。
+func TestVerifyAccessToken_IatFuture30s_Allowed(t *testing.T) {
+	// AUTH-024
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// iat を 30 秒未来に設定する（leeway 60 秒以内なので許容される）。
+	iat := now.Add(30 * time.Second)
+	exp := now.Add(15 * time.Minute)
+	signed := makeAccessTokenWithClaims(t, priv, iat, exp)
+
+	claims, err := v.VerifyAccessToken(signed)
+	if err != nil {
+		t.Errorf("iat=now+30s は leeway 内のため成功を期待しましたが got: %v", err)
+	}
+	if claims != nil && claims.UserID != testUserID {
+		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+}
+
+// AUTH-025: アクセストークンの iat が 61 秒未来の場合 leeway を超えるため ErrInvalidToken が返ること。
+func TestVerifyAccessToken_IatFuture61s_Rejected(t *testing.T) {
+	// AUTH-025
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// iat を 61 秒未来に設定する（leeway 60 秒を超えるため拒否される）。
+	iat := now.Add(61 * time.Second)
+	exp := now.Add(15 * time.Minute)
+	signed := makeAccessTokenWithClaims(t, priv, iat, exp)
+
+	_, err := v.VerifyAccessToken(signed)
+	if !errors.Is(err, domain.ErrInvalidToken) {
+		t.Errorf("ErrInvalidToken を期待しましたが got: %v", err)
+	}
+}
+
+// AUTH-026: アクセストークンの exp が 30 秒過去でも leeway 内なので検証が成功すること。
+func TestVerifyAccessToken_ExpPast30s_Allowed(t *testing.T) {
+	// AUTH-026
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// exp を 30 秒過去に設定する（leeway 60 秒以内なので許容される）。
+	iat := now.Add(-15 * time.Minute)
+	exp := now.Add(-30 * time.Second)
+	signed := makeAccessTokenWithClaims(t, priv, iat, exp)
+
+	claims, err := v.VerifyAccessToken(signed)
+	if err != nil {
+		t.Errorf("exp=now-30s は leeway 内のため成功を期待しましたが got: %v", err)
+	}
+	if claims != nil && claims.UserID != testUserID {
+		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+}
+
+// AUTH-027: アクセストークンの exp が 61 秒過去の場合 leeway を超えるため ErrTokenExpired が返ること。
+func TestVerifyAccessToken_ExpPast61s_Rejected(t *testing.T) {
+	// AUTH-027
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// exp を 61 秒過去に設定する（leeway 60 秒を超えるため拒否される）。
+	iat := now.Add(-15 * time.Minute)
+	exp := now.Add(-61 * time.Second)
+	signed := makeAccessTokenWithClaims(t, priv, iat, exp)
+
+	_, err := v.VerifyAccessToken(signed)
+	if !errors.Is(err, domain.ErrTokenExpired) {
+		t.Errorf("ErrTokenExpired を期待しましたが got: %v", err)
+	}
+}
+
+// AUTH-028: リフレッシュトークンの iat が 30 秒未来でも leeway 内なので検証が成功すること。
+func TestVerifyRefreshToken_IatFuture30s_Allowed(t *testing.T) {
+	// AUTH-028
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// iat を 30 秒未来に設定する（leeway 60 秒以内なので許容される）。
+	iat := now.Add(30 * time.Second)
+	exp := now.Add(7 * 24 * time.Hour)
+	signed := makeRefreshTokenWithClaims(t, priv, iat, exp)
+
+	claims, err := v.VerifyRefreshToken(signed)
+	if err != nil {
+		t.Errorf("iat=now+30s は leeway 内のため成功を期待しましたが got: %v", err)
+	}
+	if claims != nil && claims.UserID != testUserID {
+		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+}
+
+// AUTH-029: リフレッシュトークンの exp が 30 秒過去でも leeway 内なので検証が成功すること。
+func TestVerifyRefreshToken_ExpPast30s_Allowed(t *testing.T) {
+	// AUTH-029
+	priv := generateRSAKey(t)
+	v := newVerifier(priv)
+
+	now := time.Now()
+	// exp を 30 秒過去に設定する（leeway 60 秒以内なので許容される）。
+	iat := now.Add(-7 * 24 * time.Hour)
+	exp := now.Add(-30 * time.Second)
+	signed := makeRefreshTokenWithClaims(t, priv, iat, exp)
+
+	claims, err := v.VerifyRefreshToken(signed)
+	if err != nil {
+		t.Errorf("exp=now-30s は leeway 内のため成功を期待しましたが got: %v", err)
+	}
+	if claims != nil && claims.UserID != testUserID {
+		t.Errorf("UserID が期待値と異なります: got %v, want %v", claims.UserID, testUserID)
+	}
+}
