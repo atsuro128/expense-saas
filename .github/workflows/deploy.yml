@@ -179,7 +179,7 @@ jobs:
         run: docker compose -f docker-compose.e2e.yml up -d
 
       - name: Wait for services
-        run: npx wait-on http://localhost:8080/healthz --timeout 60000
+        run: npx wait-on http://localhost:8080/health --timeout 60000
 
       - name: Run Playwright E2E tests
         run: npm run e2e
@@ -217,7 +217,7 @@ jobs:
         run: docker compose -f docker-compose.e2e.yml up -d
 
       - name: Wait for services
-        run: npx wait-on http://localhost:8080/healthz --timeout 60000
+        run: npx wait-on http://localhost:8080/health --timeout 60000
 
       - name: Run response time smoke tests
         run: |
