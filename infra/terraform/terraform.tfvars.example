@@ -43,3 +43,10 @@ image_tag = ""
 # expense_app_db_password   = "CHANGEME_APP_PASSWORD"
 # jwt_private_key_pem       = "-----BEGIN RSA PRIVATE KEY-----\n..."
 # jwt_public_key_pem        = "-----BEGIN PUBLIC KEY-----\n..."
+
+# ─── NOTE: プレースホルダーのまま apply すると必ず弾かれます ──────
+# cors_allowed_origins: "CHANGEME" を含む値は validation で apply 前に拒否される
+# s3_bucket_suffix:     "CHANGEME" / 8 桁 hex 以外の値は validation で apply 前に拒否される
+# db_password 等 sensitive 変数: terraform.tfvars に記入せず TF_VAR_* 環境変数で渡すことを推奨
+# 上記以外の CHANGEME 値（allowed_ssh_cidr = "YOUR_HOME_IP/32" 等）は validation 対象外だが
+# apply 後に AWS リソースへのアクセスが成立しないため、必ず実値に置き換えること

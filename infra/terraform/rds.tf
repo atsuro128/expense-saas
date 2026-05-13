@@ -30,11 +30,10 @@ resource "aws_db_instance" "main" {
   engine_version = "16"
   instance_class = "db.t3.micro"
 
-  # ストレージ（無料枠: 20GB まで。超過禁止）
-  allocated_storage     = 20
-  max_allocated_storage = 20 # auto scaling 無効（コスト制御）
-  storage_type          = "gp3"
-  storage_encrypted     = true
+  # ストレージ（無料枠: 20GB まで。超過禁止。autoscaling 無効のため max_allocated_storage は設定しない）
+  allocated_storage = 20
+  storage_type      = "gp3"
+  storage_encrypted = true
 
   # DB 設定
   db_name  = "expense_saas"

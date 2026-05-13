@@ -27,10 +27,10 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "receipts" {
   bucket = aws_s3_bucket.receipts.id
 
   rule {
+    # bucket_key_enabled は SSE-KMS 専用のため、SSE-S3（AES256）では設定しない
     apply_server_side_encryption_by_default {
       sse_algorithm = "AES256"
     }
-    bucket_key_enabled = true
   }
 }
 

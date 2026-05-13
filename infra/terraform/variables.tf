@@ -71,8 +71,9 @@ variable "cors_allowed_origins" {
   default     = "http://CHANGEME"
 
   validation {
-    condition     = var.cors_allowed_origins != "http://CHANGEME"
-    error_message = "cors_allowed_origins must be set to the actual ALB DNS (e.g., http://expense-saas-alb-xxxx.ap-northeast-1.elb.amazonaws.com). The default placeholder is not allowed."
+    # "CHANGEME" を含む任意の文字列を拒否する（"http://CHANGEME_ALB_DNS" 等の example 値も含む）
+    condition     = !can(regex("CHANGEME", var.cors_allowed_origins))
+    error_message = "cors_allowed_origins contains 'CHANGEME' placeholder. Set the actual ALB DNS (e.g., http://expense-saas-alb-xxxx.ap-northeast-1.elb.amazonaws.com)."
   }
 }
 
