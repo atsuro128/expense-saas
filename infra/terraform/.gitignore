@@ -2,9 +2,8 @@
 *.tfstate
 *.tfstate.backup
 
-# Terraform プロバイダーキャッシュ
+# Terraform プロバイダーキャッシュ（ディレクトリ自体は除外。lock ファイルはコミット対象）
 .terraform/
-.terraform.lock.hcl
 
 # tfvars（シークレットを含む可能性があるため除外）
 terraform.tfvars

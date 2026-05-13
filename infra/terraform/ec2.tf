@@ -39,14 +39,12 @@ resource "aws_instance" "app" {
   # image_tag が空文字（デフォルト）なら docker pull をスキップし、EC2 上で git clone + docker build する。
   # image_tag が指定されていれば GHCR/ECR 等から docker pull する（将来の案A/C 用分岐）。
   user_data = templatefile("${path.module}/user_data.sh.tpl", {
-    project_name              = var.project_name
-    environment               = var.environment
-    image_tag                 = var.image_tag
-    jwt_private_key_pem       = var.jwt_private_key_pem
-    jwt_public_key_pem        = var.jwt_public_key_pem
-    cors_allowed_origins      = var.cors_allowed_origins
-    expense_owner_db_password = var.expense_owner_db_password
-    expense_app_db_password   = var.expense_app_db_password
+    project_name         = var.project_name
+    environment          = var.environment
+    image_tag            = var.image_tag
+    jwt_private_key_pem  = var.jwt_private_key_pem
+    jwt_public_key_pem   = var.jwt_public_key_pem
+    cors_allowed_origins = var.cors_allowed_origins
   })
 
   user_data_replace_on_change = false

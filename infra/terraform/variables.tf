@@ -69,12 +69,22 @@ variable "cors_allowed_origins" {
   description = "CORS 許可オリジン（例: http://<alb-dns>）。apply 後に ALB DNS が判明してから設定する 2 段階デプロイ or プレースホルダで代替可"
   type        = string
   default     = "http://CHANGEME"
+
+  validation {
+    condition     = var.cors_allowed_origins != "http://CHANGEME"
+    error_message = "cors_allowed_origins must be set to the actual ALB DNS (e.g., http://expense-saas-alb-xxxx.ap-northeast-1.elb.amazonaws.com). The default placeholder is not allowed."
+  }
 }
 
 variable "s3_bucket_suffix" {
   description = "領収書バケット名のサフィックス（S3 グローバル名前空間衝突回避、I-04）。apply 前に openssl rand -hex 4 等で生成した 8 桁の値を設定する"
   type        = string
   default     = "CHANGEME"
+
+  validation {
+    condition     = var.s3_bucket_suffix != "CHANGEME" && can(regex("^[a-f0-9]{8}$", var.s3_bucket_suffix))
+    error_message = "s3_bucket_suffix must be a unique 8-character hex string (e.g., openssl rand -hex 4). The default 'CHANGEME' is not allowed."
+  }
 }
 
 # §11 Q1: 案B（EC2 上で docker build）確定。
