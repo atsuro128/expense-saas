@@ -1,0 +1,52 @@
+# terraform.tfvars.example
+# このファイルを terraform.tfvars にコピーして実際の値を記入する:
+#   cp terraform.tfvars.example terraform.tfvars
+#
+# または環境変数で渡す（推奨: sensitive 変数は環境変数が安全）:
+#   export TF_VAR_db_password='...'
+#   export TF_VAR_expense_owner_db_password='...'
+#   export TF_VAR_expense_app_db_password='...'
+#   export TF_VAR_jwt_private_key_pem="$(cat /tmp/expense-saas-keys/private.pem)"
+#   export TF_VAR_jwt_public_key_pem="$(cat /tmp/expense-saas-keys/public.pem)"
+#   export TF_VAR_allowed_ssh_cidr="$(curl -s ifconfig.me)/32"
+#
+# terraform.tfvars は .gitignore で除外済み。コミットしないこと。
+
+# ─── 非 sensitive 変数 ───────────────────────────────────────────
+aws_region   = "ap-northeast-1"
+project_name = "expense-saas"
+environment  = "portfolio"
+
+# AWS EC2 キーペア名（AWS コンソールで事前作成が必要）
+key_pair_name = "expense-saas-portfolio"
+
+# SSH 許可 CIDR（自宅 IP 等）
+# 例: allowed_ssh_cidr = "xxx.xxx.xxx.xxx/32"
+allowed_ssh_cidr = "YOUR_HOME_IP/32"
+
+# CORS 許可オリジン（apply 後に ALB DNS を確認してから設定する）
+# 例: cors_allowed_origins = "http://expense-saas-portfolio-alb-xxxxxxxx.ap-northeast-1.elb.amazonaws.com"
+cors_allowed_origins = "http://CHANGEME_ALB_DNS"
+
+# S3 バケットサフィックス（グローバル名前空間衝突回避、I-04）
+# apply 前に以下で生成して設定する:
+#   openssl rand -hex 4   → 8 桁の hex 文字列
+# 例: s3_bucket_suffix = "a1b2c3d4"
+s3_bucket_suffix = "CHANGEME_8HEX"
+
+# Docker イメージタグ（§11 Q1 案B: EC2 上でビルドする場合は空文字のまま）
+image_tag = ""
+
+# ─── sensitive 変数（環境変数での設定を推奨）────────────────────
+# db_password               = "CHANGEME_MASTER_PASSWORD"
+# expense_owner_db_password = "CHANGEME_OWNER_PASSWORD"
+# expense_app_db_password   = "CHANGEME_APP_PASSWORD"
+# jwt_private_key_pem       = "-----BEGIN RSA PRIVATE KEY-----\n..."
+# jwt_public_key_pem        = "-----BEGIN PUBLIC KEY-----\n..."
+
+# ─── NOTE: プレースホルダーのまま apply すると必ず弾かれます ──────
+# cors_allowed_origins: "CHANGEME" を含む値は validation で apply 前に拒否される
+# s3_bucket_suffix:     "CHANGEME" / 8 桁 hex 以外の値は validation で apply 前に拒否される
+# db_password 等 sensitive 変数: terraform.tfvars に記入せず TF_VAR_* 環境変数で渡すことを推奨
+# 上記以外の CHANGEME 値（allowed_ssh_cidr = "YOUR_HOME_IP/32" 等）は validation 対象外だが
+# apply 後に AWS リソースへのアクセスが成立しないため、必ず実値に置き換えること
