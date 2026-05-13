@@ -1,25 +1,21 @@
-# OpenTofu IaC — expense-saas portfolio 環境
+# Terraform IaC — expense-saas portfolio 環境
 
 チケット: `dev-journal/progress-management/tickets/step11/11-E-deploy.md`
 対象環境: `portfolio`（ADR-0004 準拠。環境名を `prod` ではなく `portfolio` とする）
 
-## OpenTofu 採用について
-
-本プロジェクトは Terraform の OSS フォーク **OpenTofu** を採用しています（MPL 2.0 ライセンス、Terraform 1.6+ 互換）。HashiCorp の BSL ライセンス影響を避け、再現性と移植性を確保するため。`.tf` 設定ファイルは Terraform/OpenTofu 双方で読めますが、本プロジェクトの `.terraform.lock.hcl` は OpenTofu レジストリ前提で固定されており、必ず `tofu` コマンドで操作してください。
-
 ## 1. 前提条件
 
-- OpenTofu >= 1.6 がローカルにインストール済み
-  - Windows: `winget install OpenTofu.Tofu` または `scoop install opentofu`（[OpenTofu 公式](https://opentofu.org/docs/intro/install/) 参照）
-  - Linux/macOS: [OpenTofu 公式インストール手順](https://opentofu.org/docs/intro/install/) を参照
+- Terraform >= 1.6 がローカルにインストール済み
+  - Windows: `winget install HashiCorp.Terraform` または `scoop install terraform`（[Terraform 公式](https://developer.hashicorp.com/terraform/install) 参照）
+  - Linux/macOS: [Terraform 公式インストール手順](https://developer.hashicorp.com/terraform/install) を参照
 - AWS CLI が設定済み（`~/.aws/credentials` に `[expense-saas-portfolio]` プロファイル）
 - IAM ユーザー `terraform-deployer`（AdministratorAccess）のアクセスキーが設定済み（Q4 確定）
 - キーペア `expense-saas-portfolio.pem` が AWS コンソールで作成済み・ローカルに保存済み（chmod 400）
 - JWT 鍵ペアが生成済み（下記 §6 参照）
 
-## 2. OpenTofu state バックエンド初期化（一回限り、USER が実施）
+## 2. Terraform state バックエンド初期化（一回限り、USER が実施）
 
-S3 バケットと DynamoDB テーブルは chicken-and-egg 問題のため OpenTofu 外で事前作成が必要。
+S3 バケットと DynamoDB テーブルは chicken-and-egg 問題のため Terraform 外で事前作成が必要。
 
 ```bash
 export AWS_PROFILE=expense-saas-portfolio
@@ -55,13 +51,15 @@ echo "Lock table:   expense-saas-tflock"
 
 `backend.tf` の `bucket` を上で作成したバケット名に書き換える（または `-backend-config=bucket=...` で渡す）。
 
-## 3. tofu init / plan / apply（USER が実施）
+## 3. Terraform init / plan / apply（USER が実施）
 
 ```bash
 cd expense-saas/infra/terraform
 
 # 初期化（backend が設定済みであること）
-tofu init
+terraform init
+# .terraform.lock.hcl が USER の Windows ホストで生成される。
+# Phase 2-2 完了後に git add して PR にコミット推奨（HashiCorp ベストプラクティス）。
 
 # tfvars 作成
 cp terraform.tfvars.example terraform.tfvars
@@ -76,13 +74,13 @@ export TF_VAR_jwt_public_key_pem="$(cat /tmp/expense-saas-keys/public.pem)"
 export TF_VAR_allowed_ssh_cidr="$(curl -s ifconfig.me)/32"
 
 # 計画確認（必ず確認してから apply する）
-tofu plan -out=tfplan
+terraform plan -out=tfplan
 
 # apply（RDS 作成で 10-15 分かかる）
-tofu apply tfplan
+terraform apply tfplan
 
 # 出力確認
-tofu output
+terraform output
 # alb_dns_name  = "expense-saas-portfolio-alb-xxxxxxxx.ap-northeast-1.elb.amazonaws.com"
 # ec2_public_ip = "xx.xx.xx.xx"
 # rds_endpoint  = (sensitive)
@@ -94,9 +92,9 @@ tofu output
 | 項目 | env_config.md prod | 本 portfolio 環境 | 理由 |
 |------|-------------------|-------------------|------|
 | TLS | ACM 証明書 + HTTPS 強制 | HTTP のみ（Q2 案1） | ポートフォリオ簡易構成。ALB DNS 直接使用 |
-| シークレット管理 | Secrets Manager | OpenTofu variable + EC2 ファイル（`/etc/expense-saas/`） | Secrets Manager 無料枠外 |
+| シークレット管理 | Secrets Manager | Terraform variable + EC2 ファイル（`/etc/expense-saas/`） | Secrets Manager 無料枠外 |
 | RDS | Multi-AZ 推奨 | Single-AZ（Q3） | 無料枠（750h/月）内に収めるため |
-| S3 versioning | 無効（backup_restore.md §3.2 準拠） | 無効（F-117 上流追従） | MVP は誤削除復旧不可の設計方針に従う |
+| S3 versioning | 無効（backup_restore.md §3.2 準拠） | 無効（F-117 上流追換） | MVP は誤削除復旧不可の設計方針に従う |
 | S3_BUCKET 名 | `expense-saas-receipts-prod` 固定 | ランダムサフィックス付き | グローバル名前空間衝突回避（I-04） |
 
 ## 5. DB マイグレーション手順（チケット §5.7.3 c 案の完全手順）
@@ -117,7 +115,7 @@ read -s -p "OWNER_DB_PW: " OWNER_DB_PW; echo
 read -s -p "APP_DB_PW:   " APP_DB_PW;   echo
 read -s -p "MASTER_PW:   " MASTER_PW;   echo
 
-RDS_HOST="<rds-endpoint>"      # tofu output rds_endpoint で確認
+RDS_HOST="<rds-endpoint>"      # terraform output rds_endpoint で確認
 DB_NAME="expense_saas"
 DB_MASTER_USER="postgres"      # tfvar db_master_user の既定値
 
@@ -302,13 +300,13 @@ curl -i http://<alb_dns_name>/health
 # 期待: HTTP/1.1 200 OK, {"status":"ok",...}
 ```
 
-## 9. tofu destroy（UAT 終了後、費用節約のため）
+## 9. terraform destroy（UAT 終了後、費用節約のため）
 
-Q5 確定値: 13 ヶ月目以降に tofu destroy で全リソースを削除する。
+Q5 確定値: 13 ヶ月目以降に terraform destroy で全リソースを削除する。
 
 ```bash
 cd expense-saas/infra/terraform
-tofu destroy
+terraform destroy
 ```
 
 ALB が最大支出ドライバ（無料枠終了後 ~$20/月恒常）のため、UAT 期間が終わったら速やかに destroy すること。
