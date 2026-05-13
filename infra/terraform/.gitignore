@@ -1,0 +1,24 @@
+# Terraform state ファイル（コミット禁止）
+*.tfstate
+*.tfstate.backup
+
+# Terraform プロバイダーキャッシュ（ディレクトリ自体は除外。lock ファイルはコミット対象）
+.terraform/
+
+# tfvars（シークレットを含む可能性があるため除外）
+terraform.tfvars
+*.tfvars.json
+
+# プランファイル
+tfplan
+*.tfplan
+
+# クラッシュログ
+crash.log
+crash.*.log
+
+# 生成ファイル
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
