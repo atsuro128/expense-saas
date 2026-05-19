@@ -51,8 +51,10 @@ resource "aws_db_instance" "main" {
   # 可用性設定（§11 Q3: Single-AZ）
   multi_az = false
 
-  # バックアップ設定（NFR-AVAIL-003: 7 日間保持）
-  backup_retention_period = 7
+  # バックアップ設定
+  # AWS Free Tier アカウントの制約により backup_retention_period の上限が 1 日。
+  # NFR-AVAIL-003（7 日間保持）からの逸脱は issue #181 で post-MVP に追跡。
+  backup_retention_period = 1
   backup_window           = "18:00-19:00" # JST 03:00-04:00
 
   # メンテナンスウィンドウ
