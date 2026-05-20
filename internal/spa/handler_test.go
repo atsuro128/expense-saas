@@ -30,7 +30,7 @@ var stubFS fs.FS = fstest.MapFS{
 
 // newTestRouter は spa.Handler をマウントしたテスト用の chi ルータを返す。
 // 本番（main.go）と同等の chi ルーティング構成を再現し、挙動を正確に検証する:
-//  1. /health → 200 OK（ダミー）
+//  1. /health → GET + HEAD ともにヘルスハンドラ経由（JSON レスポンス）
 //  2. /api/auth/login → 200 OK（定義済み API ルートのダミー）
 //  3. それ以外（/* および NotFound）→ SPA fallback ハンドラ
 //
@@ -39,11 +39,18 @@ var stubFS fs.FS = fstest.MapFS{
 func newTestRouter() http.Handler {
 	r := chi.NewRouter()
 
-	// /health は常に 200 OK を返す（本番と同等）。
-	r.Get("/health", func(w http.ResponseWriter, _ *http.Request) {
+	// /health は GET + HEAD の両メソッドでヘルスダミーハンドラを登録する（本番 main.go と同等）。
+	// HEAD /health が SPA fallback に吸い込まれないよう明示登録する（issue #184 codex blocker）。
+	// HEAD の場合はボディを書かない（RFC 9110 §9.3.2 に準拠した本番挙動を再現）。
+	healthHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"status":"ok"}`))
-	})
+		if r.Method != http.MethodHead {
+			_, _ = w.Write([]byte(`{"status":"ok","checks":{"database":"ok"}}`))
+		}
+	}
+	r.Get("/health", healthHandler)
+	r.Head("/health", healthHandler)
 
 	// 定義済み API ルート（本番と同様にフルパスで個別登録）。
 	// ここに届いたリクエストはダミーの 200 OK を返す。
@@ -276,6 +283,16 @@ func TestSPA_HEAD_StaticAsset(t *testing.T) {
 	if body != "" {
 		t.Errorf("HEAD /assets/foo.js want empty body, got %q", body)
 	}
+
+	// Content-Type ヘッダは返ること（N-1: HEAD_Root / HEAD_SPARoute と粒度を統一）。
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		t.Error("HEAD /assets/foo.js Content-Type header is empty")
+	}
+	// 静的アセット（.js）は text/javascript または application/javascript を返すこと。
+	if strings.Contains(ct, "text/html") {
+		t.Errorf("HEAD /assets/foo.js want non-HTML Content-Type, got %q", ct)
+	}
 }
 
 // TestSPA_HEAD_SPARoute は未定義の SPA ルートへの HEAD リクエストが 200 で index.html フォールバックすることを確認する（SPA-HEAD-003）。
@@ -304,6 +321,63 @@ func TestSPA_HEAD_SPARoute(t *testing.T) {
 	ct := resp.Header.Get("Content-Type")
 	if !containsHTML(ct) {
 		t.Errorf("HEAD /some/spa/route want Content-Type text/html, got %q", ct)
+	}
+}
+
+// TestSPA_HEAD_Health は HEAD /health がヘルスハンドラ経由で JSON レスポンスを返すことを確認する（SPA-HEAD-004）。
+// r.Head("/*") catch-all により HEAD /health が SPA fallback（index.html, text/html）に吸い込まれる
+// false positive を防ぐ回帰テスト（issue #184 codex blocker 対応）。
+func TestSPA_HEAD_Health(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodHead, "/health", nil)
+	w := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(w, req)
+
+	resp := w.Result()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("HEAD /health want 200, got %d", resp.StatusCode)
+	}
+
+	// HEAD レスポンスはボディを含まないこと（RFC 9110 §9.3.2）。
+	body := w.Body.String()
+	if body != "" {
+		t.Errorf("HEAD /health want empty body, got %q", body)
+	}
+
+	// Content-Type は text/html であってはならない（SPA fallback に吸い込まれていないこと）。
+	ct := resp.Header.Get("Content-Type")
+	if strings.Contains(ct, "text/html") {
+		t.Errorf("HEAD /health want non-HTML Content-Type (health handler), got %q (SPA fallback occurred)", ct)
+	}
+
+	// GET /health と同じ Content-Type（application/json）を返すこと。
+	if !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("HEAD /health want Content-Type application/json (same as GET /health), got %q", ct)
+	}
+}
+
+// TestSPA_HEAD_APINotFound は未定義の /api/* パスへの HEAD リクエストが JSON 404 を返すことを確認する（SPA-HEAD-005）。
+// W-2: r.Head("/*") 追加後、HEAD /api/foo が誤って SPA fallback しないことを担保する回帰テスト。
+func TestSPA_HEAD_APINotFound(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodHead, "/api/foo", nil)
+	w := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(w, req)
+
+	// 404 が返ること（SPA fallback して 200 を返していないこと）。
+	if w.Code != http.StatusNotFound {
+		t.Errorf("HEAD /api/foo want 404 from API handler, got %d", w.Code)
+	}
+
+	// Content-Type が JSON であること（index.html の text/html ではないこと）。
+	ct := w.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("HEAD /api/foo want Content-Type application/json, got %q", ct)
 	}
 }
 

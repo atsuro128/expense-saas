@@ -167,7 +167,12 @@ func main() {
 
 	// 9. 認証不要なルート。
 	r.Group(func(pub chi.Router) {
-		pub.Get("/health", handler.NewHealthHandler(pool))
+		// /health は GET と HEAD の両メソッドで healthHandler を経由させる。
+		// r.Head("/*") は catch-all のため HEAD /health も SPA fallback に吸い込まれるが、
+		// HEAD でも DB ping 結果に基づく 200/503 を返す必要がある（issue #184 codex blocker）。
+		healthHandler := handler.NewHealthHandler(pool)
+		pub.Get("/health", healthHandler)
+		pub.Head("/health", healthHandler)
 
 		pub.Post("/api/auth/signup", authHandler.Signup)
 		// ログイン専用レートリミット（security.md §4.4: デフォルト 5 req/min/IP、§4.5: env で上書き可）。
