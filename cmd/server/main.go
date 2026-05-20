@@ -243,8 +243,14 @@ func main() {
 	// ルーティング優先順位: /api/* → /health → その他（SPA fallback）。
 	// chi の NotFound ハンドラと Handle("/*", ...) を組み合わせ、
 	// 既存の /api/* や /health に先にマッチさせ、それ以外を SPA fallback に渡す。
+	//
+	// GET と HEAD の両メソッドを登録する（issue #184）。
+	// RFC 9110 §9.3.2: GET をサポートするリソースは HEAD もサポートすべき。
+	// http.FileServer は HEAD を正しく処理できる（ボディなしでヘッダのみ返す）ため、
+	// chi のルーティング登録を GET + HEAD に広げれば足りる。
 	spaHandler := spa.Handler(frontendDistFS())
 	r.Get("/*", spaHandler)
+	r.Head("/*", spaHandler)
 	r.NotFound(spaHandler)
 
 	// 12. HTTP サーバを起動する。

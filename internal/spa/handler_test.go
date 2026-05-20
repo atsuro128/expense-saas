@@ -54,8 +54,10 @@ func newTestRouter() http.Handler {
 	})
 
 	// SPA fallback ハンドラを /* と NotFound に登録する（本番 main.go §11 と同等）。
+	// GET と HEAD の両メソッドを登録する（issue #184）。
 	spaHandler := spa.Handler(stubFS)
 	r.Get("/*", spaHandler)
+	r.Head("/*", spaHandler)
 	r.NotFound(spaHandler)
 
 	return r
@@ -221,6 +223,87 @@ func TestSPA_StaticAssetExists(t *testing.T) {
 
 	if w.Code != http.StatusOK {
 		t.Errorf("want 200, got %d", w.Code)
+	}
+}
+
+// TestSPA_HEAD_Root は / への HEAD リクエストが 200・ボディなしで返ることを確認する（SPA-HEAD-001）。
+// issue #184: r.Get("/*", ...) だけの登録では HEAD に 405 が返る問題の回帰防止。
+func TestSPA_HEAD_Root(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodHead, "/", nil)
+	w := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(w, req)
+
+	resp := w.Result()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("HEAD / want 200, got %d", resp.StatusCode)
+	}
+
+	// HEAD レスポンスはボディを含まないこと（RFC 9110 §9.3.2）。
+	body := w.Body.String()
+	if body != "" {
+		t.Errorf("HEAD / want empty body, got %q", body)
+	}
+
+	// Content-Type ヘッダは返ること（ヘッダのみ返す）。
+	ct := resp.Header.Get("Content-Type")
+	if ct == "" {
+		t.Error("HEAD / Content-Type header is empty")
+	}
+}
+
+// TestSPA_HEAD_StaticAsset は静的アセットへの HEAD リクエストが 200・ボディなしで返ることを確認する（SPA-HEAD-002）。
+// issue #184: /assets/foo.js への HEAD が 405 になる問題の回帰防止。
+func TestSPA_HEAD_StaticAsset(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodHead, "/assets/foo.js", nil)
+	w := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(w, req)
+
+	resp := w.Result()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("HEAD /assets/foo.js want 200, got %d", resp.StatusCode)
+	}
+
+	// HEAD レスポンスはボディを含まないこと。
+	body := w.Body.String()
+	if body != "" {
+		t.Errorf("HEAD /assets/foo.js want empty body, got %q", body)
+	}
+}
+
+// TestSPA_HEAD_SPARoute は未定義の SPA ルートへの HEAD リクエストが 200 で index.html フォールバックすることを確認する（SPA-HEAD-003）。
+// r.NotFound 経路を経由するパスも HEAD に対応していることを検証する。
+func TestSPA_HEAD_SPARoute(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequest(http.MethodHead, "/some/spa/route", nil)
+	w := httptest.NewRecorder()
+
+	newTestRouter().ServeHTTP(w, req)
+
+	resp := w.Result()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("HEAD /some/spa/route want 200, got %d", resp.StatusCode)
+	}
+
+	// HEAD レスポンスはボディを含まないこと。
+	body := w.Body.String()
+	if body != "" {
+		t.Errorf("HEAD /some/spa/route want empty body, got %q", body)
+	}
+
+	// Content-Type ヘッダは返ること（index.html fallback のため text/html）。
+	ct := resp.Header.Get("Content-Type")
+	if !containsHTML(ct) {
+		t.Errorf("HEAD /some/spa/route want Content-Type text/html, got %q", ct)
 	}
 }
 
