@@ -11,7 +11,7 @@ import (
 //
 //	COPY --from=frontend-builder /build/frontend/dist ./cmd/server/frontend/dist
 //
-// go:embed のパターンは ソースファイル（embed.go）のディレクトリ（cmd/server/）を起点とした
+// この go:embed ディレクティブのパターンは、ソースファイル（embed.go）のディレクトリ（cmd/server/）を起点とした
 // 相対パスであり、".." を含むパターンは使用不可のため、frontend/dist を cmd/server/ 配下に配置する。
 //
 //go:embed all:frontend/dist
