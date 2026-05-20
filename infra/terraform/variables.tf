@@ -66,15 +66,27 @@ variable "jwt_public_key_pem" {
 }
 
 variable "cors_allowed_origins" {
-  description = "CORS 許可オリジン（例: http://<alb-dns>）。apply 後に ALB DNS が判明してから設定する 2 段階デプロイ or プレースホルダで代替可"
+  description = "CORS 許可オリジン。issue #185 C 案適用後は CloudFront ドメイン（例: https://xxxxxxxxxx.cloudfront.net）を設定する。apply 後に cloudfront_domain_name output が判明してから設定する 2 段階デプロイ可"
   type        = string
-  default     = "http://CHANGEME"
+  default     = "https://CHANGEME"
 
   validation {
-    # "CHANGEME" を含む任意の文字列を拒否する（"http://CHANGEME_ALB_DNS" 等の example 値も含む）
+    # "CHANGEME" を含む任意の文字列を拒否する（"https://CHANGEME_CLOUDFRONT" 等の example 値も含む）
     condition     = !can(regex("CHANGEME", var.cors_allowed_origins))
-    error_message = "cors_allowed_origins contains 'CHANGEME' placeholder. Set the actual ALB DNS (e.g., http://expense-saas-alb-xxxx.ap-northeast-1.elb.amazonaws.com)."
+    error_message = "cors_allowed_origins contains 'CHANGEME' placeholder. Set the actual CloudFront domain (e.g., https://xxxxxxxxxx.cloudfront.net)."
   }
+}
+
+variable "cloudfront_origin_verify_secret" {
+  description = "CloudFront→ALB 間のカスタムヘッダ秘密値（B-1-b）。ALB リスナールールでこの値を検証し、不一致は 403 を返す。openssl rand -hex 32 等で生成し TF_VAR_cloudfront_origin_verify_secret 環境変数で渡す"
+  type        = string
+  sensitive   = true
+}
+
+variable "trusted_proxy_count" {
+  description = "信頼するリバースプロキシ段数（B-2-c）。実クライアント IP = XFF[len - trusted_proxy_count]。prod=2（CloudFront 追記1 + ALB 追記1）、dev=0"
+  type        = number
+  default     = 0
 }
 
 variable "s3_bucket_suffix" {
@@ -86,6 +98,12 @@ variable "s3_bucket_suffix" {
     condition     = var.s3_bucket_suffix != "CHANGEME" && can(regex("^[a-f0-9]{8}$", var.s3_bucket_suffix))
     error_message = "s3_bucket_suffix must be a unique 8-character hex string (e.g., openssl rand -hex 4). The default 'CHANGEME' is not allowed."
   }
+}
+
+variable "restrict_alb_to_cloudfront" {
+  description = "true にすると ALB SG の HTTP 80 inbound を CloudFront マネージドプレフィックスリスト限定に絞る（B-1-b 2 層目）。\n初回 apply 時は false（デフォルト）で ALB を 0.0.0.0/0 開放のまま CloudFront を作成し、\nCloudFront が Deployed になった後に true で再 apply して SG を絞ること。\n注意: カスタムヘッダ検証（X-Origin-Verify、B-1-b 1 層目）はこの変数の値に関係なく常時有効であるため、\nfalse の間（SG が 0.0.0.0/0 の状態）も ALB はカスタムヘッダで保護されセキュリティギャップは生じない。"
+  type        = bool
+  default     = false
 }
 
 # §11 Q1: 案B（EC2 上で docker build）確定。

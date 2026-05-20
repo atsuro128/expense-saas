@@ -1,5 +1,10 @@
+output "cloudfront_domain_name" {
+  description = "CloudFront ディストリビューションのドメイン名。エンドユーザーはこの URL でアクセスする（例: https://<cloudfront_domain_name>/）"
+  value       = aws_cloudfront_distribution.main.domain_name
+}
+
 output "alb_dns_name" {
-  description = "ALB の DNS 名。アプリアクセス URL に使用する（例: http://<alb_dns_name>/）"
+  description = "ALB の DNS 名（直アクセス不可。CloudFront 経由でのみ到達可能。B-1-b プレフィックスリスト + カスタムヘッダで CloudFront 外からの 80 番アクセスを遮断）"
   value       = aws_lb.main.dns_name
 }
 

@@ -45,6 +45,7 @@ resource "aws_instance" "app" {
     jwt_private_key_pem  = var.jwt_private_key_pem
     jwt_public_key_pem   = var.jwt_public_key_pem
     cors_allowed_origins = var.cors_allowed_origins
+    trusted_proxy_count  = var.trusted_proxy_count
   })
 
   user_data_replace_on_change = false
