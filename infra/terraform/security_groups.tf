@@ -13,6 +13,22 @@ resource "aws_security_group" "alb" {
   description = "Security group for ALB (HTTP 80 from CloudFront prefix list only; issue #185 B-1-b)"
   vpc_id      = aws_vpc.main.id
 
+  # ─── 適用順序の注意 ───────────────────────────────────────────────────────
+  # この ingress を有効化（0.0.0.0/0 → プレフィックスリスト限定）するには、
+  # 先に aws_cloudfront_distribution.main が "Deployed" になっている必要がある。
+  # CloudFront 作成には 5〜15 分かかるため、同一 apply で両リソースを作成すると
+  # CloudFront が Deployed になる前に SG が切り替わり ALB が全遮断されうる。
+  #
+  # 推奨 apply 手順（2 段階）:
+  #   Step 1: CloudFront のみを先に apply し、ステータスが Deployed になるまで待機
+  #           例: terraform apply -target=aws_cloudfront_distribution.main
+  #   Step 2: CloudFront の Deployed 確認後、残りのリソース（SG 含む）を apply
+  #           例: terraform apply
+  #
+  # または初回環境構築（ダウンタイム許容）であれば 1 回の apply でも可。
+  # SG と CloudFront の間に Terraform 依存エッジを付けると
+  # alb_sg → cloudfront → alb → alb_sg の循環依存になるため depends_on は付けない。
+  # ────────────────────────────────────────────────────────────────────────
   ingress {
     description     = "HTTP from CloudFront origin-facing prefix list (B-1-b)"
     from_port       = 80

@@ -20,9 +20,13 @@ data "aws_cloudfront_origin_request_policy" "all_viewer_except_host_header" {
 }
 
 resource "aws_cloudfront_distribution" "main" {
-  comment             = "${local.prefix} CloudFront distribution (issue #185 C案)"
-  enabled             = true
-  is_ipv6_enabled     = true
+  comment         = "${local.prefix} CloudFront distribution (issue #185 C案)"
+  enabled         = true
+  is_ipv6_enabled = true
+  # SPA のルート `/` アクセス時に CloudFront が `/index.html` をオリジンから取得する。
+  # ALB/アプリ側でのディープリンクフォールバックと役割は異なり、双方が機能して問題ない。
+  # なお `/health` は `/api/*` パターンに合致しないためこのデフォルトビヘイビアに流れるが、
+  # 機密情報を含まないため CloudFront エッジにキャッシュされても実害なし（W-A 参照）。
   default_root_object = "index.html"
 
   # コスト制御: PriceClass_200 以下で無料枠維持
@@ -36,7 +40,7 @@ resource "aws_cloudfront_distribution" "main" {
 
     custom_origin_config {
       http_port              = 80
-      https_port             = 443
+      https_port             = 443 # origin_protocol_policy = "http-only" のため実際には参照されない（プロバイダ必須引数）
       origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
     }
@@ -70,7 +74,10 @@ resource "aws_cloudfront_distribution" "main" {
 
     # 全 HTTP メソッドを許可（POST/PUT/PATCH/DELETE 等を含む）
     allowed_methods = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
-    cached_methods  = ["GET", "HEAD"]
+    # cached_methods は CloudFront の仕様上 GET/HEAD を必ず含む必要がある（allowed_methods の部分集合）。
+    # cache_policy_id = CachingDisabled のため実際にはエッジキャッシュは発生しない。
+    # 将来 cache_policy_id を別ポリシーに差し替えた場合は API レスポンスがキャッシュされる可能性があるため注意。
+    cached_methods = ["GET", "HEAD"]
 
     # キャッシュ無効（API レスポンスをキャッシュしない）
     cache_policy_id = data.aws_cloudfront_cache_policy.caching_disabled.id

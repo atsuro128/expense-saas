@@ -77,7 +77,9 @@ resource "aws_lb_listener" "http" {
 }
 
 # リスナールール（B-1-b）: X-Origin-Verify ヘッダ一致時のみターゲットグループへ転送
-# 優先度 1（最高）で評価し、ヘッダ一致時に forward する。
+# priority = 1（最高優先度）で評価する。現状このルールが全 forward の唯一の経路であり、
+# 条件不一致リクエストは aws_lb_listener.http の default_action（403 fixed-response）に落ちる。
+# 将来ルールを追加する場合は priority の重複・順序に注意すること（2 以上を使用）。
 resource "aws_lb_listener_rule" "cloudfront_verify" {
   listener_arn = aws_lb_listener.http.arn
   priority     = 1
