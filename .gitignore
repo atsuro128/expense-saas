@@ -18,6 +18,13 @@ vendor/
 # Node.js / Frontend
 node_modules/
 dist/
+# cmd/server/frontend/dist/ は go:embed のスタブ（.gitkeep）のみ追跡する。
+# 実際の Vite build 成果物は Dockerfile の frontend-builder stage で生成される。
+# git では「ディレクトリが ignore されるとファイルのネゲーションが効かない」仕様があるため、
+# ディレクトリ自体と .gitkeep を個別にネゲーションする。
+!cmd/server/frontend/
+!cmd/server/frontend/dist/
+!cmd/server/frontend/dist/.gitkeep
 .next/
 coverage/
 *.tsbuildinfo
