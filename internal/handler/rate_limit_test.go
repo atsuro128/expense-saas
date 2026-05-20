@@ -135,7 +135,7 @@ func newRateLimitedTestServer(
 	r.Use(middleware.RequestID)
 	// 本番（cmd/server/main.go:165）の global ミドルウェア配置を再現する。
 	// 未認証エンドポイントを含む全ルートに IP ベースのレート制限が適用される（CRS-077）。
-	r.Use(middleware.RateLimitByIP(ctx, unauthLimit, window))
+	r.Use(middleware.RateLimitByIP(ctx, unauthLimit, window, 0))
 
 	// 未認証ルート（グローバル未認証レート制限 + ログイン専用レート制限を適用）。
 	r.Group(func(pub chi.Router) {
@@ -149,7 +149,7 @@ func newRateLimitedTestServer(
 		// ログインエンドポイントはグローバル IP 制限 + ログイン専用レート制限（二重）を適用する。
 		// security.md §4.4: ログインエンドポイントには専用の 5 req/min/IP を適用。
 		pub.With(
-			middleware.RateLimitByIP(ctx, loginLimit, window),
+			middleware.RateLimitByIP(ctx, loginLimit, window, 0),
 		).Post("/api/auth/login", authHandler.Login)
 	})
 
@@ -158,7 +158,7 @@ func newRateLimitedTestServer(
 		priv.Use(middleware.Auth(verifier))
 		priv.Use(middleware.TenantContext(pool))
 		// 認証済みリクエストにユーザーベースのレート制限を適用する。
-		priv.Use(middleware.RateLimitByUser(ctx, authLimit, window))
+		priv.Use(middleware.RateLimitByUser(ctx, authLimit, window, 0))
 
 		// 全認証ロール共通。
 		priv.With(middleware.RequireRole("member", "approver", "admin", "accounting")).Group(func(all chi.Router) {
@@ -181,7 +181,7 @@ func newRateLimitedTestServer(
 
 			// 添付ファイル（ファイルアップロードにはアップロード専用レート制限を適用）。
 			// security.md §4.4: ファイルアップロードには 10 req/min/user を適用。
-			all.With(middleware.RateLimitByUser(ctx, uploadLimit, window)).
+			all.With(middleware.RateLimitByUser(ctx, uploadLimit, window, 0)).
 				Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}/download", attachmentHandler.GetAttachmentDownload)
