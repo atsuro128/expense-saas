@@ -55,6 +55,7 @@ JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
 S3_BUCKET=CHANGEME_S3_BUCKET
 AWS_REGION=ap-northeast-1
 CORS_ALLOWED_ORIGINS=${cors_allowed_origins}
+TRUSTED_PROXY_COUNT=${trusted_proxy_count}
 APP_ENV_EOF
 chmod 600 /etc/expense-saas/app.env
 
