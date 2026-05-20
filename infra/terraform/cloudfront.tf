@@ -86,7 +86,15 @@ resource "aws_cloudfront_distribution" "main" {
     origin_request_policy_id = data.aws_cloudfront_origin_request_policy.all_viewer_except_host_header.id
   }
 
-  # *.cloudfront.net デフォルト証明書（独自ドメイン・ACM 不要）
+  # *.cloudfront.net デフォルト証明書（独自ドメイン・ACM 不要、コスト $0）。
+  #
+  # 【設計逸脱・受容（issue #185 B-5）】
+  # デフォルト証明書を使うと viewer 側 TLS の最小バージョンが TLSv1（1.0）に
+  # 固定され、minimum_protocol_version で引き上げられない（AWS 仕様）。
+  # security.md §11「TLS 1.2 以上」とは乖離するが、TLS 1.2+ を実際に強制するには
+  # 独自ドメイン + ACM 証明書が必要でコストが発生するため、ポートフォリオ用途では
+  # この逸脱を受容する。現代ブラウザは全て TLS 1.2/1.3 で接続するため実害は
+  # 事実上ゼロ。受容理由の詳細は ADR-0007 を参照。
   viewer_certificate {
     cloudfront_default_certificate = true
   }
