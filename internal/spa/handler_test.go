@@ -1,6 +1,7 @@
 package spa_test
 
 import (
+	"encoding/json"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -147,6 +148,25 @@ func TestSPA_APINotFound(t *testing.T) {
 	body := w.Body.String()
 	if strings.Contains(body, "<!DOCTYPE html>") {
 		t.Error("want JSON 404, got HTML (SPA fallback should not happen for /api/ paths)")
+	}
+
+	// error.code が "RESOURCE_NOT_FOUND" であること（blocker-3 の回帰防止アサーション）。
+	// 過去に "NOT_FOUND" という不一致値になっていた不具合を検知するために明示的に検証する。
+	var errResp struct {
+		Error struct {
+			Code    string `json:"code"`
+			Message string `json:"message"`
+		} `json:"error"`
+	}
+	if err := json.Unmarshal([]byte(body), &errResp); err != nil {
+		t.Errorf("failed to parse JSON error response: %v", err)
+	} else {
+		if errResp.Error.Code != "RESOURCE_NOT_FOUND" {
+			t.Errorf("want error.code %q, got %q", "RESOURCE_NOT_FOUND", errResp.Error.Code)
+		}
+		if errResp.Error.Message != "Resource not found" {
+			t.Errorf("want error.message %q, got %q", "Resource not found", errResp.Error.Message)
+		}
 	}
 }
 
