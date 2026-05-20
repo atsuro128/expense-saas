@@ -24,9 +24,17 @@ key_pair_name = "expense-saas-portfolio"
 # 例: allowed_ssh_cidr = "xxx.xxx.xxx.xxx/32"
 allowed_ssh_cidr = "YOUR_HOME_IP/32"
 
-# CORS 許可オリジン（apply 後に ALB DNS を確認してから設定する）
-# 例: cors_allowed_origins = "http://expense-saas-portfolio-alb-xxxxxxxx.ap-northeast-1.elb.amazonaws.com"
-cors_allowed_origins = "http://CHANGEME_ALB_DNS"
+# CORS 許可オリジン（issue #185 C 案: CloudFront apply 後に cloudfront_domain_name output を確認してから設定する）
+# 例: cors_allowed_origins = "https://xxxxxxxxxx.cloudfront.net"
+cors_allowed_origins = "https://CHANGEME_CLOUDFRONT_DOMAIN"
+
+# CloudFront→ALB 間のカスタムヘッダ秘密値（B-1-b 閉域強制。openssl rand -hex 32 等で生成）
+# 環境変数での設定を推奨: export TF_VAR_cloudfront_origin_verify_secret='...'
+# cloudfront_origin_verify_secret = "CHANGEME_SECRET_VALUE"
+
+# 信頼するリバースプロキシ段数（B-2-c）
+# prod（CloudFront + ALB の 2 段）= 2、dev = 0
+trusted_proxy_count = 2
 
 # S3 バケットサフィックス（グローバル名前空間衝突回避、I-04）
 # apply 前に以下で生成して設定する:

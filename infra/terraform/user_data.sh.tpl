@@ -45,7 +45,7 @@ chmod 600 /etc/expense-saas/keys/public.pem
 # 実際の RDS endpoint / DB パスワードは §5.7 の migration 完了後に手動で更新する）
 # ※ expense_owner_db_password / expense_app_db_password の値はここでは書き出さない。
 #   §5.7.3 Step 7 で ALTER ROLE + systemctl restart expense-saas 後に手動で /etc/expense-saas/app.env を更新する。
-cat > /etc/expense-saas/app.env <<'APP_ENV_EOF'
+cat > /etc/expense-saas/app.env <<APP_ENV_EOF
 PORT=8080
 LOG_LEVEL=info
 DATABASE_URL=postgres://expense_owner:CHANGEME_AFTER_MIGRATE@CHANGEME_RDS_HOST:5432/expense_saas?sslmode=require
@@ -55,6 +55,7 @@ JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
 S3_BUCKET=CHANGEME_S3_BUCKET
 AWS_REGION=ap-northeast-1
 CORS_ALLOWED_ORIGINS=${cors_allowed_origins}
+TRUSTED_PROXY_COUNT=${trusted_proxy_count}
 APP_ENV_EOF
 chmod 600 /etc/expense-saas/app.env
 

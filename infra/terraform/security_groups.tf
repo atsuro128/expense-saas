@@ -1,16 +1,24 @@
+# CloudFront マネージドプレフィックスリスト参照（B-1-b）
+# CloudFront のオリジン向け IP レンジのみ ALB へのアクセスを許可する
+data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
+  name = "com.amazonaws.global.cloudfront.origin-facing"
+}
+
 # ALB セキュリティグループ
-# §11 Q2 案1（HTTP のみ）採用のため、80 のみ許可。443 は作らない
+# issue #185 / C 案: CloudFront 前段で HTTPS 化。
+# B-1-b（完全閉域）: inbound 80 を CloudFront マネージドプレフィックスリスト限定に変更。
+# 他者の自前 CloudFront 経由のアクセスはカスタムヘッダ検証（alb.tf）で遮断する。
 resource "aws_security_group" "alb" {
   name        = "${local.prefix}-alb-sg"
-  description = "Security group for ALB (HTTP 80 only; Q2 decision: no HTTPS)"
+  description = "Security group for ALB (HTTP 80 from CloudFront prefix list only; issue #185 B-1-b)"
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description = "HTTP from Internet"
-    from_port   = 80
-    to_port     = 80
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
+    description     = "HTTP from CloudFront origin-facing prefix list (B-1-b)"
+    from_port       = 80
+    to_port         = 80
+    protocol        = "tcp"
+    prefix_list_ids = [data.aws_ec2_managed_prefix_list.cloudfront_origin_facing.id]
   }
 
   egress {
