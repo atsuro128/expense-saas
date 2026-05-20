@@ -100,6 +100,12 @@ variable "s3_bucket_suffix" {
   }
 }
 
+variable "restrict_alb_to_cloudfront" {
+  description = "true にすると ALB SG の HTTP 80 inbound を CloudFront マネージドプレフィックスリスト限定に絞る（B-1-b 2 層目）。\n初回 apply 時は false（デフォルト）で ALB を 0.0.0.0/0 開放のまま CloudFront を作成し、\nCloudFront が Deployed になった後に true で再 apply して SG を絞ること。\n注意: カスタムヘッダ検証（X-Origin-Verify、B-1-b 1 層目）はこの変数の値に関係なく常時有効であるため、\nfalse の間（SG が 0.0.0.0/0 の状態）も ALB はカスタムヘッダで保護されセキュリティギャップは生じない。"
+  type        = bool
+  default     = false
+}
+
 # §11 Q1: 案B（EC2 上で docker build）確定。
 # image_tag は default = "" の optional 変数として定義し、
 # user_data 側で空文字なら docker pull をスキップしてビルド分岐へ進む（W-01 対応）。

@@ -295,10 +295,15 @@ sudo systemctl enable --now expense-saas
 ## 8. ヘルスチェック確認
 
 ```bash
-# ALB 経由
-curl -i http://<alb_dns_name>/health
-# 期待: HTTP/1.1 200 OK, {"status":"ok",...}
+# CloudFront 経由（issue #185 C 案: PR #151 以降は CloudFront 経由でアクセスする）
+# alb_dns_name への直アクセスは ALB リスナーのデフォルトアクションで 403 になる
+curl -i https://<cloudfront_domain_name>/health
+# 期待: HTTP/2 200, {"status":"ok",...}
+# cloudfront_domain_name は `terraform output cloudfront_domain_name` で確認する
 ```
+
+なお ALB ターゲットグループのヘルスチェック（`/health` への HTTP 80 GET）は VPC 内部の
+EC2:8080 への直接経路で行われるため CloudFront を経由せず、上記とは独立して動作する。
 
 ## 9. terraform destroy（UAT 終了後、費用節約のため）
 
