@@ -1,24 +1,14 @@
 package spa
 
 import (
-	"encoding/json"
 	"io/fs"
 	"log/slog"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"expense-saas/internal/middleware"
 )
-
-// apiErrorBody は /api/* 未定義パスへの JSON 404 レスポンスのボディ構造体。
-// middleware.ErrorResponse と同じ JSON 形式に揃える。
-type apiErrorBody struct {
-	Error apiErrorDetail `json:"error"`
-}
-
-type apiErrorDetail struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-}
 
 // Handler は embed.FS から Vite build 成果物を配信する SPA fallback ハンドラを返す。
 //
@@ -49,9 +39,10 @@ func Handler(distFS fs.FS) http.HandlerFunc {
 
 		// /api/ プレフィックスは API ルートとして扱う。
 		// chi ルータで定義済みの /api/* パスには先にマッチするため、ここへ到達するのは未定義パスのみ。
-		// SPA fallback させず、API エラーレスポンスと同形式の JSON 404 を返す（architecture.md §4.0）。
+		// SPA fallback させず、プロジェクト標準の JSON 404 を返す（architecture.md §4.0）。
+		// middleware.RespondError を使い、handler/helpers.go の RESOURCE_NOT_FOUND と同一のコード値に統一する。
 		if strings.HasPrefix(path, "/api/") {
-			respondAPINotFound(w)
+			middleware.RespondError(w, http.StatusNotFound, "RESOURCE_NOT_FOUND", "Resource not found")
 			return
 		}
 
@@ -65,22 +56,6 @@ func Handler(distFS fs.FS) http.HandlerFunc {
 
 		// 拡張子なしのパスは SPA fallback: index.html を返す。
 		serveIndexHTML(fileServer, w, r)
-	}
-}
-
-// respondAPINotFound は未定義 /api/* パスへの JSON 404 レスポンスを返す。
-// middleware.RespondError と同じ JSON 構造・Content-Type を使用する。
-func respondAPINotFound(w http.ResponseWriter) {
-	body := apiErrorBody{
-		Error: apiErrorDetail{
-			Code:    "NOT_FOUND",
-			Message: "not found",
-		},
-	}
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	w.WriteHeader(http.StatusNotFound)
-	if err := json.NewEncoder(w).Encode(body); err != nil {
-		slog.Error("SPA API 404 レスポンスの JSON エンコードに失敗しました", "error", err)
 	}
 }
 
