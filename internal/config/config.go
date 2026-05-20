@@ -18,6 +18,7 @@ type Config struct {
 	Port                     string // PORT（デフォルト: "8080"）
 	LoginRateLimitPerMinute  int    // LOGIN_RATE_LIMIT_PER_MINUTE（デフォルト: 5）
 	UnauthRateLimitPerMinute int    // UNAUTH_RATE_LIMIT_PER_MINUTE（デフォルト: 20）
+	TrustedProxyCount        int    // TRUSTED_PROXY_COUNT（デフォルト: 0）— 信頼するプロキシ段数（CloudFront+ALB の場合は 2）
 }
 
 // LoadConfig は環境変数から設定を読み込み、Config を返す。
@@ -67,6 +68,14 @@ func LoadConfig() (*Config, error) {
 		return nil, err
 	}
 
+	// 信頼するプロキシ段数（issue #185 B-2）。
+	// prod で CloudFront+ALB の 2 段構成を使う場合は 2 を設定する。
+	// 未設定または空文字の場合はデフォルト値 0（dev 環境: XFF 完全無視）を使用する。
+	trustedProxyCount, err := parseNonNegativeIntEnv("TRUSTED_PROXY_COUNT", 0)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Config{
 		DatabaseURL:              databaseURL,
 		AppDatabaseURL:           appDatabaseURL,
@@ -77,6 +86,7 @@ func LoadConfig() (*Config, error) {
 		Port:                     port,
 		LoginRateLimitPerMinute:  loginRateLimit,
 		UnauthRateLimitPerMinute: unauthRateLimit,
+		TrustedProxyCount:        trustedProxyCount,
 	}, nil
 }
 
@@ -94,6 +104,24 @@ func parsePositiveIntEnv(key string, defaultVal int) (int, error) {
 	}
 	if v <= 0 {
 		return 0, fmt.Errorf("environment variable %s must be a positive integer, got %d", key, v)
+	}
+	return v, nil
+}
+
+// parseNonNegativeIntEnv は環境変数 key を非負整数としてパースして返す。
+// 未設定または空文字の場合は defaultVal を返す。
+// 不正値（非数値・負数）の場合はエラーを返す。0 は有効値として許容する。
+func parseNonNegativeIntEnv(key string, defaultVal int) (int, error) {
+	raw := os.Getenv(key)
+	if raw == "" {
+		return defaultVal, nil
+	}
+	v, err := strconv.Atoi(raw)
+	if err != nil {
+		return 0, fmt.Errorf("environment variable %s must be an integer: %w", key, err)
+	}
+	if v < 0 {
+		return 0, fmt.Errorf("environment variable %s must be a non-negative integer, got %d", key, v)
 	}
 	return v, nil
 }

@@ -106,13 +106,14 @@ func respond429(w http.ResponseWriter, retryAfter int) {
 // RateLimitByIP は IP アドレスごとにレート制限を適用する middleware を返します。
 // 未認証ルート向けを想定しています。
 // ctx はバックグラウンドクリーンアップ goroutine のライフサイクルを制御します。
-func RateLimitByIP(ctx context.Context, limit int, window time.Duration) func(http.Handler) http.Handler {
+// trustedProxyCount は信頼するプロキシ段数（TRUSTED_PROXY_COUNT 環境変数由来）。remoteIP の解釈に使用する。
+func RateLimitByIP(ctx context.Context, limit int, window time.Duration, trustedProxyCount int) func(http.Handler) http.Handler {
 	store := newRateLimitStore(limit, window)
 	startCleanup(ctx, store)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ip := remoteIP(r)
+			ip := remoteIP(r, trustedProxyCount)
 			l := store.get(ip)
 			setRateLimitHeaders(w, limit, l, window)
 			if !l.Allow() {
@@ -132,7 +133,8 @@ func RateLimitByIP(ctx context.Context, limit int, window time.Duration) func(ht
 // コンテキストにユーザー ID が設定された認証済みルート向けを想定しています。
 // ユーザー ID が存在しない場合は IP ベースの制限にフォールバックします。
 // ctx はバックグラウンドクリーンアップ goroutine のライフサイクルを制御します。
-func RateLimitByUser(ctx context.Context, limit int, window time.Duration) func(http.Handler) http.Handler {
+// trustedProxyCount は信頼するプロキシ段数（TRUSTED_PROXY_COUNT 環境変数由来）。remoteIP の解釈に使用する。
+func RateLimitByUser(ctx context.Context, limit int, window time.Duration, trustedProxyCount int) func(http.Handler) http.Handler {
 	store := newRateLimitStore(limit, window)
 	startCleanup(ctx, store)
 
@@ -140,7 +142,7 @@ func RateLimitByUser(ctx context.Context, limit int, window time.Duration) func(
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			key := GetUserID(r.Context())
 			if key == "" {
-				key = "ip:" + remoteIP(r)
+				key = "ip:" + remoteIP(r, trustedProxyCount)
 			}
 			// テナント横断でキーが衝突しないよう、テナント ID を結合する。
 			if tid := GetTenantID(r.Context()); tid != "" {

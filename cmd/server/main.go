@@ -162,8 +162,8 @@ func main() {
 	r.Use(middleware.Cors(cfg.CORSAllowedOrigins))
 	r.Use(middleware.SecurityHeaders)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.Logger)
-	r.Use(middleware.RateLimitByIP(bgCtx, cfg.UnauthRateLimitPerMinute, time.Minute))
+	r.Use(middleware.Logger(cfg.TrustedProxyCount))
+	r.Use(middleware.RateLimitByIP(bgCtx, cfg.UnauthRateLimitPerMinute, time.Minute, cfg.TrustedProxyCount))
 
 	// 9. 認証不要なルート。
 	r.Group(func(pub chi.Router) {
@@ -172,7 +172,7 @@ func main() {
 		pub.Post("/api/auth/signup", authHandler.Signup)
 		// ログイン専用レートリミット（security.md §4.4: デフォルト 5 req/min/IP、§4.5: env で上書き可）。
 		// 公開ルート全体の 20 req/min より厳しい制限を個別に適用する。
-		pub.With(middleware.RateLimitByIP(bgCtx, cfg.LoginRateLimitPerMinute, time.Minute)).Post("/api/auth/login", authHandler.Login)
+		pub.With(middleware.RateLimitByIP(bgCtx, cfg.LoginRateLimitPerMinute, time.Minute, cfg.TrustedProxyCount)).Post("/api/auth/login", authHandler.Login)
 		pub.Post("/api/auth/refresh", authHandler.RefreshToken)
 		pub.Post("/api/auth/logout", authHandler.Logout)
 		pub.Post("/api/auth/password-reset", authHandler.RequestPasswordReset)
@@ -183,7 +183,7 @@ func main() {
 	r.Group(func(priv chi.Router) {
 		priv.Use(middleware.Auth(verifier))
 		priv.Use(middleware.TenantContext(pool))
-		priv.Use(middleware.RateLimitByUser(bgCtx, 100, time.Minute))
+		priv.Use(middleware.RateLimitByUser(bgCtx, 100, time.Minute, cfg.TrustedProxyCount))
 
 		// 全認証済みロール共通。
 		priv.With(middleware.RequireRole("member", "approver", "admin", "accounting")).Group(func(all chi.Router) {
@@ -205,7 +205,7 @@ func main() {
 			all.Delete("/api/reports/{id}/items/{itemId}", itemHandler.DeleteItem)
 
 			// 添付ファイル。
-			all.With(middleware.RateLimitByUser(bgCtx, 10, time.Minute)).
+			all.With(middleware.RateLimitByUser(bgCtx, 10, time.Minute, cfg.TrustedProxyCount)).
 				Post("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.UploadAttachment)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments", attachmentHandler.ListAttachments)
 			all.Get("/api/reports/{id}/items/{itemId}/attachments/{attId}/download", attachmentHandler.GetAttachmentDownload)
