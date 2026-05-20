@@ -24,6 +24,7 @@ import (
 	pkgs3 "expense-saas/internal/pkg/s3"
 	"expense-saas/internal/repository/postgres"
 	"expense-saas/internal/service"
+	"expense-saas/internal/spa"
 )
 
 func main() {
@@ -238,14 +239,22 @@ func main() {
 		})
 	})
 
-	// 11. HTTP サーバを起動する。
+	// 11. SPA fallback ハンドラを登録する（architecture.md §4.0）。
+	// ルーティング優先順位: /api/* → /health → その他（SPA fallback）。
+	// chi の NotFound ハンドラと Handle("/*", ...) を組み合わせ、
+	// 既存の /api/* や /health に先にマッチさせ、それ以外を SPA fallback に渡す。
+	spaHandler := spa.Handler(frontendDistFS())
+	r.Get("/*", spaHandler)
+	r.NotFound(spaHandler)
+
+	// 12. HTTP サーバを起動する。
 	addr := "0.0.0.0:" + cfg.Port
 	srv := &http.Server{
 		Addr:    addr,
 		Handler: r,
 	}
 
-	// 12. OS シグナル受信時にグレースフルシャットダウンを行う。
+	// 13. OS シグナル受信時にグレースフルシャットダウンを行う。
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
