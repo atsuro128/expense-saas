@@ -7,6 +7,13 @@
 #   (2) 機密フェッチ・書き出し区間のみ /dev/null にリダイレクトし、平文出力を残さない
 set -euo pipefail
 
+# IMDSv2 で instance-id を取得（awslogs-stream 命名用、P-2=a）
+# 配置: 機密区間（exec > /dev/null）より前（R-6 対応: INSTANCE_ID は非機密のため unset 対象外）
+TOKEN=$(curl -sX PUT "http://169.254.169.254/latest/api/token" \
+  -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
+INSTANCE_ID=$(curl -sH "X-aws-ec2-metadata-token: $TOKEN" \
+  http://169.254.169.254/latest/meta-data/instance-id)
+
 install -m 0600 -o root -g root /dev/null /var/log/user-data.log
 exec > /var/log/user-data.log 2>&1
 
@@ -126,7 +133,11 @@ if [ "$${#missing[@]}" -gt 0 ]; then
 fi
 
 # 10. systemd unit 配置
-cat > /etc/systemd/system/expense-saas.service <<'SYSTEMD_EOF'
+# heredoc を <<SYSTEMD_EOF（クォートなし）に変更（方式 X、計画書 §3.4.1）:
+#   - $${INSTANCE_ID} は bash heredoc 展開で実値に置換される
+#   - ${log_group_name} / ${aws_region} は templatefile が先に展開済み（heredoc 到達時は静的文字列）
+#   - 既存 systemd unit 中身に $ を含む箇所はゼロのため副作用なし（事前検査済み）
+cat > /etc/systemd/system/expense-saas.service <<SYSTEMD_EOF
 [Unit]
 Description=Expense SaaS API
 After=docker.service
@@ -136,6 +147,11 @@ Requires=docker.service
 Restart=always
 ExecStartPre=-/usr/bin/docker rm -f expense-saas
 ExecStart=/usr/bin/docker run --name expense-saas \
+  --log-driver=awslogs \
+  --log-opt awslogs-region=${aws_region} \
+  --log-opt awslogs-group=${log_group_name} \
+  --log-opt awslogs-stream=$${INSTANCE_ID}/api \
+  --log-opt awslogs-create-group=false \
   --env-file /etc/expense-saas/app.env \
   -v /etc/expense-saas/keys:/app/keys:ro \
   -p 8080:8080 \
