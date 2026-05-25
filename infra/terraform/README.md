@@ -318,6 +318,29 @@ curl -i https://<cloudfront_domain_name>/health
 # cloudfront_domain_name は `terraform output cloudfront_domain_name` で確認する
 ```
 
+## ログ確認（CloudWatch Logs）
+
+EC2 コンテナログは Docker awslogs ドライバ経由で CloudWatch Logs に転送される（issue #188）。
+ロググループ名: `/expense-saas/portfolio/api`（monitoring.md §9.1 参照）
+
+```bash
+# ログをリアルタイムで tail する（AWS CLI v2 必須）
+aws logs tail /expense-saas/portfolio/api --follow \
+  --region ap-northeast-1 \
+  --profile expense-saas-portfolio
+
+# 過去ログを確認する（直近 1 時間）
+aws logs tail /expense-saas/portfolio/api \
+  --since 1h \
+  --region ap-northeast-1 \
+  --profile expense-saas-portfolio
+```
+
+ログが届いていない場合は以下を確認:
+- EC2 の IAM ロールに `logs:CreateLogStream` / `logs:PutLogEvents` 権限が付与されているか（`iam.tf` の `ec2_cloudwatch_logs` ポリシー）
+- `sudo systemctl status expense-saas` でコンテナが起動しているか
+- `sudo journalctl -u expense-saas` で awslogs ドライバのエラーが出ていないか
+
 ## 11. terraform destroy（UAT 終了後、費用節約のため）
 
 Q5 確定値: 13 ヶ月目以降に terraform destroy で全リソースを削除する。
