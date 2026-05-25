@@ -18,16 +18,8 @@ variable "environment" {
   default     = "portfolio"
 }
 
-variable "key_pair_name" {
-  description = "EC2 インスタンスに使用する AWS キーペア名（AWS コンソールで事前作成が必要）"
-  type        = string
-  default     = "expense-saas-portfolio"
-}
-
-variable "allowed_ssh_cidr" {
-  description = "EC2 SSH アクセスを許可する CIDR（自宅 IP 等。例: xxx.xxx.xxx.xxx/32）"
-  type        = string
-}
+# key_pair_name / allowed_ssh_cidr は削除済み（issue #187 P-5=A）
+# SSH 廃止（issue #186 UD-1=A）により不要。接続は SSM Session Manager 経由に移行
 
 variable "db_password" {
   description = "RDS マスターユーザー（postgres）のパスワード"

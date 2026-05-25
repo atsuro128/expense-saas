@@ -6,9 +6,50 @@
 #   export TF_VAR_db_password='...'
 #   export TF_VAR_expense_owner_db_password='...'
 #   export TF_VAR_expense_app_db_password='...'
-#   export TF_VAR_jwt_private_key_pem="$(cat /tmp/expense-saas-keys/private.pem)"
-#   export TF_VAR_jwt_public_key_pem="$(cat /tmp/expense-saas-keys/public.pem)"
-#   export TF_VAR_allowed_ssh_cidr="$(curl -s ifconfig.me)/32"
+#   export TF_VAR_cloudfront_origin_verify_secret='...'
+#
+# ── SSH 関連変数は削除済み（issue #187 P-5=A） ─────────────────────────────
+# key_pair_name / allowed_ssh_cidr は削除。接続は SSM Session Manager 経由に移行
+# （issue #186 UD-1=A: ssh -i ... ec2-user@<ip> → aws ssm start-session --target <instance-id>）
+#
+# ── JWT PEM は SSM Parameter Store に移行済み（issue #187 P-0=A / P-1=B） ──
+# jwt_private_key_pem / jwt_public_key_pem 変数は削除。
+# terraform apply 前に以下のコマンドで SSM Parameter Store に手動投入すること:
+#
+#   # DATABASE_URL（オーナーロール）
+#   aws ssm put-parameter \
+#     --name "/expense-saas/portfolio/database/url" \
+#     --type SecureString \
+#     --key-id alias/aws/ssm \
+#     --value "postgres://expense_owner:<password>@<rds-endpoint>:5432/expense_saas?sslmode=require" \
+#     --region ap-northeast-1
+#
+#   # APP_DATABASE_URL（アプリロール）
+#   aws ssm put-parameter \
+#     --name "/expense-saas/portfolio/database/app_url" \
+#     --type SecureString \
+#     --key-id alias/aws/ssm \
+#     --value "postgres://expense_app:<password>@<rds-endpoint>:5432/expense_saas?sslmode=require" \
+#     --region ap-northeast-1
+#
+#   # JWT 秘密鍵
+#   aws ssm put-parameter \
+#     --name "/expense-saas/portfolio/jwt/private_key" \
+#     --type SecureString \
+#     --key-id alias/aws/ssm \
+#     --value "$(cat /path/to/private.pem)" \
+#     --region ap-northeast-1
+#
+#   # JWT 公開鍵
+#   aws ssm put-parameter \
+#     --name "/expense-saas/portfolio/jwt/public_key" \
+#     --type SecureString \
+#     --key-id alias/aws/ssm \
+#     --value "$(cat /path/to/public.pem)" \
+#     --region ap-northeast-1
+#
+# SSM Parameter Store 投入完了後に terraform apply を実行すること（投入前に apply すると
+# user_data の aws ssm get-parameters が失敗し EC2 が起動不可になる）。
 #
 # terraform.tfvars は .gitignore で除外済み。コミットしないこと。
 
@@ -17,12 +58,9 @@ aws_region   = "ap-northeast-1"
 project_name = "expense-saas"
 environment  = "portfolio"
 
-# AWS EC2 キーペア名（AWS コンソールで事前作成が必要）
-key_pair_name = "expense-saas-portfolio"
-
-# SSH 許可 CIDR（自宅 IP 等）
-# 例: allowed_ssh_cidr = "xxx.xxx.xxx.xxx/32"
-allowed_ssh_cidr = "YOUR_HOME_IP/32"
+# SSM Parameter Store パス接頭辞（env_config.md §5.3.2）
+# 変更する場合は aws ssm put-parameter の --name 引数も合わせて変更すること
+ssm_parameter_path_prefix = "/expense-saas"
 
 # CORS 許可オリジン（issue #185 C 案: CloudFront apply 後に cloudfront_domain_name output を確認してから設定する）
 # 例: cors_allowed_origins = "https://xxxxxxxxxx.cloudfront.net"
@@ -55,12 +93,12 @@ image_tag = ""
 # db_password               = "CHANGEME_MASTER_PASSWORD"
 # expense_owner_db_password = "CHANGEME_OWNER_PASSWORD"
 # expense_app_db_password   = "CHANGEME_APP_PASSWORD"
-# jwt_private_key_pem       = "-----BEGIN RSA PRIVATE KEY-----\n..."
-# jwt_public_key_pem        = "-----BEGIN PUBLIC KEY-----\n..."
+#
+# ── 注意: 以下の変数は削除済み（SSM Parameter Store に移行） ──
+# jwt_private_key_pem  → aws ssm put-parameter で投入（上記手順参照）
+# jwt_public_key_pem   → aws ssm put-parameter で投入（上記手順参照）
 
 # ─── NOTE: プレースホルダーのまま apply すると必ず弾かれます ──────
 # cors_allowed_origins: "CHANGEME" を含む値は validation で apply 前に拒否される
 # s3_bucket_suffix:     "CHANGEME" / 8 桁 hex 以外の値は validation で apply 前に拒否される
 # db_password 等 sensitive 変数: terraform.tfvars に記入せず TF_VAR_* 環境変数で渡すことを推奨
-# 上記以外の CHANGEME 値（allowed_ssh_cidr = "YOUR_HOME_IP/32" 等）は validation 対象外だが
-# apply 後に AWS リソースへのアクセスが成立しないため、必ず実値に置き換えること

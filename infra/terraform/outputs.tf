@@ -9,8 +9,13 @@ output "alb_dns_name" {
 }
 
 output "ec2_public_ip" {
-  description = "EC2 インスタンスのパブリック IP（SSH アクセス用）"
+  description = "EC2 インスタンスのパブリック IP（参照用。SSH は廃止済み。接続は SSM Session Manager 経由: aws ssm start-session --target <ec2_instance_id>）"
   value       = aws_instance.app.public_ip
+}
+
+output "ec2_instance_id" {
+  description = "EC2 インスタンス ID。SSM Session Manager 接続時の --target 引数に使用する（aws ssm start-session --target <value>）"
+  value       = aws_instance.app.id
 }
 
 output "rds_endpoint" {
