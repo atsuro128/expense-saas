@@ -114,3 +114,9 @@ variable "image_tag" {
   type        = string
   default     = ""
 }
+
+variable "ssm_parameter_path_prefix" {
+  description = "SSM Parameter Store のパス接頭辞（env_config.md §5.3.2）。例: /expense-saas"
+  type        = string
+  default     = "/expense-saas"
+}
