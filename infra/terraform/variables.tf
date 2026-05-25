@@ -53,17 +53,8 @@ variable "expense_app_db_password" {
   sensitive   = true
 }
 
-variable "jwt_private_key_pem" {
-  description = "JWT 署名に使用する RSA 秘密鍵（PEM 形式）。openssl genrsa で生成し TF_VAR_jwt_private_key_pem 環境変数で渡す"
-  type        = string
-  sensitive   = true
-}
-
-variable "jwt_public_key_pem" {
-  description = "JWT 検証に使用する RSA 公開鍵（PEM 形式）。openssl rsa -pubout で生成し TF_VAR_jwt_public_key_pem 環境変数で渡す"
-  type        = string
-  sensitive   = true
-}
+# jwt_private_key_pem / jwt_public_key_pem は削除済み（issue #187 P-0=A）
+# JWT PEM は SSM Parameter Store（SecureString）に移行。aws ssm put-parameter で手動投入する（P-1=B）
 
 variable "cors_allowed_origins" {
   description = "CORS 許可オリジン。issue #185 C 案適用後は CloudFront ドメイン（例: https://xxxxxxxxxx.cloudfront.net）を設定する。apply 後に cloudfront_domain_name output が判明してから設定する 2 段階デプロイ可"

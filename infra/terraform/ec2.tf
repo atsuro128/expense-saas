@@ -23,7 +23,7 @@ data "aws_ami" "al2023" {
 resource "aws_instance" "app" {
   ami                    = data.aws_ami.al2023.id
   instance_type          = "t3.micro"
-  key_name               = var.key_pair_name
+  # key_name 削除: issue #187 / issue #186 UD-1=A で SSH 廃止 → SSM Session Manager 接続に移行
   subnet_id              = aws_subnet.public_a.id
   vpc_security_group_ids = [aws_security_group.ec2.id]
   iam_instance_profile   = aws_iam_instance_profile.ec2_profile.name
@@ -34,21 +34,21 @@ resource "aws_instance" "app" {
     encrypted   = true
   }
 
-  # user_data: Docker インストール + swap 設定 + アプリ起動の準備
-  # §11 Q1 案B（EC2 上で docker build）確定済み。
-  # image_tag が空文字（デフォルト）なら docker pull をスキップし、EC2 上で git clone + docker build する。
-  # image_tag が指定されていれば GHCR/ECR 等から docker pull する（将来の案A/C 用分岐）。
+  # user_data: SSM Parameter Store からシークレット取得 + Docker + systemd 設定（issue #187）
+  # P-6=B 採用: 非機密項目（cors_allowed_origins / trusted_proxy_count）は Terraform variable から埋め込み
+  # 機密項目（jwt_*_pem）は SSM Parameter Store 経由のため templatefile 引数から削除
   user_data = templatefile("${path.module}/user_data.sh.tpl", {
-    project_name         = var.project_name
-    environment          = var.environment
-    image_tag            = var.image_tag
-    jwt_private_key_pem  = var.jwt_private_key_pem
-    jwt_public_key_pem   = var.jwt_public_key_pem
-    cors_allowed_origins = var.cors_allowed_origins
-    trusted_proxy_count  = var.trusted_proxy_count
+    environment               = var.environment
+    ssm_parameter_path_prefix = var.ssm_parameter_path_prefix
+    aws_region                = var.aws_region
+    image_tag                 = var.image_tag
+    cors_allowed_origins      = var.cors_allowed_origins
+    trusted_proxy_count       = var.trusted_proxy_count
   })
 
-  user_data_replace_on_change = false
+  # true に設定: user_data 変更時に EC2 を再作成する（P-3=A / R-3 対策）
+  # false のままだと SSM 移行スクリプトが既存インスタンスに反映されない
+  user_data_replace_on_change = true
 
   tags = merge(local.common_tags, {
     Name = "${local.prefix}-app"
