@@ -10,8 +10,13 @@
   - Linux/macOS: [Terraform 公式インストール手順](https://developer.hashicorp.com/terraform/install) を参照
 - AWS CLI が設定済み（`~/.aws/credentials` に `[expense-saas-portfolio]` プロファイル）
 - IAM ユーザー `terraform-deployer`（AdministratorAccess）のアクセスキーが設定済み（Q4 確定）
-- キーペア `expense-saas-portfolio.pem` が AWS コンソールで作成済み・ローカルに保存済み（chmod 400）
-- JWT 鍵ペアが生成済み（下記 §6 参照）
+- SSM Parameter Store に 4 件のパラメータが手動投入済み（**apply 前に必ず実施。§6 参照**）
+  - `/expense-saas/portfolio/database/url`
+  - `/expense-saas/portfolio/database/app_url`
+  - `/expense-saas/portfolio/jwt/private_key`
+  - `/expense-saas/portfolio/jwt/public_key`
+
+> **注**: SSH キーペア（`expense-saas-portfolio.pem`）は issue #187 で廃止済み。EC2 接続は SSM Session Manager を使用する（§7 参照）。
 
 ## 2. Terraform state バックエンド初期化（一回限り、USER が実施）
 
@@ -51,27 +56,73 @@ echo "Lock table:   expense-saas-tflock"
 
 `backend.tf` の `bucket` を上で作成したバケット名に書き換える（または `-backend-config=bucket=...` で渡す）。
 
-## 3. Terraform init / plan / apply（USER が実施）
+## 3. SSM Parameter Store への事前投入（apply 前に必須）
+
+EC2 起動時の user_data が SSM から 4 件のパラメータを取得する。**terraform apply の前に必ずこの手順を完了すること**。投入前に apply すると user_data の `aws ssm get-parameters` が失敗し EC2 が起動不可になる。
+
+```bash
+export AWS_PROFILE=expense-saas-portfolio
+
+# DATABASE_URL（オーナーロール）
+aws ssm put-parameter \
+  --name "/expense-saas/portfolio/database/url" \
+  --type SecureString \
+  --key-id alias/aws/ssm \
+  --value "postgres://expense_owner:<password>@<rds-endpoint>:5432/expense_saas?sslmode=require" \
+  --region ap-northeast-1
+
+# APP_DATABASE_URL（アプリロール）
+aws ssm put-parameter \
+  --name "/expense-saas/portfolio/database/app_url" \
+  --type SecureString \
+  --key-id alias/aws/ssm \
+  --value "postgres://expense_app:<password>@<rds-endpoint>:5432/expense_saas?sslmode=require" \
+  --region ap-northeast-1
+
+# JWT 秘密鍵（PEM 全文）
+aws ssm put-parameter \
+  --name "/expense-saas/portfolio/jwt/private_key" \
+  --type SecureString \
+  --key-id alias/aws/ssm \
+  --value "$(cat /path/to/private.pem)" \
+  --region ap-northeast-1
+
+# JWT 公開鍵（PEM 全文）
+aws ssm put-parameter \
+  --name "/expense-saas/portfolio/jwt/public_key" \
+  --type SecureString \
+  --key-id alias/aws/ssm \
+  --value "$(cat /path/to/public.pem)" \
+  --region ap-northeast-1
+```
+
+投入確認:
+
+```bash
+aws ssm describe-parameters \
+  --parameter-filters "Key=Path,Option=Recursive,Values=/expense-saas/portfolio" \
+  --region ap-northeast-1 \
+  --query 'Parameters[].Name'
+# 期待: 4 件すべて表示される
+```
+
+## 4. Terraform init / plan / apply（USER が実施）
 
 ```bash
 cd expense-saas/infra/terraform
 
 # 初期化（backend が設定済みであること）
 terraform init
-# .terraform.lock.hcl が USER の Windows ホストで生成される。
-# Phase 2-2 完了後に git add して PR にコミット推奨（HashiCorp ベストプラクティス）。
 
 # tfvars 作成
 cp terraform.tfvars.example terraform.tfvars
-# エディタで編集: allowed_ssh_cidr 等を埋める
+# エディタで編集: cors_allowed_origins / s3_bucket_suffix 等を埋める
 
 # sensitive 変数を環境変数で渡す（推奨）
 export TF_VAR_db_password='<master_password>'
 export TF_VAR_expense_owner_db_password='<owner_password>'
 export TF_VAR_expense_app_db_password='<app_password>'
-export TF_VAR_jwt_private_key_pem="$(cat /tmp/expense-saas-keys/private.pem)"
-export TF_VAR_jwt_public_key_pem="$(cat /tmp/expense-saas-keys/public.pem)"
-export TF_VAR_allowed_ssh_cidr="$(curl -s ifconfig.me)/32"
+export TF_VAR_cloudfront_origin_verify_secret='<secret>'
 
 # 計画確認（必ず確認してから apply する）
 terraform plan -out=tfplan
@@ -81,25 +132,73 @@ terraform apply tfplan
 
 # 出力確認
 terraform output
-# alb_dns_name  = "expense-saas-portfolio-alb-xxxxxxxx.ap-northeast-1.elb.amazonaws.com"
-# ec2_public_ip = "xx.xx.xx.xx"
-# rds_endpoint  = (sensitive)
-# s3_bucket_name = "expense-saas-portfolio-receipts-<s3_bucket_suffix>"
+# alb_dns_name      = "expense-saas-portfolio-alb-xxxxxxxx.ap-northeast-1.elb.amazonaws.com"
+# cloudfront_domain_name = "xxxxxxxxxx.cloudfront.net"
+# ec2_public_ip     = "xx.xx.xx.xx"
+# ec2_instance_id   = "i-xxxxxxxxxxxxxxxxx"  ← SSM Session Manager 接続時に使用
+# rds_endpoint      = (sensitive)
+# s3_bucket_name    = "expense-saas-portfolio-receipts-<s3_bucket_suffix>"
 ```
 
-## 4. 既知の差分（env_config.md prod 仕様との乖離）
+## IAM ポリシー補足
+
+**`kms:Decrypt` は明示ポリシー不要（B-05）**
+
+EC2 が SSM Parameter Store の SecureString を復号する際に使用する AWS マネージドキー
+`alias/aws/ssm` は、`ssm:GetParameters` を呼び出した時点でデフォルト grant が自動付与される。
+alias ARN は KMS の IAM ポリシーで key 操作（`kms:Decrypt` 等）の Resource に使用できず、
+alias 操作（CreateAlias/UpdateAlias 等）にしか適用されない。
+そのため `aws_iam_role_policy.ec2_kms_decrypt` は削除し、自動 grant に依存している。
+
+## 5. 既知の差分（env_config.md prod 仕様との乖離）
 
 | 項目 | env_config.md prod | 本 portfolio 環境 | 理由 |
 |------|-------------------|-------------------|------|
-| TLS | ACM 証明書 + HTTPS 強制 | HTTP のみ（Q2 案1） | ポートフォリオ簡易構成。ALB DNS 直接使用 |
-| シークレット管理 | Secrets Manager | Terraform variable + EC2 ファイル（`/etc/expense-saas/`） | Secrets Manager 無料枠外 |
+| TLS | ACM 証明書 + HTTPS 強制 | CloudFront デフォルト証明書（ADR-0007、issue #185 C 案） | ポートフォリオ簡易構成 |
 | RDS | Multi-AZ 推奨 | Single-AZ（Q3） | 無料枠（750h/月）内に収めるため |
 | S3 versioning | 無効（backup_restore.md §3.2 準拠） | 無効（F-117 上流追換） | MVP は誤削除復旧不可の設計方針に従う |
 | S3_BUCKET 名 | `expense-saas-receipts-prod` 固定 | ランダムサフィックス付き | グローバル名前空間衝突回避（I-04） |
+| SSM IAM Resource | `/expense-saas/<env>/*`（env_config.md §5.3.5 prod 固定） | `/expense-saas/*`（全 env 共通） | env 追加時の IAM 修正不要を優先（§2.1 差分注記） |
 
-## 5. DB マイグレーション手順（チケット §5.7.3 c 案の完全手順）
+## 6. JWT 鍵ペア生成
 
-apply 完了後、EC2 に SSH して以下を実施する。詳細手順は `11-E-deploy.md §5.7.3` を参照。
+```bash
+mkdir -p /tmp/expense-saas-keys
+openssl genrsa -out /tmp/expense-saas-keys/private.pem 2048
+openssl rsa -in /tmp/expense-saas-keys/private.pem -pubout -out /tmp/expense-saas-keys/public.pem
+```
+
+生成後は §3 の手順で SSM Parameter Store に投入する。ローカルファイルは Terraform 変数として渡す必要はない（issue #187 P-0=A で jwt_*_pem 変数を削除済み）。
+
+## 7. EC2 への接続（SSM Session Manager 経由）
+
+SSH 接続は廃止済み（issue #187 / issue #186 UD-1=A）。EC2 への接続は SSM Session Manager を使用する。
+
+```bash
+# ec2_instance_id は terraform output ec2_instance_id で確認
+aws ssm start-session \
+  --target i-xxxxxxxxxxxxxxxxx \
+  --region ap-northeast-1 \
+  --profile expense-saas-portfolio
+```
+
+接続後の操作例:
+
+```bash
+# EC2 内で実行
+# user_data ログ確認
+sudo cat /var/log/user-data.log
+
+# app.env の内容確認（DB URL 等が SSM から正しく取得されているか）
+sudo cat /etc/expense-saas/app.env
+
+# systemd サービス状態確認
+sudo systemctl status expense-saas
+```
+
+## 8. DB マイグレーション手順（チケット §5.7.3 c 案の完全手順）
+
+apply 完了後、EC2 に SSM Session Manager で接続して以下を実施する。詳細手順は `11-E-deploy.md §5.7.3` を参照。
 
 ### 事前準備（EC2 上）
 
@@ -138,52 +237,29 @@ PGPASSWORD="$MASTER_PW" psql -h "$RDS_HOST" -U "$DB_MASTER_USER" -d "$DB_NAME" \
 
 ### Step 2: マスターでロール / スキーマ権限 / 管理テーブル owner を整備
 
-- 両ロールのパスワードを prod 値に上書き（000002 が `PASSWORD 'localdev'` で作成しているため必須）
-- `GRANT CREATE, USAGE ON SCHEMA public TO expense_owner`（PostgreSQL 15+ で public への CREATE が制限されるため）
-- `ALTER TABLE schema_migrations OWNER TO expense_owner`（Step 4 で expense_owner 接続から migrate 継続するために必須）
-
 ```bash
 export PGPASSWORD="$MASTER_PW"
 psql -h "$RDS_HOST" -U "$DB_MASTER_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 <<SQL
 ALTER ROLE expense_owner WITH LOGIN PASSWORD '${OWNER_DB_PW}';
 ALTER ROLE expense_app   WITH LOGIN PASSWORD '${APP_DB_PW}';
-
--- PG15+ 対応: expense_owner が public スキーマに CREATE TABLE できるよう権限付与
 GRANT CREATE, USAGE ON SCHEMA public TO expense_owner;
-
--- schema_migrations の owner を expense_owner に移管（F-115 残課題）
 ALTER TABLE schema_migrations OWNER TO expense_owner;
-
 \du expense_owner
 \du expense_app
 \dt schema_migrations
 SQL
 unset PGPASSWORD
-
-# ゲート確認: schema_migrations の tableowner が expense_owner であること
-PGPASSWORD="$MASTER_PW" psql -h "$RDS_HOST" -U "$DB_MASTER_USER" -d "$DB_NAME" <<'SQL'
-SELECT tablename, tableowner
-  FROM pg_tables
- WHERE schemaname = 'public' AND tablename = 'schema_migrations';
--- expected: tableowner = expense_owner
-SQL
 ```
 
 ### Step 3: expense_owner 接続で default privileges を仕込む（F-118 一次対策）
-
-000002 のマスター実行版 `ALTER DEFAULT PRIVILEGES` は expense_owner が作成するテーブルには効かない（PostgreSQL 仕様）。
-003 以降の migrate（CREATE TABLE）前に投入することで、expense_app への DML が自動付与される。
 
 ```bash
 export PGPASSWORD="$OWNER_DB_PW"
 psql -h "$RDS_HOST" -U expense_owner -d "$DB_NAME" -v ON_ERROR_STOP=1 <<'SQL'
 ALTER DEFAULT PRIVILEGES FOR ROLE expense_owner IN SCHEMA public
     GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO expense_app;
-
--- シーケンスは MVP では未使用（全テーブル UUID 主キー）だが将来用保険として追加
 ALTER DEFAULT PRIVILEGES FOR ROLE expense_owner IN SCHEMA public
     GRANT USAGE ON SEQUENCES TO expense_app;
-
 \ddp
 SQL
 unset PGPASSWORD
@@ -191,108 +267,48 @@ unset PGPASSWORD
 
 ### Step 4: expense_owner で残り migration（000003 以降）を実行
 
-これにより 000003〜最終の全テーブル owner が expense_owner になり、Step 3 の default privileges 経由で expense_app への DML も自動付与される。
-
 ```bash
 export MIGRATE_DB_URL_OWNER="postgres://expense_owner:${OWNER_DB_PW}@${RDS_HOST}:5432/${DB_NAME}?sslmode=require"
 migrate -path db/migrations -database "$MIGRATE_DB_URL_OWNER" up
 
-# ゲート確認: 最終バージョン到達 / 全テーブル owner = expense_owner
+# ゲート確認
 PGPASSWORD="$OWNER_DB_PW" psql -h "$RDS_HOST" -U expense_owner -d "$DB_NAME" \
   -c 'SELECT version, dirty FROM schema_migrations;'
-PGPASSWORD="$OWNER_DB_PW" psql -h "$RDS_HOST" -U expense_owner -d "$DB_NAME" <<'SQL'
-SELECT schemaname, tablename, tableowner
-  FROM pg_tables
- WHERE schemaname = 'public'
- ORDER BY tablename;
--- expected: 全行 tableowner = expense_owner（schema_migrations を含む）
-SQL
 ```
 
 ### Step 5（保険）: expense_owner で既存テーブルへの明示 GRANT（F-118 二重ガード）
-
-Step 3 が漏れた場合でも埋まるよう、本番 9 テーブル全件に expense_app の DML を明示付与する。
 
 ```bash
 export PGPASSWORD="$OWNER_DB_PW"
 psql -h "$RDS_HOST" -U expense_owner -d "$DB_NAME" -v ON_ERROR_STOP=1 <<'SQL'
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO expense_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO expense_app;  -- 現在は対象 0 件、将来用保険
-
--- ゲート確認: tenants テーブルへの 4 種権限が expense_app に付与されているか
-SELECT grantee, privilege_type
-  FROM information_schema.role_table_grants
- WHERE table_schema = 'public'
-   AND table_name = 'tenants'
-   AND grantee = 'expense_app'
- ORDER BY privilege_type;
--- expected: SELECT / INSERT / UPDATE / DELETE の 4 行
+GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO expense_app;
 SQL
 unset PGPASSWORD
 ```
 
-### Step 6（疎通確認）: 両ロールの接続確認と DML 権限の実地検証（F-119 対応 2 段階）
+### Step 6（疎通確認）
 
 ```bash
 PGPASSWORD="$OWNER_DB_PW" psql -h "$RDS_HOST" -U expense_owner -d "$DB_NAME" -c 'SELECT 1;'
 PGPASSWORD="$APP_DB_PW"   psql -h "$RDS_HOST" -U expense_app   -d "$DB_NAME" -c 'SELECT 1;'
-
-# (a) メタデータ検証: has_table_privilege() で 9 テーブル × 4 権限を確認
-#     RLS 非依存のため tenant context なしで安全に検証できる
-PGPASSWORD="$APP_DB_PW" psql -h "$RDS_HOST" -U expense_app -d "$DB_NAME" <<'SQL'
-SELECT
-    table_name,
-    has_table_privilege('expense_app', 'public.' || table_name, 'SELECT') AS has_select,
-    has_table_privilege('expense_app', 'public.' || table_name, 'INSERT') AS has_insert,
-    has_table_privilege('expense_app', 'public.' || table_name, 'UPDATE') AS has_update,
-    has_table_privilege('expense_app', 'public.' || table_name, 'DELETE') AS has_delete
-FROM (VALUES
-    ('tenants'), ('tenant_memberships'), ('categories'),
-    ('users'), ('expense_reports'), ('expense_items'), ('attachments'),
-    ('refresh_tokens'), ('password_reset_tokens')
-) AS t(table_name)
-ORDER BY table_name;
--- 全 9 テーブルで全列が t（true）であること。f が 1 つでもあれば Step 3 / Step 5 を再実行
-SQL
-
-# (b) ライブ実地検証: RLS 非対象の users への live SELECT
-#     users / refresh_tokens / password_reset_tokens は RLS 非対象（tenant_id 持たず）
-#     tenant context 未設定でも SELECT が成立するため false negative にならない
-PGPASSWORD="$APP_DB_PW" psql -h "$RDS_HOST" -U expense_app -d "$DB_NAME" -c 'SELECT count(*) FROM users;'
-# 0 行（seed 前）が返ること。permission denied が出たら工程失敗
 ```
 
-### Step 7: terraform.tfvars / app.env を実値で更新してアプリ再起動
+## 9. Docker イメージ配布（Q1 案B: EC2 上でビルド）
 
 ```bash
-# terraform.tfvars の DATABASE_URL / APP_DATABASE_URL を確定値に更新後:
-sudo systemctl restart expense-saas
-```
+# SSM Session Manager で EC2 に接続
+aws ssm start-session --target i-xxxxxxxxxxxxxxxxx --region ap-northeast-1
 
-## 6. JWT 鍵ペア生成
-
-```bash
-mkdir -p /tmp/expense-saas-keys
-openssl genrsa -out /tmp/expense-saas-keys/private.pem 2048
-openssl rsa -in /tmp/expense-saas-keys/private.pem -pubout -out /tmp/expense-saas-keys/public.pem
-```
-
-## 7. Docker イメージ配布（Q1 案B: EC2 上でビルド）
-
-```bash
-ssh -i ~/.ssh/expense-saas-portfolio.pem ec2-user@<ec2_public_ip>
-
-# git clone して docker build
+# EC2 上で実行（git は user_data で install 済み）
 sudo dnf install -y git
 git clone https://github.com/<user>/expense-saas.git ~/expense-saas
 cd ~/expense-saas
 sudo docker build -t expense-saas:portfolio .
-
-# systemd で起動
 sudo systemctl enable --now expense-saas
 ```
 
-## 8. ヘルスチェック確認
+## 10. ヘルスチェック確認
 
 ```bash
 # CloudFront 経由（issue #185 C 案: PR #151 以降は CloudFront 経由でアクセスする）
@@ -302,10 +318,7 @@ curl -i https://<cloudfront_domain_name>/health
 # cloudfront_domain_name は `terraform output cloudfront_domain_name` で確認する
 ```
 
-なお ALB ターゲットグループのヘルスチェック（`/health` への HTTP 80 GET）は VPC 内部の
-EC2:8080 への直接経路で行われるため CloudFront を経由せず、上記とは独立して動作する。
-
-## 9. terraform destroy（UAT 終了後、費用節約のため）
+## 11. terraform destroy（UAT 終了後、費用節約のため）
 
 Q5 確定値: 13 ヶ月目以降に terraform destroy で全リソースを削除する。
 
