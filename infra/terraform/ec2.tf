@@ -45,6 +45,7 @@ resource "aws_instance" "app" {
     cors_allowed_origins      = var.cors_allowed_origins
     trusted_proxy_count       = var.trusted_proxy_count
     s3_bucket                 = aws_s3_bucket.receipts.bucket
+    log_group_name            = aws_cloudwatch_log_group.app.name # issue #188: awslogs ドライバ転送先（これ 1 個のみ追加。aws_region は既存）
   })
 
   # true に設定: user_data 変更時に EC2 を再作成する（P-3=A / R-3 対策）
@@ -55,9 +56,14 @@ resource "aws_instance" "app" {
   # IAM 付与前に走る競合を防ぐ。Terraform は role/profile 作成後、attachment と EC2 作成を
   # 並列化できるため、明示的な依存を宣言して attachment 完了を待つ。
   # ec2_kms_decrypt は B-05 で削除済み（alias/aws/ssm の自動 grant に依存するため不要）。
+  # B-06 対策 + issue #188: policy attachment および LogGroup 完了前に EC2 が起動する競合を防ぐ。
+  # ec2_cloudwatch_logs: awslogs ドライバが IAM 付与前に書き込もうとする競合回避（R-2）
+  # app (LogGroup): awslogs-create-group=false 指定のため LogGroup 先行作成が必須（R-3）
   depends_on = [
     aws_iam_role_policy_attachment.ec2_ssm_core,
     aws_iam_role_policy.ec2_ssm_parameters,
+    aws_iam_role_policy.ec2_cloudwatch_logs,
+    aws_cloudwatch_log_group.app,
   ]
 
   tags = merge(local.common_tags, {

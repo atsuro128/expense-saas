@@ -60,6 +60,30 @@ resource "aws_iam_role_policy" "ec2_ssm_parameters" {
   })
 }
 
+# CloudWatch Logs 書き込みポリシー（Docker awslogs ドライバ用、issue #188）
+# - logs:CreateLogStream / logs:PutLogEvents のみ許可（P-3=a: LogGroup は Terraform 先行作成のため CreateLogGroup 不要）
+# - Resource は対象 LogGroup ARN:* に限定（ストリームまでを最小権限で許可）
+resource "aws_iam_role_policy" "ec2_cloudwatch_logs" {
+  name = "${local.prefix}-ec2-cloudwatch-logs-policy"
+  role = aws_iam_role.ec2_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents",
+        ]
+        Resource = [
+          "${aws_cloudwatch_log_group.app.arn}:*",
+        ]
+      }
+    ]
+  })
+}
+
 # S3 アクセスポリシー（領収書バケットへの GetObject / PutObject / DeleteObject / ListBucket）
 # テナント prefix による IAM レベルの制限は MVP スコープ外。アプリ層で担保する（§3.2 iam.tf 注記）。
 resource "aws_iam_role_policy" "ec2_s3_policy" {
