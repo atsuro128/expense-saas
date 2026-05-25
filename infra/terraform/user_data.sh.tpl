@@ -74,10 +74,12 @@ for v in DATABASE_URL APP_DATABASE_URL JWT_PRIVATE_KEY JWT_PUBLIC_KEY; do
 done
 
 # 6. JWT 鍵ペアをファイルに書き出し（PEM の多行は printf '%s\n' で完全保持）
+#    install -m 0600 で atomic に空ファイルを作成してから printf で内容を上書き（W-01 対応）
+#    `>` リダイレクトは既存ファイルの内容のみ置き換え、mode/owner は install が設定した値を維持する。
+install -m 0600 -o root -g appgroup /dev/null "$${KEY_DIR}/private.pem"
+install -m 0600 -o root -g appgroup /dev/null "$${KEY_DIR}/public.pem"
 printf '%s\n' "$${JWT_PRIVATE_KEY}" > "$${KEY_DIR}/private.pem"
 printf '%s\n' "$${JWT_PUBLIC_KEY}"  > "$${KEY_DIR}/public.pem"
-chmod 600 "$${KEY_DIR}"/*.pem
-chown root:appgroup "$${KEY_DIR}"/*.pem
 
 # 7. /etc/expense-saas/app.env を生成（systemd EnvironmentFile）
 #    CORS / TRUSTED_PROXY_COUNT は非機密のため Terraform variable から直接埋め込み（P-6=B）
@@ -88,7 +90,7 @@ DATABASE_URL=$${DATABASE_URL}
 APP_DATABASE_URL=$${APP_DATABASE_URL}
 JWT_PRIVATE_KEY_PATH=/app/keys/private.pem
 JWT_PUBLIC_KEY_PATH=/app/keys/public.pem
-S3_BUCKET=expense-saas-receipts-$${ENV_NAME}
+S3_BUCKET=${s3_bucket}
 AWS_REGION=$${REGION}
 CORS_ALLOWED_ORIGINS=${cors_allowed_origins}
 TRUSTED_PROXY_COUNT=${trusted_proxy_count}

@@ -44,6 +44,7 @@ resource "aws_instance" "app" {
     image_tag                 = var.image_tag
     cors_allowed_origins      = var.cors_allowed_origins
     trusted_proxy_count       = var.trusted_proxy_count
+    s3_bucket                 = aws_s3_bucket.receipts.bucket
   })
 
   # true に設定: user_data 変更時に EC2 を再作成する（P-3=A / R-3 対策）
