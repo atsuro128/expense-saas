@@ -91,14 +91,8 @@ resource "aws_security_group" "ec2" {
     security_groups = [aws_security_group.alb.id]
   }
 
-  # SSH: 自宅 IP のみ許可
-  ingress {
-    description = "SSH from allowed CIDR"
-    from_port   = 22
-    to_port     = 22
-    protocol    = "tcp"
-    cidr_blocks = [var.allowed_ssh_cidr]
-  }
+  # SSH 22 番 ingress は削除済み（issue #187 / issue #186 UD-1=A: SSH 廃止 → SSM Session Manager）
+  # SSM エンドポイント疎通用の 443 outbound は egress の 0.0.0.0/0 でカバーされている
 
   egress {
     description = "Allow all outbound"
