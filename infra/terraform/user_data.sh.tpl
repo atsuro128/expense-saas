@@ -45,15 +45,29 @@ getent group appgroup >/dev/null || groupadd -r appgroup
 exec 3>&1 4>&2
 exec > /dev/null 2>&1
 
-PARAMS=$(aws ssm get-parameters \
-  --names \
-    "$${PARAM_PREFIX}/$${ENV_NAME}/database/url" \
-    "$${PARAM_PREFIX}/$${ENV_NAME}/database/app_url" \
-    "$${PARAM_PREFIX}/$${ENV_NAME}/jwt/private_key" \
-    "$${PARAM_PREFIX}/$${ENV_NAME}/jwt/public_key" \
-  --with-decryption \
-  --region "$${REGION}" \
-  --output json)
+# IAM eventual consistency を吸収するため 5 回までリトライ（3 秒スリープ）
+# AccessDenied は policy attachment 直後の伝播遅延でも発生するため retry で吸収する
+# 最終リトライ失敗時はログ復帰してからエラー出力する（B-03: /dev/null 区間のため）
+PARAMS=""
+for i in 1 2 3 4 5; do
+  if PARAMS=$(aws ssm get-parameters \
+      --names \
+        "$${PARAM_PREFIX}/$${ENV_NAME}/database/url" \
+        "$${PARAM_PREFIX}/$${ENV_NAME}/database/app_url" \
+        "$${PARAM_PREFIX}/$${ENV_NAME}/jwt/private_key" \
+        "$${PARAM_PREFIX}/$${ENV_NAME}/jwt/public_key" \
+      --with-decryption \
+      --region "$${REGION}" \
+      --output json 2>/dev/null); then
+    break
+  fi
+  if [ "$i" -eq 5 ]; then
+    exec 1>&3 2>&4
+    echo "ERROR: aws ssm get-parameters failed after 5 retries" >&2
+    exit 1
+  fi
+  sleep 3
+done
 
 # jq で Name -> Value を引く（PEM の改行を含む多行 SecureString も無傷で取り出せる）
 get_param() {

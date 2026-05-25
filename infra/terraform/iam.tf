@@ -60,24 +60,6 @@ resource "aws_iam_role_policy" "ec2_ssm_parameters" {
   })
 }
 
-# KMS 復号権限（SecureString 復号、AWS マネージドキー alias/aws/ssm を使用）
-# P-2=A 採用: alias/aws/ssm（無料枠内）。env_config.md §5.3.5 と整合
-resource "aws_iam_role_policy" "ec2_kms_decrypt" {
-  name = "${local.prefix}-ec2-kms-decrypt-policy"
-  role = aws_iam_role.ec2_role.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Effect   = "Allow"
-        Action   = ["kms:Decrypt"]
-        Resource = "arn:aws:kms:${var.aws_region}:*:alias/aws/ssm"
-      }
-    ]
-  })
-}
-
 # S3 アクセスポリシー（領収書バケットへの GetObject / PutObject / DeleteObject / ListBucket）
 # テナント prefix による IAM レベルの制限は MVP スコープ外。アプリ層で担保する（§3.2 iam.tf 注記）。
 resource "aws_iam_role_policy" "ec2_s3_policy" {

@@ -51,6 +51,15 @@ resource "aws_instance" "app" {
   # false のままだと SSM 移行スクリプトが既存インスタンスに反映されない
   user_data_replace_on_change = true
 
+  # B-06 対策: policy attachment 完了前に EC2 が起動し user_data の aws ssm get-parameters が
+  # IAM 付与前に走る競合を防ぐ。Terraform は role/profile 作成後、attachment と EC2 作成を
+  # 並列化できるため、明示的な依存を宣言して attachment 完了を待つ。
+  # ec2_kms_decrypt は B-05 で削除済み（alias/aws/ssm の自動 grant に依存するため不要）。
+  depends_on = [
+    aws_iam_role_policy_attachment.ec2_ssm_core,
+    aws_iam_role_policy.ec2_ssm_parameters,
+  ]
+
   tags = merge(local.common_tags, {
     Name = "${local.prefix}-app"
   })

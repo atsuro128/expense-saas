@@ -140,6 +140,16 @@ terraform output
 # s3_bucket_name    = "expense-saas-portfolio-receipts-<s3_bucket_suffix>"
 ```
 
+## IAM ポリシー補足
+
+**`kms:Decrypt` は明示ポリシー不要（B-05）**
+
+EC2 が SSM Parameter Store の SecureString を復号する際に使用する AWS マネージドキー
+`alias/aws/ssm` は、`ssm:GetParameters` を呼び出した時点でデフォルト grant が自動付与される。
+alias ARN は KMS の IAM ポリシーで key 操作（`kms:Decrypt` 等）の Resource に使用できず、
+alias 操作（CreateAlias/UpdateAlias 等）にしか適用されない。
+そのため `aws_iam_role_policy.ec2_kms_decrypt` は削除し、自動 grant に依存している。
+
 ## 5. 既知の差分（env_config.md prod 仕様との乖離）
 
 | 項目 | env_config.md prod | 本 portfolio 環境 | 理由 |
