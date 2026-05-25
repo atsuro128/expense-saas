@@ -21,8 +21,8 @@ data "aws_ami" "al2023" {
 
 # EC2 インスタンス
 resource "aws_instance" "app" {
-  ami                    = data.aws_ami.al2023.id
-  instance_type          = "t3.micro"
+  ami           = data.aws_ami.al2023.id
+  instance_type = "t3.micro"
   # key_name 削除: issue #187 / issue #186 UD-1=A で SSH 廃止 → SSM Session Manager 接続に移行
   subnet_id              = aws_subnet.public_a.id
   vpc_security_group_ids = [aws_security_group.ec2.id]
