@@ -35,15 +35,21 @@ data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
 # alb_sg → cloudfront → alb → alb_sg の循環依存になるため depends_on は付けない。
 # ────────────────────────────────────────────────────────────────────────────
 resource "aws_security_group" "alb" {
-  name        = "${local.prefix}-alb-sg"
+  # create_before_destroy のため name_prefix で同名衝突を回避 (issue #189 関連)
+  name_prefix = "${local.prefix}-alb-sg-"
   description = "Security group for ALB (HTTP 80 ingress controlled by restrict_alb_to_cloudfront; issue #185 B-1-b)"
   vpc_id      = aws_vpc.main.id
+
+  # SG 再作成時に旧 SG を ALB から detach してから destroy するため
+  lifecycle {
+    create_before_destroy = true
+  }
 
   # restrict_alb_to_cloudfront=false（初回 apply）: 0.0.0.0/0 開放
   dynamic "ingress" {
     for_each = var.restrict_alb_to_cloudfront ? [] : [1]
     content {
-      description = "HTTP from anywhere (初回 apply 用。カスタムヘッダ検証で保護済み。CloudFront Deployed 確認後に restrict_alb_to_cloudfront=true で絞ること)"
+      description = "HTTP from anywhere (initial apply; protected by X-Origin-Verify header; switch restrict_alb_to_cloudfront=true after CloudFront Deployed)"
       from_port   = 80
       to_port     = 80
       protocol    = "tcp"
@@ -55,7 +61,7 @@ resource "aws_security_group" "alb" {
   dynamic "ingress" {
     for_each = var.restrict_alb_to_cloudfront ? [1] : []
     content {
-      description     = "HTTP from CloudFront origin-facing prefix list only (B-1-b 2 層目)"
+      description     = "HTTP from CloudFront origin-facing prefix list only (B-1-b 2nd layer)"
       from_port       = 80
       to_port         = 80
       protocol        = "tcp"
