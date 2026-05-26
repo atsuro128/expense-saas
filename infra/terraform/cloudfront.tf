@@ -23,11 +23,12 @@ resource "aws_cloudfront_distribution" "main" {
   comment         = "${local.prefix} CloudFront distribution (issue #185 C案)"
   enabled         = true
   is_ipv6_enabled = true
-  # SPA のルート `/` アクセス時に CloudFront が `/index.html` をオリジンから取得する。
-  # ALB/アプリ側でのディープリンクフォールバックと役割は異なり、双方が機能して問題ない。
-  # なお `/health` は `/api/*` パターンに合致しないためこのデフォルトビヘイビアに流れるが、
-  # 機密情報を含まないため CloudFront エッジにキャッシュされても実害なし（W-A 参照）。
-  default_root_object = "index.html"
+  # default_root_object は設定しない (issue #190)
+  # 過去 PR #151 で "index.html" を設定していたが、これは S3 オリジン向け機能で、
+  # カスタムオリジン (ALB) + Go 製 SPA fallback ハンドラの組み合わせでは無限リダイレクトループを引き起こす:
+  #   CloudFront が / を /index.html にリライト → Go FileServer が /index.html を Location: ./ で 301 → / に戻り無限ループ
+  # SPA fallback handler (internal/spa/handler.go) はすでに / リクエストを正しく処理するため、
+  # default_root_object なしで CloudFront はそのまま / を ALB に転送する経路で問題なく動作する。
 
   # コスト制御: PriceClass_200 以下で無料枠維持
   # PriceClass_200 = 北米・欧州・アジアパシフィック（日本含む）
