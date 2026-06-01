@@ -1,6 +1,6 @@
 // Package seed はローカル開発用フィクスチャ投入のコアロジックを提供する。
 // testutil.SeedFixtures（テスト専用）と cmd/seed（スタンドアロン CLI）の両方から呼び出す。
-// 投入内容は test_strategy.md §4.2/4.3/4.4 のフィクスチャ定義に準拠する。
+// 投入内容は test_strategy.md §4.2〜4.6 のフィクスチャ定義に準拠する。
 package seed
 
 import (
@@ -588,7 +588,8 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 	}
 
 	// 添付ファイルレコード投入（SMK-038 削除確認用）。
-	// reportDraft に紐付く 1 件を投入する。seed 再実行で SMK-038 実施後の削除状態を復元できる。
+	// reportDraft に紐付く 1 件を投入する。ON CONFLICT (attachment_id) DO NOTHING のため、
+	// SMK-038 で論理削除（deleted_at 設定）済みの行は seed 再実行では復元されない（deleted_at を戻す UPDATE は行わない）。
 	// s3_key は files.md §2.2 の形式: {tenant_id}/{report_id}/{attachment_id}
 	draftS3Key := attachmentDraftS3Key()
 	if _, err := conn.Exec(ctx,
