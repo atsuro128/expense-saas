@@ -29,10 +29,11 @@
 | test-member@example.com | Member | Test Company A |
 | test-member-empty@example.com | Member（データなし） | Test Company A |
 | test-accounting@example.com | Accounting | Test Company A |
+| test-admin-b@example.com | Admin | Test Company B |
 | test-approver-b@example.com | Approver | Test Company B |
 | test-member-b@example.com | Member | Test Company B |
 
-> テナント B のアカウントでログインすると、テナント A のレポートが一切見えないこと（テナント分離）を確認できる。
+> テナント B はクロステナント検証用の最小構成テナントです。Accounting ロールは意図的に置かず、テナント分離・ロール別アクセス制御の確認に特化しています。テナント B のアカウントでログインすると、テナント A のレポートが一切見えないこと（テナント分離）を確認できます。
 > 公開デモは費用都合により予告なく停止する可能性がある。
 
 ---

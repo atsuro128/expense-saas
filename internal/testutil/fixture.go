@@ -26,6 +26,8 @@ const (
 	UserMemberEmptyID = seed.UserMemberEmptyID
 	// SMK-104 用: テナント B Approver。
 	UserApproverBID = seed.UserApproverBID
+	// issue-109 ステップ1: テナント B Admin（業務モデル整合のため追加）。
+	UserAdminBID = seed.UserAdminBID
 	// SMK-105 用: テナント A 第二 Approver。
 	UserApprover2ID = seed.UserApprover2ID
 

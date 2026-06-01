@@ -36,6 +36,9 @@ const (
 	UserMemberEmptyID = "aaaaaaaa-3333-3333-3333-000000000004"
 	// SMK-104 用: テナント B Approver。
 	UserApproverBID = "bbbbbbbb-2222-2222-2222-000000000022"
+	// issue-109 ステップ1: テナント B Admin（業務モデル整合のため追加）。
+	// 命名規則: bbbbbbbb-1111-1111-1111-000000000011（テナント B = bbbb, Admin = 1111 系）。
+	UserAdminBID = "bbbbbbbb-1111-1111-1111-000000000011"
 	// SMK-105 用: テナント A 第二 Approver。
 	UserApprover2ID = "aaaaaaaa-2222-2222-2222-000000000023"
 
@@ -177,6 +180,8 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		{UserMemberEmptyID, "test-member-empty@example.com", "Test Member Empty"},
 		// SMK-104 用: テナント B Approver。
 		{UserApproverBID, "test-approver-b@example.com", "Test Approver B"},
+		// issue-109 ステップ1: テナント B Admin（業務モデル整合のため追加）。
+		{UserAdminBID, "test-admin-b@example.com", "Test Admin B"},
 		// SMK-105 用: テナント A 第二 Approver。
 		{UserApprover2ID, "test-approver2@example.com", "Test Approver Two"},
 	}
@@ -205,6 +210,8 @@ func Run(ctx context.Context, pool *pgxpool.Pool, s3Client *s3.Client) error {
 		{TenantAID, UserMemberEmptyID, domain.RoleMember},
 		// SMK-104 用: テナント B Approver のメンバーシップ。
 		{TenantBID, UserApproverBID, domain.RoleApprover},
+		// issue-109 ステップ1: テナント B Admin のメンバーシップ（業務モデル整合のため追加）。
+		{TenantBID, UserAdminBID, domain.RoleAdmin},
 		// SMK-105 用: テナント A 第二 Approver のメンバーシップ。
 		{TenantAID, UserApprover2ID, domain.RoleApprover},
 	}
