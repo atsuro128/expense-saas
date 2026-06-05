@@ -14,7 +14,7 @@ data "aws_caller_identity" "current" {}
 
 resource "aws_iam_role" "scheduler" {
   name               = "${local.prefix}-scheduler-role"
-  description        = "EventBridge Scheduler が EC2/RDS を stop/start するための IAM ロール（issue #197）"
+  description        = "IAM role for EventBridge Scheduler to stop/start EC2 and RDS (issue #197)"
   assume_role_policy = data.aws_iam_policy_document.scheduler_assume.json
 
   tags = merge(local.common_tags, {
@@ -67,12 +67,12 @@ data "aws_iam_policy_document" "scheduler_ec2_rds" {
 
 # ─── スケジュール定義 ────────────────────────────────────────────────────────
 
-# RDS 停止（JST 01:00 = UTC 16:00 前日）
+# RDS 停止（JST 00:00。schedule_expression_timezone=Asia/Tokyo のため cron は JST 直書き）
 # RDS を先に停止する（start と対称）
 resource "aws_scheduler_schedule" "rds_stop" {
   name                         = "${local.prefix}-rds-stop"
-  description                  = "夜間 RDS 停止（JST 01:00）: コスト削減目的（issue #197）"
-  schedule_expression          = "cron(0 16 * * ? *)"
+  description                  = "Stop RDS at night (JST 00:00) for cost reduction (issue #197)"
+  schedule_expression          = "cron(0 0 * * ? *)"
   schedule_expression_timezone = "Asia/Tokyo"
 
   flexible_time_window {
@@ -89,12 +89,12 @@ resource "aws_scheduler_schedule" "rds_stop" {
   }
 }
 
-# EC2 停止（JST 01:30 = UTC 16:30 前日）
-# RDS 停止の 30 分後に EC2 を停止する
+# EC2 停止（JST 00:15。schedule_expression_timezone=Asia/Tokyo のため cron は JST 直書き）
+# RDS 停止の 15 分後に EC2 を停止する
 resource "aws_scheduler_schedule" "ec2_stop" {
   name                         = "${local.prefix}-ec2-stop"
-  description                  = "夜間 EC2 停止（JST 01:30）: コスト削減目的（issue #197）"
-  schedule_expression          = "cron(30 16 * * ? *)"
+  description                  = "Stop EC2 at night (JST 00:15) for cost reduction (issue #197)"
+  schedule_expression          = "cron(15 0 * * ? *)"
   schedule_expression_timezone = "Asia/Tokyo"
 
   flexible_time_window {
@@ -111,12 +111,12 @@ resource "aws_scheduler_schedule" "ec2_stop" {
   }
 }
 
-# RDS 起動（JST 08:00 = UTC 23:00 前日）
+# RDS 起動（JST 08:15。schedule_expression_timezone=Asia/Tokyo のため cron は JST 直書き）
 # EC2 より先に RDS を起動して available になるまで待つ
 resource "aws_scheduler_schedule" "rds_start" {
   name                         = "${local.prefix}-rds-start"
-  description                  = "朝 RDS 起動（JST 08:00）: EC2 起動より先（issue #197）"
-  schedule_expression          = "cron(0 23 * * ? *)"
+  description                  = "Start RDS in the morning (JST 08:15), before EC2 (issue #197)"
+  schedule_expression          = "cron(15 8 * * ? *)"
   schedule_expression_timezone = "Asia/Tokyo"
 
   flexible_time_window {
@@ -133,14 +133,14 @@ resource "aws_scheduler_schedule" "rds_start" {
   }
 }
 
-# EC2 起動（JST 08:15 = UTC 23:15 前日）
+# EC2 起動（JST 08:30。schedule_expression_timezone=Asia/Tokyo のため cron は JST 直書き）
 # RDS 起動の 15 分後に EC2 を起動する。
 # EC2 の systemd サービスは RestartSec=30 + StartLimitIntervalSec=0 により 30 秒間隔で無制限に
 # 再試行するため、RDS が available になるまで接続失敗しても問題ない（user_data.sh.tpl 参照）。
 resource "aws_scheduler_schedule" "ec2_start" {
   name                         = "${local.prefix}-ec2-start"
-  description                  = "朝 EC2 起動（JST 08:15）: RDS 起動の 15 分後（issue #197）"
-  schedule_expression          = "cron(15 23 * * ? *)"
+  description                  = "Start EC2 in the morning (JST 08:30), 15 min after RDS (issue #197)"
+  schedule_expression          = "cron(30 8 * * ? *)"
   schedule_expression_timezone = "Asia/Tokyo"
 
   flexible_time_window {

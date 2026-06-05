@@ -11,7 +11,10 @@ data "aws_ec2_managed_prefix_list" "cloudfront_origin_facing" {
 # オリジン保護の安全網はアプリのレート制限（RateLimitByIP / RateLimitByUser）。
 # 判断の詳細は ADR-0007 を参照。
 resource "aws_security_group" "ec2" {
-  name        = "${local.prefix}-ec2-sg"
+  # name_prefix + create_before_destroy: SG 置換時に新 SG を先に作成し、参照元（RDS SG・EC2）を
+  # 新 SG へ切り替えてから旧 SG を削除する。固定 name だと新旧同名で衝突するため name_prefix を使う。
+  # （issue #197 の apply 失敗 = 旧 SG 先行削除による DependencyViolation の修正）
+  name_prefix = "${local.prefix}-ec2-sg-"
   description = "Security group for EC2 app instance (8080 from CloudFront prefix list only; issue #197)"
   vpc_id      = aws_vpc.main.id
 
@@ -39,6 +42,10 @@ resource "aws_security_group" "ec2" {
   tags = merge(local.common_tags, {
     Name = "${local.prefix}-ec2-sg"
   })
+
+  lifecycle {
+    create_before_destroy = true
+  }
 }
 
 # RDS セキュリティグループ
