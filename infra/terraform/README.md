@@ -122,9 +122,11 @@ cp terraform.tfvars.example terraform.tfvars
 export TF_VAR_db_password='<master_password>'
 export TF_VAR_expense_owner_db_password='<owner_password>'
 export TF_VAR_expense_app_db_password='<app_password>'
-export TF_VAR_cloudfront_origin_verify_secret='<secret>'
 
 # 計画確認（必ず確認してから apply する）
+# 注意: ALB 除去・EIP 新設・EC2 SG 変更・CloudFront origin 差替は単一 apply で完結する。
+# apply 実行時は数分のダウンタイムが発生する（EC2 再作成 + CloudFront Deployed 待ち 5-15 分）。
+# アクセスの少ない時間帯に実行すること。
 terraform plan -out=tfplan
 
 # apply（RDS 作成で 10-15 分かかる）
@@ -132,12 +134,13 @@ terraform apply tfplan
 
 # 出力確認
 terraform output
-# alb_dns_name      = "expense-saas-portfolio-alb-xxxxxxxx.ap-northeast-1.elb.amazonaws.com"
 # cloudfront_domain_name = "xxxxxxxxxx.cloudfront.net"
-# ec2_public_ip     = "xx.xx.xx.xx"
-# ec2_instance_id   = "i-xxxxxxxxxxxxxxxxx"  ← SSM Session Manager 接続時に使用
-# rds_endpoint      = (sensitive)
-# s3_bucket_name    = "expense-saas-portfolio-receipts-<s3_bucket_suffix>"
+# eip_public_ip          = "xx.xx.xx.xx"
+# eip_public_dns         = "ec2-xx-xx-xx-xx.ap-northeast-1.compute.amazonaws.com"
+# ec2_public_ip          = "xx.xx.xx.xx"  （EIP と同値）
+# ec2_instance_id        = "i-xxxxxxxxxxxxxxxxx"  ← SSM Session Manager 接続時に使用
+# rds_endpoint           = (sensitive)
+# s3_bucket_name         = "expense-saas-portfolio-receipts-<s3_bucket_suffix>"
 ```
 
 ## IAM ポリシー補足
@@ -311,8 +314,8 @@ sudo systemctl enable --now expense-saas
 ## 10. ヘルスチェック確認
 
 ```bash
-# CloudFront 経由（issue #185 C 案: PR #151 以降は CloudFront 経由でアクセスする）
-# alb_dns_name への直アクセスは ALB リスナーのデフォルトアクションで 403 になる
+# CloudFront 経由（issue #185 C 案 / issue #197 lean: PR #151 以降は CloudFront 経由でアクセスする）
+# prefix list 外からの EC2:8080 への直アクセスは EC2 SG で遮断される（ALB 廃止済み）
 curl -i https://<cloudfront_domain_name>/health
 # 期待: HTTP/2 200, {"status":"ok",...}
 # cloudfront_domain_name は `terraform output cloudfront_domain_name` で確認する
@@ -341,13 +344,66 @@ aws logs tail /expense-saas/portfolio/api \
 - `sudo systemctl status expense-saas` でコンテナが起動しているか
 - `sudo journalctl -u expense-saas` で awslogs ドライバのエラーが出ていないか
 
-## 11. terraform destroy（UAT 終了後、費用節約のため）
+## 11. コスト運用: 深夜 stop/start と terraform destroy
 
-Q5 確定値: 13 ヶ月目以降に terraform destroy で全リソースを削除する。
+### 通常運用: 深夜自動 stop / 朝 start（EventBridge Scheduler）
+
+issue #197 で `scheduler.tf` を導入し、毎日の深夜 stop・朝 start を自動化している。
+
+| スケジュール | JST 時刻 | 対象 |
+|---|---|---|
+| RDS 停止 | 01:00 | RDS インスタンス |
+| EC2 停止 | 01:30 | EC2 インスタンス |
+| RDS 起動 | 08:00 | RDS インスタンス |
+| EC2 起動 | 08:15 | EC2 インスタンス |
+
+**コスト削減効果（参考値）**:
+
+| 項目 | 月額（常時稼働） | stop/start 削減効果 | 備考 |
+|---|---|---|---|
+| ALB 削除 | ~$18-20 | 全額削減（常時 0）| **最大の削減。lean 化で恒久削除** |
+| EC2 | ~$10 | 夜間停止分（約 1/3 削減）| 停止中は課金なし |
+| RDS | ~$20 | 夜間停止分（約 1/3 削減）| 停止中は課金なし |
+| EIP | ~$3.6 | 削減不可 | stop 中も課金継続 |
+| EBS/RDS ストレージ | ~数$/月 | 削減不可 | stop 中も課金継続 |
+
+stop/start で削減できるのは EC2・RDS のインスタンス稼働時間分のみ（例: 8h/日 停止で約 1/3 削減）。
+EIP ($3.6/月) と EBS/RDS ストレージは stop 中も課金継続であり削減不可。
+**最大の削減は ALB 削除 (~$18-20/月)** であり、lean 化（issue #197）がメインの施策。
+
+### 長期不在時: terraform destroy
+
+長期間デモを停止する場合（クレジット枯渇回避等）は `make destroy` で全リソースを削除する。
+RDS は `skip_final_snapshot=true`・`deletion_protection=false` のため即削除される。
 
 ```bash
 cd expense-saas/infra/terraform
-terraform destroy
+make destroy
 ```
 
-ALB が最大支出ドライバ（無料枠終了後 ~$20/月恒常）のため、UAT 期間が終わったら速やかに destroy すること。
+**destroy 後の再構築手順**:
+
+```bash
+# 1. SSM パラメータを再投入（RDS 再作成でエンドポイントが変わるため database/url・app_url を更新）
+# 2. make plan && make apply（単一 apply で完結）
+# 3. DB マイグレーション（§8 参照）
+# 4. seed 投入（make seed-remote 参照）
+```
+
+注意: SSM パラメータ（JWT 鍵等）は destroy では削除されない。
+RDS 再作成後はエンドポイントが変わるため `/expense-saas/portfolio/database/url` と
+`/expense-saas/portfolio/database/app_url` の再投入が必要。
+
+### seed 投入（destroy → apply 後のデータ再現）
+
+```bash
+# DATABASE_URL（owner ロール）を SSM から取得
+DATABASE_URL=$(aws ssm get-parameter   --name "/expense-saas/portfolio/database/url"   --with-decryption   --query 'Parameter.Value'   --output text   --region ap-northeast-1)
+
+# S3_BUCKET を確認
+S3_BUCKET=$(terraform output -raw s3_bucket_name)
+
+# EC2 上または SSM port forwarding 経由で seed を実行
+# 詳細は make seed-remote のコメントを参照
+make seed-remote
+```

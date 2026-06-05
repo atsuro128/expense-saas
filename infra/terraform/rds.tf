@@ -60,10 +60,11 @@ resource "aws_db_instance" "main" {
   # メンテナンスウィンドウ
   maintenance_window = "Mon:19:00-Mon:20:00" # JST 月曜 04:00-05:00
 
-  # スナップショット設定
-  skip_final_snapshot       = false
-  final_snapshot_identifier = "${local.prefix}-db-final-snapshot"
-  copy_tags_to_snapshot     = true
+  # スナップショット設定（issue #197: make destroy で即削除できるよう skip=true に変更）
+  # 手動 destroy / 再構築を頻繁に行うポートフォリオ用途では、スナップショット残存を
+  # 防ぎ destroy コストを最小化する。本番データの保護目的ではないため skip=true で受容。
+  skip_final_snapshot = true
+  copy_tags_to_snapshot = true
 
   # 削除保護（apply 後に手動で無効化してから destroy する）
   deletion_protection = false

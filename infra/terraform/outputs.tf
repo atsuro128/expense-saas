@@ -3,13 +3,18 @@ output "cloudfront_domain_name" {
   value       = aws_cloudfront_distribution.main.domain_name
 }
 
-output "alb_dns_name" {
-  description = "ALB の DNS 名（直アクセス不可。CloudFront 経由でのみ到達可能。B-1-b プレフィックスリスト + カスタムヘッダで CloudFront 外からの 80 番アクセスを遮断）"
-  value       = aws_lb.main.dns_name
+output "eip_public_ip" {
+  description = "EC2 に割り当てた EIP のパブリック IP アドレス。stop/start 後も不変。CloudFront origin に使用（public_dns 経由）"
+  value       = aws_eip.app.public_ip
+}
+
+output "eip_public_dns" {
+  description = "EC2 に割り当てた EIP の public DNS ホスト名。CloudFront origin の domain_name に設定している"
+  value       = aws_eip.app.public_dns
 }
 
 output "ec2_public_ip" {
-  description = "EC2 インスタンスのパブリック IP（参照用。SSH は廃止済み。接続は SSM Session Manager 経由: aws ssm start-session --target <ec2_instance_id>）"
+  description = "EC2 インスタンスのパブリック IP（EIP と同値。参照用。SSH は廃止済み。接続は SSM Session Manager 経由: aws ssm start-session --target <ec2_instance_id>）"
   value       = aws_instance.app.public_ip
 }
 

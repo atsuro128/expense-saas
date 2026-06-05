@@ -60,14 +60,13 @@ variable "cors_allowed_origins" {
   }
 }
 
-variable "cloudfront_origin_verify_secret" {
-  description = "CloudFront→ALB 間のカスタムヘッダ秘密値（B-1-b）。ALB リスナールールでこの値を検証し、不一致は 403 を返す。openssl rand -hex 32 等で生成し TF_VAR_cloudfront_origin_verify_secret 環境変数で渡す"
-  type        = string
-  sensitive   = true
-}
+# cloudfront_origin_verify_secret は削除済み（issue #197 lean 化）
+# X-Origin-Verify カスタムヘッダによるオリジン保護は廃止。
+# 代替: EC2 SG を CloudFront managed prefix list 限定に設定（security_groups.tf 参照）。
+# 判断の詳細は ADR-0007 を参照。
 
 variable "trusted_proxy_count" {
-  description = "信頼するリバースプロキシ段数（B-2-c）。実クライアント IP = XFF[len - trusted_proxy_count]。prod=2（CloudFront 追記1 + ALB 追記1）、dev=0"
+  description = "信頼するリバースプロキシ段数（B-2-c）。実クライアント IP = XFF[len - trusted_proxy_count]。prod=1（CloudFront 1 段経由）、dev=0。ALB 除去（issue #197）により prod は 2→1 に変更"
   type        = number
   default     = 0
 }
@@ -83,11 +82,8 @@ variable "s3_bucket_suffix" {
   }
 }
 
-variable "restrict_alb_to_cloudfront" {
-  description = "true にすると ALB SG の HTTP 80 inbound を CloudFront マネージドプレフィックスリスト限定に絞る（B-1-b 2 層目）。\n初回 apply 時は false（デフォルト）で ALB を 0.0.0.0/0 開放のまま CloudFront を作成し、\nCloudFront が Deployed になった後に true で再 apply して SG を絞ること。\n注意: カスタムヘッダ検証（X-Origin-Verify、B-1-b 1 層目）はこの変数の値に関係なく常時有効であるため、\nfalse の間（SG が 0.0.0.0/0 の状態）も ALB はカスタムヘッダで保護されセキュリティギャップは生じない。"
-  type        = bool
-  default     = false
-}
+# restrict_alb_to_cloudfront は削除済み（issue #197 lean 化）
+# ALB 除去に伴い不要。EC2 SG が CloudFront prefix list を直接参照する構成に変更。
 
 # §11 Q1: 案B（EC2 上で docker build）確定。
 # image_tag は default = "" の optional 変数として定義し、
