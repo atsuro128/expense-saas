@@ -132,6 +132,12 @@ terraform plan -out=tfplan
 # apply（RDS 作成で 10-15 分かかる）
 terraform apply tfplan
 
+# ⚠️ アプリ再デプロイ（EC2 が replace された apply の後は必須）
+#    plan で aws_instance.app が "must be replaced" と出た apply の後は、新しい EC2 上に
+#    アプリイメージが無いため、再デプロイしないと CloudFront が 502/504 になる。
+#    （デプロイ方式: docker save → S3 持ち込み → SSM で docker load → systemctl enable --now。
+#     手順詳細は dev-journal の tickets/step11/11-E-deploy.md を参照）
+
 # 出力確認
 terraform output
 # cloudfront_domain_name = "xxxxxxxxxx.cloudfront.net"
