@@ -4,7 +4,11 @@
 # 最大コスト削減は ALB 削除（~$18-20/月）であり、stop/start はその補完施策。
 #
 # start 順序: RDS を先に起動し、その後 EC2 を起動する。
-# EC2 の systemd サービスは Restart=always のため RDS の available 待ちを自動リトライする。
+# EC2 の systemd サービスは RestartSec=30 + StartLimitIntervalSec=0 の設定により RDS が
+# available になるまで 30 秒間隔で無制限に再試行する（user_data.sh.tpl 参照）。
+
+# アカウント ID 取得（IAM ポリシーの Resource ARN を完全修飾するため）
+data "aws_caller_identity" "current" {}
 
 # ─── IAM ロール（EventBridge Scheduler → EC2/RDS API 実行用）───────────────
 
@@ -44,7 +48,7 @@ data "aws_iam_policy_document" "scheduler_ec2_rds" {
       "ec2:StartInstances",
     ]
     resources = [
-      "arn:aws:ec2:${var.aws_region}:*:instance/${aws_instance.app.id}",
+      "arn:aws:ec2:${var.aws_region}:${data.aws_caller_identity.current.account_id}:instance/${aws_instance.app.id}",
     ]
   }
 
@@ -131,8 +135,8 @@ resource "aws_scheduler_schedule" "rds_start" {
 
 # EC2 起動（JST 08:15 = UTC 23:15 前日）
 # RDS 起動の 15 分後に EC2 を起動する。
-# EC2 の systemd サービス（Restart=always）が DB 接続を自動リトライするため、
-# RDS が available になるまで接続失敗しても問題ない。
+# EC2 の systemd サービスは RestartSec=30 + StartLimitIntervalSec=0 により 30 秒間隔で無制限に
+# 再試行するため、RDS が available になるまで接続失敗しても問題ない（user_data.sh.tpl 参照）。
 resource "aws_scheduler_schedule" "ec2_start" {
   name                         = "${local.prefix}-ec2-start"
   description                  = "朝 EC2 起動（JST 08:15）: RDS 起動の 15 分後（issue #197）"

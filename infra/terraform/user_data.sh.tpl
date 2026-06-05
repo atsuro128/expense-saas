@@ -142,9 +142,16 @@ cat > /etc/systemd/system/expense-saas.service <<SYSTEMD_EOF
 Description=Expense SaaS API
 After=docker.service
 Requires=docker.service
+# EventBridge 朝 start 時に RDS available を待つための再試行（issue #197）
+# StartLimitIntervalSec=0 で systemd の start limit を無効化し、
+# RestartSec=30 の間隔で RDS が available になるまで無制限に再試行する。
+StartLimitIntervalSec=0
 
 [Service]
+# EventBridge 朝 start 時に RDS available を待つための再試行（issue #197）
+# Go アプリは DB Ping 失敗で os.Exit(1) するが、systemd が 30 秒間隔で再起動し続ける。
 Restart=always
+RestartSec=30
 ExecStartPre=-/usr/bin/docker rm -f expense-saas
 ExecStart=/usr/bin/docker run --name expense-saas \
   --log-driver=awslogs \
