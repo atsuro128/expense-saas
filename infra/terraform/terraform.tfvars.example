@@ -6,7 +6,6 @@
 #   export TF_VAR_db_password='...'
 #   export TF_VAR_expense_owner_db_password='...'
 #   export TF_VAR_expense_app_db_password='...'
-#   export TF_VAR_cloudfront_origin_verify_secret='...'
 #
 # ── SSH 関連変数は削除済み（issue #187 P-5=A） ─────────────────────────────
 # key_pair_name / allowed_ssh_cidr は削除。接続は SSM Session Manager 経由に移行
@@ -66,19 +65,9 @@ ssm_parameter_path_prefix = "/expense-saas"
 # 例: cors_allowed_origins = "https://xxxxxxxxxx.cloudfront.net"
 cors_allowed_origins = "https://CHANGEME_CLOUDFRONT_DOMAIN"
 
-# ALB SG の HTTP 80 inbound を CloudFront プレフィックスリスト限定に絞るか（B-1-b 2 層目）
-# 初回 apply 時は false のまま実行し CloudFront を Deployed 状態にしてから、
-# true に変更して 2 回目の apply で SG を絞ること（-target は使わないこと）。
-# false の間もカスタムヘッダ検証（X-Origin-Verify）が常時有効なため保護されている。
-restrict_alb_to_cloudfront = false
-
-# CloudFront→ALB 間のカスタムヘッダ秘密値（B-1-b 閉域強制。openssl rand -hex 32 等で生成）
-# 環境変数での設定を推奨: export TF_VAR_cloudfront_origin_verify_secret='...'
-# cloudfront_origin_verify_secret = "CHANGEME_SECRET_VALUE"
-
 # 信頼するリバースプロキシ段数（B-2-c）
-# prod（CloudFront + ALB の 2 段）= 2、dev = 0
-trusted_proxy_count = 2
+# prod（CloudFront 1 段経由、issue #197 ALB 除去後）= 1、dev = 0
+trusted_proxy_count = 1
 
 # S3 バケットサフィックス（グローバル名前空間衝突回避、I-04）
 # apply 前に以下で生成して設定する:
@@ -94,9 +83,11 @@ image_tag = ""
 # expense_owner_db_password = "CHANGEME_OWNER_PASSWORD"
 # expense_app_db_password   = "CHANGEME_APP_PASSWORD"
 #
-# ── 注意: 以下の変数は削除済み（SSM Parameter Store に移行） ──
-# jwt_private_key_pem  → aws ssm put-parameter で投入（上記手順参照）
-# jwt_public_key_pem   → aws ssm put-parameter で投入（上記手順参照）
+# ── 注意: 以下の変数は削除済み（SSM Parameter Store に移行 / lean 化） ──
+# jwt_private_key_pem            → aws ssm put-parameter で投入（上記手順参照）
+# jwt_public_key_pem             → aws ssm put-parameter で投入（上記手順参照）
+# cloudfront_origin_verify_secret → issue #197 lean 化で廃止（ALB SG + X-Origin-Verify 廃止）
+# restrict_alb_to_cloudfront     → issue #197 lean 化で廃止（ALB 除去）
 
 # ─── NOTE: プレースホルダーのまま apply すると必ず弾かれます ──────
 # cors_allowed_origins: "CHANGEME" を含む値は validation で apply 前に拒否される

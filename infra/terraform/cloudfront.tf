@@ -1,7 +1,7 @@
-# CloudFront ディストリビューション（issue #185 C 案）
-# ALB を前段に置き、*.cloudfront.net デフォルト証明書で HTTPS 化。
+# CloudFront ディストリビューション（issue #185 C 案 / issue #197 lean 化）
+# EC2(EIP):8080 へ直結し、*.cloudfront.net デフォルト証明書で HTTPS 化。
 # 独自ドメイン・ACM 不要で実質 $0（CloudFront 永久無料枠内）。
-# CloudFront〜ALB 間は HTTP（B-3 で受容、ADR-0007 に記録）。
+# CloudFront〜EC2 間は HTTP:8080（B-3 で受容、ADR-0007 に記録）。
 
 # AWS マネージドキャッシュポリシー ID の参照
 # CachingOptimized: SPA 静的コンテンツ用
@@ -20,43 +20,37 @@ data "aws_cloudfront_origin_request_policy" "all_viewer_except_host_header" {
 }
 
 resource "aws_cloudfront_distribution" "main" {
-  comment         = "${local.prefix} CloudFront distribution (issue #185 C案)"
+  comment         = "${local.prefix} CloudFront distribution (issue #185 C案 / issue #197 lean)"
   enabled         = true
   is_ipv6_enabled = true
   # default_root_object は設定しない (issue #190)
   # 過去 PR #151 で "index.html" を設定していたが、これは S3 オリジン向け機能で、
-  # カスタムオリジン (ALB) + Go 製 SPA fallback ハンドラの組み合わせでは無限リダイレクトループを引き起こす:
+  # カスタムオリジン (EC2) + Go 製 SPA fallback ハンドラの組み合わせでは無限リダイレクトループを引き起こす:
   #   CloudFront が / を /index.html にリライト → Go FileServer が /index.html を Location: ./ で 301 → / に戻り無限ループ
   # SPA fallback handler (internal/spa/handler.go) はすでに / リクエストを正しく処理するため、
-  # default_root_object なしで CloudFront はそのまま / を ALB に転送する経路で問題なく動作する。
+  # default_root_object なしで CloudFront はそのまま / を EC2 に転送する経路で問題なく動作する。
 
   # コスト制御: PriceClass_200 以下で無料枠維持
   # PriceClass_200 = 北米・欧州・アジアパシフィック（日本含む）
   price_class = "PriceClass_200"
 
-  # オリジン: 既存 ALB（HTTP:80 のみ。B-3 受容）
+  # オリジン: EC2(EIP) HTTP:8080 直結（issue #197 ALB 除去・lean 化）
+  # X-Origin-Verify カスタムヘッダは廃止し、SG 一枚（CloudFront prefix list）でオリジン保護する。
   origin {
-    domain_name = aws_lb.main.dns_name
-    origin_id   = "${local.prefix}-alb-origin"
+    domain_name = aws_eip.app.public_dns
+    origin_id   = "${local.prefix}-ec2-origin"
 
     custom_origin_config {
-      http_port              = 80
+      http_port              = 8080
       https_port             = 443 # origin_protocol_policy = "http-only" のため実際には参照されない（プロバイダ必須引数）
       origin_protocol_policy = "http-only"
       origin_ssl_protocols   = ["TLSv1.2"]
-    }
-
-    # B-1-b カスタムヘッダ: CloudFront→ALB 間の秘密ヘッダ付与
-    # ALB リスナールールでこのヘッダを検証し、不一致は 403 を返す（閉域強制）
-    custom_header {
-      name  = "X-Origin-Verify"
-      value = var.cloudfront_origin_verify_secret
     }
   }
 
   # デフォルトビヘイビア: SPA 配信（GET/HEAD のみ、CachingOptimized）
   default_cache_behavior {
-    target_origin_id       = "${local.prefix}-alb-origin"
+    target_origin_id       = "${local.prefix}-ec2-origin"
     viewer_protocol_policy = "redirect-to-https"
     compress               = true
 
@@ -69,7 +63,7 @@ resource "aws_cloudfront_distribution" "main" {
   # /api/* ビヘイビア: API リクエスト（全メソッド許可、キャッシュ無効）
   ordered_cache_behavior {
     path_pattern           = "/api/*"
-    target_origin_id       = "${local.prefix}-alb-origin"
+    target_origin_id       = "${local.prefix}-ec2-origin"
     viewer_protocol_policy = "redirect-to-https"
     compress               = false
 
